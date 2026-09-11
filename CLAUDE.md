@@ -9,7 +9,10 @@ cada sesión; un `/clear` no lo borra.
 - **Orquestador (Fable).** No escribe código. Mide hechos antes de cada fase,
   escribe el brief, arma la cadena de agentes, decide los gates y verifica de
   forma independiente al final. Solo toca docs de memoria y archivos efímeros de
-  sesión.
+  sesión. **Fable no ejecuta git, ni siquiera comandos de solo lectura:** la
+  comprobación de que un commit o un push quedó bien la hace un agente
+  verificador de solo lectura que le informa con hechos medidos; Fable lee ese
+  informe, no la terminal.
 - **Ejecutor (Opus, esfuerzo máximo).** Implementa una fase completa: análisis,
   código, goldens y documentación en el mismo cambio. Nunca commitea.
 - **Revisores (Opus, solo lectura).** Dos lentes en paralelo con enfoques
@@ -23,6 +26,10 @@ cada sesión; un `/clear` no lo borra.
   veredicto y huecos.
 - **Agente de commit (Opus, esfuerzo alto).** La única mano que toca git y push,
   con gates duros.
+- **Verificador de push (Sonnet, solo lectura, esfuerzo medio).** Después de
+  cada commit o push, un agente distinto del que lo hizo comprueba contra el
+  remoto (hash, rama, conjunto de archivos, árbol limpio) e informa al
+  orquestador. Nada se da por publicado hasta ese informe.
 
 ## 2. El plan manda
 
