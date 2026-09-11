@@ -1,0 +1,72 @@
+{
+  "negocio": {
+    "nombre": "Asadero 33",
+    "logo": "logo.png",
+    "logo_ancho": 384,
+    "logo_tramado": false,
+    "titulo_premio": "¡GANASTE!",
+    "pie": [
+      "Presenta este boleto en caja",
+      "para reclamar tu premio.",
+      "Válido únicamente el día de hoy."
+    ]
+  },
+
+  "impresora": {
+    "tipo": "bluetooth",
+    "mac": "00:00:00:00:00:00",
+    "canal": 1,
+    "ancho_puntos": 576,
+    "chars_por_linea": 48,
+    "codepage": "cp858",
+    "codepage_n": 19,
+    "juego_internacional": 0,
+    "cancelar_modo_chino": true,
+    "corte": "auto",
+    "lineas_antes_corte": null,
+    "beep": false,
+    "consultar_estado": true,
+    "reintentos": 3,
+    "espera_reintento_seg": 2.0,
+    "timeout_seg": 10.0,
+    "tamano_bloque": 512,
+    "pausa_bloque_seg": 0.03,
+    "pausa_inicial_seg": 0.4,
+    "pausa_final_seg": 1.5,
+    "bytes_por_segundo": 16000,
+    "banda_imagen": 64
+  },
+
+  "gpio": {
+    "boton_jugar": 17,
+    "boton_habilitar": 27,
+    "led": 22,
+    "modo_habilitar": "mantener",
+    "pull_up": true,
+    "rebote_ms": 30,
+    "pulsacion_larga_seg": 6.0
+  },
+
+  "juego": {
+    "espera_entre_jugadas_seg": 5.0,
+    "hora_inicio_dia": 6,
+    "imprimir_inventario_al_arrancar": true,
+    "intentos_inventario_arranque": 3,
+    "consuelo": {
+      "titulo": "SIGUE PARTICIPANDO",
+      "texto": "Por hoy se agotaron los premios. ¡Gracias por jugar!"
+    }
+  },
+
+  "carpeta_datos": "datos",
+
+  "premios": [
+    { "id": "test1", "nombre": "TEST 1", "detalle": "Premio grande",  "stock": 10,  "tope_diario": 2,  "peso": 4 },
+    { "id": "test2", "nombre": "TEST 2", "detalle": "Premio grande",  "stock": 10,  "tope_diario": 2,  "peso": 4 },
+    { "id": "test3", "nombre": "TEST 3", "detalle": "PREMIO MAYOR",   "stock": 1,   "tope_diario": 1,  "peso": 1 },
+    { "id": "test4", "nombre": "TEST 4", "detalle": "Orden de tacos", "stock": 50,  "tope_diario": 10, "peso": 25 },
+    { "id": "test5", "nombre": "TEST 5", "detalle": "Bebida gratis",  "stock": 50,  "tope_diario": 10, "peso": 25 },
+    { "id": "test6", "nombre": "TEST 6", "detalle": "Postre",         "stock": 50,  "tope_diario": 10, "peso": 25 },
+    { "id": "test7", "nombre": "TEST 7", "detalle": "Refresco",       "stock": 50,  "tope_diario": 10, "peso": 25 }
+  ]
+}

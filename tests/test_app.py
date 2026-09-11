@@ -1,0 +1,386 @@
+import random
+import tempfile
+import unittest
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest import mock
+
+from ruleta import config as configmod
+from ruleta.app import Ruleta, crear_impresora
+from ruleta.config import ErrorConfig
+from ruleta.escpos import ErrorConexion, ErrorEnvio, ImpresoraMemoria
+from ruleta.hardware import Antirrebote, EntradasSimuladas
+from ruleta.inventario import Inventario
+
+
+class Reloj:
+    """Tiempo controlado: monotónico y de pared avanzan juntos."""
+
+    def __init__(self):
+        self.t = 1000.0
+        self.pared = datetime(2026, 9, 15, 19, 0, 0)
+
+    def monotonico(self):
+        return self.t
+
+    def ahora(self):
+        return self.pared
+
+    def avanzar(self, seg):
+        self.t += seg
+        self.pared += timedelta(seconds=seg)
+
+
+def config_prueba(**extra):
+    crudo = {
+        "negocio": {"nombre": "Asadero 33", "logo": None},
+        "impresora": {"tipo": "vista"},
+        "gpio": {"boton_jugar": 17, "boton_habilitar": 27, "led": 22, "rebote_ms": 30, "pulsacion_larga_seg": 3.0},
+        "juego": {"espera_entre_jugadas_seg": 5.0, "imprimir_inventario_al_arrancar": True,
+                  "intentos_inventario_arranque": 2},
+        "premios": [
+            {"id": "unico", "nombre": "Premio único", "peso": 1, "stock": 1},
+            {"id": "tacos", "nombre": "Tacos", "peso": 1000, "stock": 100},
+        ],
+    }
+    for k, v in extra.items():
+        if isinstance(v, dict) and isinstance(crudo.get(k), dict):
+            crudo[k].update(v)
+        else:
+            crudo[k] = v
+    return configmod.desde_dict(crudo)
+
+
+class TestAntirrebote(unittest.TestCase):
+    def test_ignora_rebotes_cortos(self):
+        d = Antirrebote(0.03)
+        self.assertFalse(d.actualizar(True, 0.000))
+        self.assertFalse(d.actualizar(True, 0.010))
+        self.assertFalse(d.actualizar(False, 0.020))   # rebote
+        self.assertFalse(d.actualizar(True, 0.030))    # reinicia la cuenta
+        self.assertFalse(d.actualizar(True, 0.050))
+        self.assertTrue(d.actualizar(True, 0.061))
+        self.assertTrue(d.actualizar(False, 0.070))
+        self.assertTrue(d.actualizar(False, 0.090))
+        self.assertFalse(d.actualizar(False, 0.101))
+
+
+class TestRuleta(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.reloj = Reloj()
+        self.cfg = config_prueba()
+        self.inv = Inventario(self.cfg.premios, Path(self.tmp.name), rng=random.Random(3))
+        self.imp = ImpresoraMemoria()
+        self.ent = EntradasSimuladas(reloj=self.reloj.monotonico)
+        self.dormidas = []
+        self.ruleta = self.nueva_ruleta(self.cfg, self.inv)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    # -- ayudantes ------------------------------------------------------------ #
+
+    def nueva_ruleta(self, cfg, inv):
+        return Ruleta(cfg, inv, self.imp, self.ent, reloj=self.reloj.ahora,
+                      monotonico=self.reloj.monotonico, dormir=self.dormidas.append)
+
+    def ticks(self, seg, paso=0.01):
+        n = int(round(seg / paso))
+        for _ in range(n):
+            self.ruleta.paso()
+            self.reloj.avanzar(paso)
+
+    def pulsar(self, duracion=0.15, habilitar=True):
+        self.ent.fijar_habilitar(habilitar)
+        self.ent.fijar_jugar(True)
+        self.ticks(duracion)
+        self.ent.fijar_jugar(False)
+        self.ticks(0.1)
+
+    def trabajos_texto(self):
+        return [t.decode("cp858", errors="replace") for t in self.imp.trabajos]
+
+    def entregados_total(self):
+        return self.inv.entregados("tacos") + self.inv.entregados("unico")
+
+    # -- arranque ----------------------------------------------------------- #
+
+    def test_arranque_imprime_inventario(self):
+        self.ruleta.arrancar()
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertIn("INVENTARIO", self.trabajos_texto()[0])
+        self.assertIn("(arranque)", self.trabajos_texto()[0])
+        self.assertEqual(self.ruleta.reportes_impresos, 1)
+        self.assertEqual(self.ent.estado_led, "apagado")  # habilitar suelto
+
+    def test_arranque_reintenta_y_sigue_aunque_falle(self):
+        self.imp.fallar = ErrorConexion("apagada")
+        self.ruleta.arrancar()
+        self.assertEqual(self.imp.trabajos, [])
+        self.assertEqual(len(self.dormidas), 1)    # 2 intentos -> 1 espera entre ellos
+        self.assertEqual(self.ent.estado_led, "error")
+
+    def test_arranque_respeta_detener(self):
+        self.imp.fallar = ErrorConexion("apagada")
+        self.ruleta.detener()
+        self.ruleta.arrancar()
+        self.assertEqual(self.imp.trabajos, [])
+        self.assertEqual(self.dormidas, [])
+
+    # -- jugada -------------------------------------------------------------- #
+
+    def test_pulsacion_sin_habilitar_se_ignora(self):
+        self.pulsar(habilitar=False)
+        self.assertEqual(self.imp.trabajos, [])
+        self.assertEqual(self.inv.folio_actual, 0)
+
+    def test_pulsacion_corta_imprime_un_boleto(self):
+        self.pulsar()
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertIn("BOLETO 00001", self.trabajos_texto()[0])
+        self.assertEqual(self.inv.folio_actual, 1)
+        self.assertEqual(self.ruleta.boletos_impresos, 1)
+        self.assertEqual(self.entregados_total(), 1)
+        self.assertIn("ocupado", self.ent.historial_led)
+        self.assertEqual(self.ent.estado_led, "listo")
+
+    def test_pulsacion_larga_de_jugar_tambien_es_una_jugada(self):
+        # El botón del cliente nunca imprime el inventario, aunque lo sostenga.
+        self.pulsar(duracion=4.0)
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertIn("BOLETO 00001", self.trabajos_texto()[0])
+        self.assertNotIn("INVENTARIO", self.trabajos_texto()[0])
+
+    def test_soltar_habilitar_antes_de_soltar_jugar_sigue_valiendo(self):
+        self.ent.fijar_habilitar(True)
+        self.ent.fijar_jugar(True)
+        self.ticks(0.1)
+        self.ent.fijar_habilitar(False)
+        self.ticks(0.05)
+        self.ent.fijar_jugar(False)
+        self.ticks(0.1)
+        self.assertEqual(len(self.imp.trabajos), 1)
+
+    def test_habilitar_despues_de_jugar_no_vale(self):
+        # El cliente ya tiene JUGAR presionado cuando el mesero habilita: no cuenta.
+        self.ent.fijar_jugar(True)
+        self.ticks(0.2)
+        self.ent.fijar_habilitar(True)
+        self.ticks(0.2)
+        self.ent.fijar_jugar(False)
+        self.ticks(0.1)
+        self.assertEqual(self.imp.trabajos, [])
+        # Al presionar de nuevo con HABILITAR ya sostenido, sí juega.
+        self.pulsar()
+        self.assertEqual(len(self.imp.trabajos), 1)
+
+    def test_espera_entre_jugadas(self):
+        self.pulsar()
+        self.pulsar()                       # dentro de los 5 s -> ignorada
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.ticks(5.0)
+        self.pulsar()
+        self.assertEqual(len(self.imp.trabajos), 2)
+        self.assertEqual(self.inv.folio_actual, 2)
+
+    def test_mantener_presionado_no_imprime_varias_veces(self):
+        self.ent.fijar_habilitar(True)
+        self.ent.fijar_jugar(True)
+        self.ticks(1.0)
+        self.assertEqual(self.imp.trabajos, [])      # la jugada ocurre al soltar
+        self.ent.fijar_jugar(False)
+        self.ticks(0.1)
+        self.assertEqual(len(self.imp.trabajos), 1)
+
+    def test_rebote_no_dispara(self):
+        self.ent.fijar_habilitar(True)
+        self.ent.fijar_jugar(True)
+        self.ticks(0.02)                 # menos que el antirrebote (30 ms)
+        self.ent.fijar_jugar(False)
+        self.ticks(0.2)
+        self.assertEqual(self.imp.trabajos, [])
+
+    # -- gesto de inventario (botón del mesero) -------------------------------- #
+
+    def test_habilitar_sostenido_imprime_inventario(self):
+        self.ent.fijar_habilitar(True)
+        self.ticks(3.0)
+        self.assertEqual(self.imp.trabajos, [])
+        self.ticks(0.2)
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertIn("INVENTARIO", self.trabajos_texto()[0])
+        self.assertIn("(solicitado)", self.trabajos_texto()[0])
+        self.assertEqual(self.inv.folio_actual, 0)
+        # Seguir sosteniendo no imprime más; hay que soltar y volver a presionar.
+        self.ticks(5.0)
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.ent.fijar_habilitar(False)
+        self.ticks(0.2)
+        self.ent.fijar_habilitar(True)
+        self.ticks(3.3)
+        self.assertEqual(len(self.imp.trabajos), 2)
+
+    def test_una_jugada_cancela_el_gesto_de_inventario(self):
+        self.ent.fijar_habilitar(True)
+        self.ticks(1.0)
+        self.pulsar()                    # el cliente juega mientras el mesero habilita
+        self.ticks(4.0)                  # el mesero sigue sosteniendo mucho tiempo
+        textos = self.trabajos_texto()
+        self.assertEqual(len(textos), 1)
+        self.assertIn("BOLETO 00001", textos[0])
+
+    def test_gesto_de_inventario_funciona_durante_la_espera(self):
+        self.pulsar()                    # boleto -> empieza la espera de 5 s
+        self.ent.fijar_habilitar(False)  # el mesero suelta y vuelve a presionar
+        self.ticks(0.2)
+        self.ent.fijar_habilitar(True)
+        self.ticks(3.3)
+        self.assertEqual(len(self.imp.trabajos), 2)
+        self.assertIn("INVENTARIO", self.trabajos_texto()[1])
+        self.assertEqual(self.inv.folio_actual, 1)
+
+    def test_gesto_desactivado_con_null(self):
+        cfg = config_prueba(gpio={"pulsacion_larga_seg": None})
+        self.ruleta = self.nueva_ruleta(cfg, self.inv)
+        self.ent.fijar_habilitar(True)
+        self.ticks(10.0)
+        self.assertEqual(self.imp.trabajos, [])
+
+    # -- fallos -------------------------------------------------------------- #
+
+    def test_error_conexion_revierte_el_premio(self):
+        self.imp.fallar = ErrorConexion("apagada")
+        self.pulsar()
+        self.assertEqual(self.inv.folio_actual, 1)          # el folio se consume
+        self.assertEqual(self.entregados_total(), 0)
+        self.assertEqual(self.ent.estado_led, "error")
+        self.ticks(7.0)
+        self.assertEqual(self.ent.estado_led, "listo")
+        self.imp.fallar = None
+        self.pulsar()
+        self.assertEqual(self.inv.folio_actual, 2)
+        self.assertEqual(len(self.imp.trabajos), 1)
+
+    def test_error_envio_conserva_el_premio_y_queda_pendiente(self):
+        self.imp.fallar = ErrorEnvio("se cortó", 300)
+        self.pulsar()
+        self.assertEqual(self.entregados_total(), 1)
+        self.assertEqual(self.ruleta.boletos_impresos, 0)
+        self.assertEqual(self.ent.estado_led, "error")
+        self.assertEqual([p.folio for p in self.inv.pendientes()], [1])
+
+    def test_fallo_al_guardar_no_emite_ni_mata_el_ciclo(self):
+        with mock.patch.object(Inventario, "_guardar", side_effect=OSError(30, "Read-only file system")):
+            self.pulsar()
+        self.assertEqual(self.imp.trabajos, [])
+        self.assertEqual(self.inv.folio_actual, 0)
+        self.assertEqual(self.entregados_total(), 0)
+        self.assertEqual(self.ent.estado_led, "error")
+        self.assertEqual(self.ruleta.errores, 1)
+        self.ticks(12.0)
+        self.pulsar()                                    # el disco volvió: funciona
+        self.assertEqual(len(self.imp.trabajos), 1)
+
+    def test_error_al_construir_el_boleto_devuelve_el_premio(self):
+        with mock.patch("ruleta.ticket.boleto_premio", side_effect=ValueError("logo roto")):
+            self.pulsar()
+        self.assertEqual(self.imp.trabajos, [])
+        self.assertEqual(self.inv.folio_actual, 1)
+        self.assertEqual(self.entregados_total(), 0)
+        self.assertEqual(self.ent.estado_led, "error")
+
+    def test_correr_sobrevive_a_una_excepcion_en_paso(self):
+        llamadas = []
+
+        def paso_roto():
+            llamadas.append(1)
+            if len(llamadas) == 1:
+                raise RuntimeError("gpio raro")
+            if len(llamadas) >= 3:
+                self.ruleta.detener()
+
+        self.ruleta.paso = paso_roto
+        self.ruleta.correr(periodo=0.01)
+        self.assertEqual(len(llamadas), 3)
+        self.assertEqual(self.ruleta.errores, 1)
+
+    def test_sin_premios_imprime_consuelo(self):
+        cfg = config_prueba(premios=[{"id": "unico", "nombre": "Premio único", "peso": 1, "stock": 1}])
+        inv = Inventario(cfg.premios, Path(self.tmp.name) / "c")
+        self.ruleta = self.nueva_ruleta(cfg, inv)
+        self.pulsar()
+        self.ticks(5)
+        self.pulsar()
+        textos = self.trabajos_texto()
+        self.assertEqual(len(textos), 2)
+        self.assertIn("GANASTE", textos[0])
+        self.assertNotIn("PARTICIPANDO", textos[0])
+        self.assertEqual(inv.entregados("unico"), 1)
+        self.assertEqual(inv.restantes(inv.premios["unico"]), 0)
+        self.assertIn("PARTICIPANDO", textos[1])
+        self.assertNotIn("GANASTE", textos[1])
+        self.assertEqual(inv.folio_actual, 2)
+
+    def test_modo_siempre_no_necesita_habilitar_y_no_tiene_gesto(self):
+        cfg = config_prueba(gpio={"modo_habilitar": "siempre", "boton_habilitar": None, "led": None})
+        self.ruleta = self.nueva_ruleta(cfg, self.inv)
+        self.ticks(10.0)                                 # nada se imprime solo
+        self.assertEqual(self.imp.trabajos, [])
+        self.pulsar(habilitar=False)
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertEqual(self.ent.estado_led, "listo")
+
+    def test_led_sigue_al_boton_habilitar(self):
+        self.ticks(0.1)
+        self.assertEqual(self.ent.estado_led, "apagado")
+        self.ent.fijar_habilitar(True)
+        self.ticks(0.1)
+        self.assertEqual(self.ent.estado_led, "listo")
+        self.ent.fijar_habilitar(False)
+        self.ticks(0.1)
+        self.assertEqual(self.ent.estado_led, "apagado")
+
+    def test_correr_y_detener(self):
+        pasos = []
+
+        def dormir(s):
+            pasos.append(s)
+            if len(pasos) >= 3:
+                self.ruleta.detener()
+
+        self.ruleta.dormir = dormir
+        self.ruleta.correr(periodo=0.01)
+        self.assertEqual(len(pasos), 3)
+        self.ruleta.cerrar()
+        self.assertEqual(self.ent.estado_led, "apagado")
+
+
+class TestEntradasSimuladas(unittest.TestCase):
+    def test_mantener_habilitar_es_temporal(self):
+        reloj = Reloj()
+        ent = EntradasSimuladas(reloj=reloj.monotonico)
+        self.assertFalse(ent.habilitar_presionado())
+        ent.mantener_habilitar(2.0)
+        self.assertTrue(ent.habilitar_presionado())
+        reloj.avanzar(2.5)
+        self.assertFalse(ent.habilitar_presionado())
+
+
+class TestCrearImpresora(unittest.TestCase):
+    def test_bluetooth_sin_mac_configurada(self):
+        cfg = config_prueba(impresora={"tipo": "bluetooth", "mac": "00:00:00:00:00:00"})
+        with self.assertRaises(ErrorConfig):
+            crear_impresora(cfg)
+
+    def test_tipos(self):
+        cfg = config_prueba(impresora={"tipo": "bluetooth", "mac": "AA:BB:CC:DD:EE:01", "canal": 2,
+                                       "consultar_estado": False})
+        imp = crear_impresora(cfg)
+        self.assertEqual((imp.mac, imp.canal, imp.consultar_estado), ("AA:BB:CC:DD:EE:01", 2, False))
+        self.assertEqual(crear_impresora(cfg, "vista").nombre, "vista")
+        self.assertEqual(crear_impresora(cfg, "archivo").nombre, "archivo")
+
+
+if __name__ == "__main__":
+    unittest.main()

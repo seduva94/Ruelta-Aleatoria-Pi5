@@ -1,0 +1,28 @@
+# Plantilla del servicio systemd. instalar.sh sustituye @DIR@ y @USUARIO@
+# y la copia a /etc/systemd/system/ruleta.service.
+[Unit]
+Description=Ruleta de premios Asadero 33 (boton -> boleto en impresora Bluetooth)
+After=bluetooth.service network.target
+Wants=bluetooth.service
+# Sin esto, 5 reinicios seguidos en 10 s dejarian el servicio muerto para siempre.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USUARIO@
+SupplementaryGroups=gpio
+WorkingDirectory=@DIR@
+# lgpio es el unico backend de gpiozero que funciona en la Pi 5.
+Environment=GPIOZERO_PIN_FACTORY=lgpio
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+ExecStart=/usr/bin/python3 -m ruleta
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+# Una impresion con reintentos puede tardar reintentos*(timeout+espera) ~ 40 s;
+# si se sube reintentos o timeout_seg en config.json, subir tambien esto.
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
