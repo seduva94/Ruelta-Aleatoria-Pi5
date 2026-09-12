@@ -3,15 +3,35 @@
 Plan prescriptivo. **Redactado el 2026-09-11** (después de cerrar la Fase 1) e
 incorporando los hechos que el orquestador y sus agentes midieron **ese mismo
 día**, incluida la **ejecución adelantada de la noche del 2026-09-11**, y que
-están en la **§0-bis**. Estado global: **YA EJECUTADO A MANO, SIN ACTA Y SIN
-GOLDENS**: la impresora **ya imprimió por USB** (§0-bis H9). Esta fase, por
-tanto, **no descubre: reverifica** con los comandos escritos aquí, reconcilia
-lo que se hizo a mano con lo que dice este plan, y deja el acta y los goldens
-que aquella noche no se escribieron. **La bitácora de la §0 sí está marcada**
-con la evidencia de aquella noche, pegada en
+están en la **§0-bis**. Esta fase **no descubre: reverifica** con los comandos
+escritos aquí, reconcilia lo que se hizo a mano con lo que dice este plan, y
+deja el acta y los goldens que aquella noche no se escribieron. **La bitácora de
+la §0 sí está marcada** con la evidencia de aquella noche, pegada en
 `docs/actas/2026-09-11-hechos-medidos.md`: se decidió así al lanzar la sub-fase
 2b y cada casilla dice qué evidencia la sostiene (ver «De dónde salen las
 marcas de abajo», al principio de la §0).
+
+**ESTADO GLOBAL (actualizado el 2026-09-11 por la noche, tras el deploy).**
+**Fase 2 cumplida en lo esencial y verificada en vivo, con tres pendientes
+anotados.** La impresora imprime por USB; la sub-fase **2b** está implementada,
+commiteada (`61adf9676b1072115c5fd64e6a28f6bef5454a54`), publicada, desplegada
+en la Pi y verificada por un agente independiente. Medido tras el deploy: HEAD
+de la Pi = HEAD remoto = `61adf96`, `instalar.sh` con código 0, **194 pruebas
+OK** en la Pi, diagnóstico `EXIT=0` **sin ningún `[!!]`** y con
+`[ok] impresora conectada en /dev/ruleta-impresora`, servicio
+`active`/`enabled`/`running` con **`NRestarts=0`** (se acabó el bucle de 118
+reinicios) e inventario impreso por USB a las 22:32:48 MST sin un solo `ERROR`
+ni `Traceback` en el journal. Lo que **falta** para cerrar la fase del todo:
+
+1. **El servicio quedó `active`**, y el Paso 13 pide devolverlo a
+   `enabled` + `inactive`, que es como lo dejó la Fase 1 (ficha **F-185**).
+2. **Nadie ha vuelto a correr `probar-impresora` después de 2b**: el arreglo de
+   las 48 columnas y el pitido por boleto no se han visto en papel, y el usuario
+   todavía no confirma el boleto de inventario del deploy (ficha **F-188**).
+3. **Tres goldens de la §7 y la medición de grupos del Paso 13 no se midieron**
+   en el deploy (ficha **F-187**); el acta dice cuáles, uno por uno.
+
+Acta de esta fase: `docs/actas/2026-09-11-fase-2.md`.
 
 Plan de la fase anterior: `docs/planes/fase-1-preparar-pi.md` (su **§0-bis** dice
 qué resultó falso al medirlo y su **§9** anuncia esta fase). Acta de la Fase 1:
@@ -89,24 +109,25 @@ pegado en `docs/actas/2026-09-11-hechos-medidos.md` (sección «Noche del
 | Nº | Paso | Quién | Estado | Fecha | Evidencia |
 |---|---|---|---|---|---|
 | 0 | Red de laboratorio (punto de acceso móvil de Windows) | usuario + agente | [x] | 2026-09-11 | Punto de acceso de Windows con el SSID y la contraseña del asadero; la Pi entró sola en `192.168.137.95/24` (la PC en `.1`), `ruleta.local` resuelve, internet OK y `sudo -n` OK |
-| 1 | Poner la Pi en estado de trabajo (servicio detenido y **deshabilitado**, `git pull`) | agente | [~] | 2026-09-11 | A medias: el servicio se **detuvo** (`inactive`) para imprimir la prueba, pero **no se deshabilitó** y **no hubo `git pull`**. Al desplegar 2b hay que hacer el paso entero |
+| 1 | Poner la Pi en estado de trabajo (servicio detenido y **deshabilitado**, `git pull`) | agente | [~] | 2026-09-11 | **A medias.** Del deploy de 2b sí salió la parte del repositorio: respaldo `~/config.json.pi-antes-deploy`, `git checkout --` de los tres archivos locales, `git pull --ff-only` `2052e47..61adf96` y `git rev-parse HEAD` → `61adf96`. **Lo que falta y por eso no va [x]:** el servicio **nunca se deshabilitó** (el verificador en vivo midió `systemctl is-enabled ruleta` → `enabled` durante todo el deploy, ficha **F-185**). Matiz medido aparte: la Pi venía de `2052e47`, **no** de `601c4c2` como pedía la tabla de criterios (ficha **F-098**) |
 | 2 | Impresora encendida, con papel, y página de autoprueba | usuario | [ ] | | La impresora estuvo encendida y con papel toda la noche; la **autoprueba** no se intentó |
 | 3 | Detección del dispositivo USB (`lsusb`, `dmesg`, `/dev/usb/lp*`, `udevadm`) | agente | [x] | 2026-09-11 | `0418:5011`, clase 7 subclase 1 **protocolo 2 (bidireccional)**, driver `usblp`, `/dev/usb/lp0` `crw-rw---- root:lp` 180,0, `ieee1284_id = MFG:Printer;CMD:EPSON;MDL:POS-80;CLS:PRINTER;1` |
 | 4 | Permisos: regla udev por VID:PID medido + grupo | agente | [x] | 2026-09-11 | Regla escrita a mano en `/etc/udev/rules.d/61-ruleta-impresora-usb.rules` (md5 `2c2c308b…`), `usermod -aG lp asadero` (`getent group lp` → `lp:x:7:asadero`), enlace `/dev/ruleta-impresora` creado a la primera y `test -w` → ESCRIBIBLE. **Con otros nombres que los de este plan**: ver la nota de 2b, abajo |
 | 5 | `config.json` de la Pi: `tipo: archivo` y **añadir** `ruta` | agente | [x] | 2026-09-11 | En la Pi: `tipo: "archivo"` y `ruta: "/dev/ruleta-impresora"` (no `/dev/usb/lp0`: ver la nota de 2b) |
-| 6 | `python3 -m ruleta diagnostico` | agente | [x] | 2026-09-11 | `EXIT=0` y sin `[!!]`, pero con la salida temprana `[--] impresora tipo 'archivo': no se prueba Bluetooth`, que es justo lo que arregla el cambio (c) de 2b |
+| 6 | `python3 -m ruleta diagnostico` | agente | [x] | 2026-09-11 | Dos veces. **Antes de 2b:** `EXIT=0` y sin `[!!]`, pero con la salida temprana `[--] impresora tipo 'archivo': no se prueba Bluetooth`, que es justo lo que arregla el cambio (c). **Después del deploy:** `EXIT=0`, cero `[!!]`, con `[ok] impresora conectada en /dev/ruleta-impresora`, las versiones reales de PIL, gpiozero y lgpio, y un `[??] la impresora reporta poco papel` —siete `[ok]`, no ocho: ver la §7.5 y la ficha **F-186** |
 | 7 | `python3 -m ruleta probar-impresora` y **lectura del papel** | agente + usuario | [x] | 2026-09-11 | Boleto de prueba impreso a las 19:25 (foto del usuario): `ESC t 19` (cp858) y `ESC t 2` correctos, `ESC t 0` sin mayúsculas acentuadas y **`ESC t 16` basura**; 48 columnas exactas; tamaños 1x-4x y negrita bien; logo nítido; corte automático limpio. Antes, a las 19:22, el servicio ya había impreso el **inventario de arranque** por USB |
 | 8 | Ajustes iterativos en el `config.json` de la Pi | agente + usuario | [x] | 2026-09-11 | Nada que cambiar: el papel confirma `codepage_n: 19` (cp858) y `chars_por_linea: 48`. **Zumbador medido** por USB: `ESC B` suena, pero da un pitido corto por comando e ignora `n` y `t`; el usuario decidió `"beep": true`. Cosmético anotado: las líneas de acentos del boleto de prueba se partían (lo arregla el cambio (f) de 2b) |
 | 9 | `python3 -m ruleta vista-previa --todos` (pendiente de la Fase 1) | agente | [ ] | | |
 | 10 | Respaldo Bluetooth — **solo si el USB no es viable** | agente + usuario | [ ] | | Se salta con razón: el USB funcionó (Paso 7) |
-| 11 | Sincronizar el `config.json` final al repositorio (por la cadena) | ejecutor + agente de commit | [~] | 2026-09-11 | Hecho dentro de 2b: el `config.json` **del repositorio** ya trae `tipo: "archivo"`, `ruta: "/dev/ruleta-impresora"` y `"beep": true`, con golden en `tests/test_config.py`. Falta el `git pull` en la Pi y comprobar que los dos archivos quedan iguales |
-| 12 | Sub-fase **2b**: cambios de código (a)(b)(c)(d) con goldens | cadena completa | [~] | 2026-09-11 | **Implementado, pendiente de deploy.** Suite completa en verde (194 pruebas) y goldens nuevos con sus mutaciones en rojo. Ver la nota de 2b, abajo |
-| 13 | Arranque del servicio y verificación en vivo | agente + usuario | [ ] | | El 2026-09-11 el servicio arrancó e imprimió el inventario, pero fue **antes** de 2b y sin las mediciones que pide el Paso 13 (grupos del proceso en `/proc/<pid>/status`): no cuenta |
-| 14 | Cierre: acta desde hechos medidos, fichas y memoria | agente | [ ] | | |
+| 11 | Sincronizar el `config.json` final al repositorio (por la cadena) | ejecutor + agente de commit | [x] | 2026-09-11 | El `config.json` del repositorio trae `tipo: "archivo"`, `ruta: "/dev/ruleta-impresora"` y `"beep": true`, con golden en `tests/test_config.py`. Tras el `git pull` el verificador en vivo leyó **en la Pi** `archivo /dev/ruleta-impresora True`, y `git status --porcelain` allá solo muestra el respaldo `?? config.json.bak-2026-09-12` sin rastrear: los dos archivos son el mismo |
+| 12 | Sub-fase **2b**: cambios de código (a)(b)(c)(d) con goldens | cadena completa | [x] | 2026-09-11 | Commit `61adf9676b1072115c5fd64e6a28f6bef5454a54`, publicado y verificado contra el remoto por un agente distinto del que commiteó. Suite completa en verde: **194 pruebas OK** en la PC y **194 pruebas OK** en la Pi. Cadena: ejecutor → 2 rondas de lentes → escéptico (fichas F-141 a F-184) |
+| 13 | Arranque del servicio y verificación en vivo | agente + usuario | [~] | 2026-09-11 | **Arrancado y verificado, pero sin cerrar.** Medido a las 22:32:48 MST con la unidad nueva: `active`/`running`/`enabled`, `NRestarts=0`, journal con `impresora=archivo`, `Inventario impreso (arranque). Folio actual 00000` y `Lista. Esperando jugadas.`, cero `ERROR`/`Traceback`/`exception`. **Falta:** los grupos del proceso (`/proc/<pid>/status`, ficha **F-187**), la confirmación del usuario de que el boleto salió y sonó el pitido, y **devolver el servicio a `enabled` + `inactive`**, que sigue `active` (ficha **F-185**) |
+| 14 | Cierre: acta desde hechos medidos, fichas y memoria | agente | [~] | 2026-09-11 | Acta escrita desde los hechos medidos y los informes: `docs/actas/2026-09-11-fase-2.md`. Fichas al día (nuevas **F-185** a **F-190**). Falta lo que se lleva el acta a la Fase 3 y los documentos fuera de alcance (README §8, `CLAUDE.md`, `docs/PAUSA-2026-09-11.md` y los goldens de la Fase 1) |
 
 ### Nota de la sub-fase 2b (2026-09-11): qué se implementó y en qué se aparta de este plan
 
-Implementado en la PC, sin desplegar todavía, con sus goldens y sus mutaciones,
+Implementado en la PC con sus goldens y sus mutaciones —y **ya desplegado y
+verificado en la Pi**, ver el bloque del deploy al final de esta nota—,
 en `instalar.sh`, `ruleta.service`, `config.json`, `ruleta/escpos.py`,
 `ruleta/app.py`, `ruleta/__main__.py`, `ruleta/ticket.py`, `README.md` y las
 pruebas. **Ojo con las letras:** las de esta lista son las del brief de 2b y
@@ -145,7 +166,49 @@ mano `udev`, el `config.json` de allá y el enlace, sin ganar nada a cambio. Las
 §7.3 y §7.4 quedan corregidas más abajo con esos nombres. **Si el orquestador
 prefiere los nombres originales, hay que decirlo antes del deploy**: son tres
 líneas (la regla, su `SYMLINK+=` y la `ruta`), pero se cambian las tres a la vez
-o no se cambia ninguna.
+o no se cambia ninguna. **El orquestador no pidió el cambio y el deploy salió
+con los nombres de 2b**, así que la duda queda cerrada: los nombres buenos son
+`61-ruleta-impresora-usb.rules` y `/dev/ruleta-impresora` (ficha **F-139**,
+cerrada).
+
+### Deploy de 2b y verificación en vivo (2026-09-11, noche)
+
+Lo hicieron dos agentes distintos: uno desplegó y otro —que no vio al primero—
+volvió a medir contra la Pi. Todo lo de esta lista está **medido**, no contado:
+
+- `git pull --ff-only` `2052e47..61adf96` y `git rev-parse HEAD` en la Pi =
+  `git ls-remote --heads origin main` = `61adf9676b1072115c5fd64e6a28f6bef5454a54`.
+- `sudo ./instalar.sh` → **código 0**, con sus pasos `1/7` … `7/7`.
+- Regla `udev`: el verificador leyó
+  `/etc/udev/rules.d/61-ruleta-impresora-usb.rules` y coincide **carácter por
+  carácter** con la del repositorio (`0418:5011`, `MODE="0660"`, `GROUP="lp"`,
+  `SYMLINK+="ruleta-impresora"`). `getent group lp` incluye `asadero` y
+  `/dev/ruleta-impresora` existe.
+- `grep -c RestartPreventExitStatus=2 /etc/systemd/system/ruleta.service` → **1**:
+  `instalar.sh` sí volvió a copiar la unidad (un `git pull` solo no lo habría
+  hecho; ficha **F-176**, cerrada).
+- `python3 -m unittest discover -s tests -t .` en la Pi → **`Ran 194 tests` /
+  `OK`** (mismo número que en la PC).
+- Diagnóstico en la Pi: `EXIT=0`, **cero `[!!]`**, con
+  `[ok] impresora conectada en /dev/ruleta-impresora (dispositivo, se puede
+  escribir)`, `[ok] gpiozero 2.0.1`, `[ok] lgpio 0.2.2.0` (ficha **F-051**
+  confirmada en hardware) y un `[??] la impresora reporta poco papel`.
+- Servicio: `is-active=active`, `is-enabled=enabled`, `SubState=running`,
+  **`NRestarts=0`**. El journal del arranque de las 22:32:48 MST trae la unidad
+  nueva («impresora USB o Bluetooth»), `impresora=archivo`,
+  `Inventario impreso (arranque). Folio actual 00000`,
+  `Lista. Esperando jugadas.` y **cero** coincidencias de
+  `error|traceback|exception`. El único `WARNING` es el de poco papel.
+- **La consulta `DLE EOT` por USB funciona en hardware real:** ese `WARNING` lo
+  escribe `escpos.verificar_estado` **antes** de mandar el boleto, así que la
+  impresora contestó de verdad por el nodo `usblp` y el servicio pudo abrirlo en
+  `r+b` (ficha **F-091**).
+
+**Lo que el deploy NO midió** (ficha **F-187**): los grupos del proceso
+(`/proc/<pid>/status`) del Paso 13, y tres goldens de la §7 —
+`ls /etc/udev/rules.d/ | grep -c impresora` → 1, `stat -c "%a %U %G"` del nodo e
+`ieee1284_id`—. **Y el servicio quedó `active`**, no `enabled` + `inactive` como
+manda el final del Paso 13 (ficha **F-185**).
 
 **Pasos que se pueden saltar, y solo esos:**
 
@@ -424,18 +487,28 @@ lo que ya hace el Paso 12 del plan de la Fase 1 antes de reiniciar.
 
 **D7 · El criterio de éxito del camino USB es PAPEL EN LA MANO, no el código de
 salida del diagnóstico.**
-*Por qué (medido en el código):* con `"tipo": "archivo"`, `cmd_diagnostico`
-(`ruleta/__main__.py`, línea 343) imprime
-`[--] impresora tipo 'archivo': no se prueba Bluetooth` y **devuelve 0 sin
-abrir siquiera la ruta**. Sale verde con la impresora apagada, con el cable
-desconectado y con `Permission denied`. El diagnóstico sirve para lo demás
-(carpeta de datos, PIL, logo, inventario); **no** sirve para decir si la
-impresora imprime. Lo único que lo dice es un boleto físico y legible.
+*Por qué (medido en el código, ANTES de la sub-fase 2b):* con
+`"tipo": "archivo"`, `cmd_diagnostico` imprimía
+`[--] impresora tipo 'archivo': no se prueba Bluetooth` y **devolvía 0 sin
+abrir siquiera la ruta**. Salía verde con la impresora apagada, con el cable
+desconectado y con `Permission denied`.
+*Qué cambió con 2b (y por qué la decisión sigue en pie):* hoy el diagnóstico sí
+abre la ruta, comprueba que sea un dispositivo escribible y —con el servicio
+parado— le pregunta por el papel; esa salida temprana ya no existe para
+`archivo`. Aun así **el criterio de la fase no cambia**: el diagnóstico puede
+decir `[ok] impresora conectada` y el boleto salir ilegible, torcido o sin
+cortar. Lo único que cierra la fase es un boleto físico y legible.
 
 **D8 · Los valores de impresora se deciden LEYENDO EL PAPEL, no por teoría.**
 Se arranca con lo que ya trae `config.json` —`codepage_n: 19` (`cp858`),
 `chars_por_linea: 48`, `corte: "auto"`, `beep: false`— y se cambia **solo** lo
 que el papel demuestre que está mal.
+*Qué decidió el papel (2026-09-11):* `codepage_n: 19`, `chars_por_linea: 48` y
+`corte: "auto"` se confirmaron y **no se tocaron**. El único valor que cambió es
+`beep`, que pasó a **`true`** por decisión del usuario después de oír el
+zumbador por USB (un pitido corto por comando; ignora `n` y `t`). Es decir: la
+decisión se aplicó tal cual, y por eso el `config.json` del repositorio ya no
+coincide con la lista de arranque de arriba en esa llave (ficha **F-160**).
 *Por qué esos valores de arranque:* la investigación verificada dice que en esta
 familia (Xprinter / Zjiang, 576 puntos, 48 columnas en fuente A) la tabla
 **19 = PC858** es la única que trae `á é í ó ú ñ Ñ ¿ ¡ Á É Í Ó Ú ü` completa y
@@ -927,6 +1000,19 @@ no hay nada que configurar.
 
 ### Paso 4 · Permisos: regla `udev` por VID:PID y grupo
 
+> **YA HECHO Y SUPERADO (2026-09-11). NO SE VUELVE A CORRER TAL CUAL.** Los
+> permisos se aplicaron a mano esa noche y desde el deploy de 2b los deja
+> `instalar.sh` solo, en su paso `5/7`. **Los nombres buenos son los de 2b, no
+> los del punto 2 de abajo:** el archivo es
+> `/etc/udev/rules.d/61-ruleta-impresora-usb.rules` y el enlace
+> `/dev/ruleta-impresora`. El punto **2.a de abajo (borrar esa regla) y el 2.b
+> (escribir `61-ruleta-impresora.rules` con `SYMLINK+="impresora-ruleta"`) están
+> **derogados**: correrlos hoy dejaría a la Pi sin el enlace que usa
+> `config.json` y crearía una segunda regla para el mismo dispositivo. El texto
+> se conserva porque explica **por qué** la regla es como es (ficha **F-139**,
+> cerrada). Lo único que se sigue usando de este paso son sus comandos de
+> **medición** (puntos 1, 3 y 5).
+
 **QUIÉN:** agente. **Requiere haber medido el VID:PID en el Paso 3.**
 
 **QUÉ HACER**
@@ -1163,31 +1249,36 @@ ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico;
 
 **CRITERIO DE ACEPTACIÓN**
 
-Seis líneas `[ok]`, **cero** `[!!]`, **una** `[--]` y código 0:
+**Cero `[!!]` y código 0.** La salida cambió con la sub-fase 2b; esto es lo
+**medido en la Pi el 2026-09-11 después del deploy**, con la impresora
+conectada, con papel (poco) y con el servicio parado:
 
 ```
 Ruleta v1.0.0 | Python 3.13.5 | linux
-Configuracion: /home/asadero/ruleta/config.json
+Configuración: /home/asadero/ruleta/config.json
 Carpeta de datos: /home/asadero/ruleta/datos
   [ok] la carpeta de datos se puede escribir
   [ok] PIL 11.1.0
-  [ok] gpiozero 
-  [ok] lgpio 
+  [ok] gpiozero 2.0.1
+  [ok] lgpio 0.2.2.0
   [ok] logo: /home/asadero/ruleta/logo.png
   [ok] inventario: folio 00000
-  [--] impresora tipo 'archivo': no se prueba Bluetooth
+  [ok] impresora conectada en /dev/ruleta-impresora (dispositivo, se puede escribir)
+  [??] la impresora reporta poco papel: ten listo el rollo de repuesto
 codigo=0
 ```
 
-Las líneas `[ok] gpiozero` y `[ok] lgpio` salen **sin número de versión**, con
-un espacio al final: es normal, esos módulos no exponen `__version__` (ficha
-F-051, y es lo que arregla el punto (c) de 2b).
+Son **siete `[ok]` y un `[??]`**. Antes de 2b eran seis `[ok]` y un
+`[--] impresora tipo 'archivo': no se prueba Bluetooth`, y `gpiozero` y `lgpio`
+salían **sin número de versión** (ficha F-051, resuelta por el punto (c)/(e) de
+2b). El conteo exacto depende de la impresora y del servicio: ver la §7.5, que
+lista los cuatro casos posibles.
 
-> **Este paso NO dice nada sobre la impresora** (decisión D7). El `[--]` y el
-> código 0 salen igual con el cable desconectado. Lo único que demuestra es que
-> el resto del programa está sano y que `config.json` es válido. **Quien tome
-> este `codigo=0` como «la impresora funciona» se equivoca**, y por eso existe
-> el Paso 7.
+> **Este paso ya dice algo sobre la impresora, pero no lo suficiente**
+> (decisión D7). Demuestra que la ruta existe, que es un dispositivo, que se
+> puede escribir en él y —con el servicio parado— que contesta. **No demuestra
+> que el boleto salga legible, derecho y cortado**: eso solo lo dice el papel
+> del Paso 7.
 
 **SI FALLA**
 
@@ -1198,9 +1289,12 @@ F-051, y es lo que arregla el punto (c) de 2b).
 - **`ERROR de configuración: ...`** y código 2: el `config.json` quedó inválido
   en el Paso 5. El mensaje dice exactamente qué llave corregir. Si no está
   claro, restaurar con `git checkout -- config.json` y repetir el Paso 5.
-- **Un `[!!]` que hable de la impresora:** con `tipo: archivo` eso no debería
-  poder pasar (el código sale antes). Si pasa, **detenerse y preguntar**:
-  significa que `tipo` no quedó en `archivo`.
+- **Un `[!!]` que hable de la impresora:** desde 2b **sí puede pasar, y es la
+  gracia del cambio**. Son tres, y cada uno trae su arreglo en el propio
+  mensaje: `no existe la ruta de la impresora` (cable suelto o impresora
+  apagada), `sin permiso para escribir` (falta la regla `udev` o el grupo `lp`)
+  y `la impresora reporta SIN PAPEL` / `está fuera de línea`. Se atiende lo que
+  diga y se repite el diagnóstico; no hay que detenerse ni preguntar.
 
 ---
 
@@ -1656,7 +1750,7 @@ menos seis mutaciones por copia, todas en rojo**.
 
 #### (a) La regla `udev` de la impresora dentro de `instalar.sh`
 
-> **HECHO el 2026-09-11 (pendiente de deploy).** Es el paso nuevo `5/7 Impresora
+> **HECHO el 2026-09-11; desplegado y verificado en la Pi esa misma noche.** Es el paso nuevo `5/7 Impresora
 > USB` de `instalar.sh`, con la regla, `usermod -aG lp` y la recarga de `udev`;
 > el `SupplementaryGroups=gpio lp` del punto 4 también entró. Con dos
 > diferencias respecto a lo que se lee abajo: el archivo se llama
@@ -1728,7 +1822,7 @@ ssh ruleta 'systemctl is-enabled ruleta'   # disabled
 
 #### (b) Consulta del papel (`DLE EOT`) en `ImpresoraArchivo`
 
-> **HECHO el 2026-09-11 (pendiente de deploy).** La condición previa se cumple:
+> **HECHO el 2026-09-11; desplegado y verificado en la Pi esa misma noche.** La condición previa se cumple:
 > la interfaz es **bidireccional** (protocolo 02, §0-bis H9). `crear_impresora`
 > ya le pasa `consultar_estado` al tipo `archivo`; la consulta se hace solo si
 > la ruta es un dispositivo de caracteres; el modo de apertura pasa a `r+b`
@@ -1798,20 +1892,25 @@ límite de tiempo de la lectura.
 
 #### (c) `diagnostico`: que también revise el tipo `archivo`, y versiones reales
 
-> **HECHO el 2026-09-11 (pendiente de deploy).** Tres funciones puras en
+> **HECHO el 2026-09-11; desplegado y verificado en la Pi esa misma noche.** Tres funciones puras en
 > `ruleta/__main__.py` —`revisar_ruta_impresora`, `version_modulo` e
 > `interpretar_estado_papel`— y `cmd_diagnostico` solo las llama e imprime. El
 > diagnóstico además **consulta el papel** cuando la ruta es un dispositivo y el
 > servicio no está corriendo. Goldens (tuplas completas, por igualdad) en
-> `tests/test_instalacion.py`. Consecuencia para la §7.5: los `[ok]` pasan de 6
-> a **8**, no a 7, porque son dos líneas nuevas y no una.
+> `tests/test_instalacion.py`. Consecuencia para la §7.5: los `[ok]` de la
+> **salida** dejan de ser 6 y pasan a **8 con papel de sobra**, **7 más un
+> `[??]`** si la impresora avisa de poco papel o no contesta, y **7 más un
+> `[--]`** con el servicio corriendo. Lo **medido en la Pi** el 2026-09-11 fue
+> **7 `[ok]` y un `[??]` de poco papel** (fichas F-140, F-178 y F-186).
 
 **QUÉ.** Dos cosas pequeñas en el mismo cambio:
 
 1. Con `tipo: archivo`, que el diagnóstico **mire la ruta**: que exista, que sea
    un dispositivo y que se pueda escribir. Hoy sale por la puerta de atrás con
-   `[--] ... no se prueba Bluetooth` y devuelve 0 sin abrir nada
-   (`ruleta/__main__.py`, línea 343): decisión D7.
+   `[--] ... no se prueba Bluetooth` y devuelve 0 sin abrir nada: decisión D7.
+   *(Esto describe el estado ANTERIOR a 2b. Hoy ese texto ya no existe para el
+   tipo `archivo`: `grep -n "no se prueba Bluetooth" ruleta/__main__.py` no
+   devuelve nada.)*
 2. Que `[ok] gpiozero` y `[ok] lgpio` muestren su versión real, con
    `importlib.metadata`, en vez de salir vacías (ficha F-051).
 
@@ -1848,7 +1947,7 @@ cambio queda anotado en el acta de esta fase y en la §6 (mapa de anclas).
 
 #### (d) `README.md`: el USB de primera clase y las correcciones pendientes
 
-> **HECHO el 2026-09-11 (pendiente de deploy), con el visto bueno explícito del
+> **HECHO el 2026-09-11 y desplegado, con el visto bueno explícito del
 > usuario** (requisito de la decisión D12). Conteos medidos después de la
 > reescritura: `scp -r` → 0, `America/Mexico_City` → 0, `usuario@ruleta.local`
 > → 0, `comandos lo detectan` → 0, `/dev/usb/lp0` → 4 (ahora es el nodo real que
@@ -2080,9 +2179,12 @@ contra el código o contra la Pi; cada una dice dónde comprobarla.
    imprime el inventario y gasta papel sin que nadie lo pida.** Se deshabilita
    en el Paso 1 y se rehabilita en el Paso 13.
 
-4. **`ImpresoraArchivo` abre con modo `"ab"`, que incluye `O_CREAT`: puede
-   CREAR un archivo donde debería estar el dispositivo.** (`ruleta/escpos.py`,
-   línea 560.) Como `asadero` no puede escribir en `/dev` ni en `/dev/usb`, el
+4. **`ImpresoraArchivo` puede abrir con modo `"ab"`, que incluye `O_CREAT`: en
+   ese caso puede CREAR un archivo donde debería estar el dispositivo.**
+   (`ruleta/escpos.py`, líneas 671-673: desde 2b el modo es `"r+b"` —que **no**
+   crea nada— cuando toca preguntar por el papel, y sigue siendo
+   `"ab"`/`"wb"` en los demás casos, entre ellos **la impresora con
+   `consultar_estado: false`**.) Como `asadero` no puede escribir en `/dev` ni en `/dev/usb`, el
    intento falla con `Permission denied`, **que es lo deseable**. Pero **con
    `sudo` sí lo crearía**: quedaría un archivo normal llamado `/dev/usb/lp0` que
    **se traga los boletos sin dar error** y que además impide que el nodo real
@@ -2220,31 +2322,39 @@ Textos del repositorio de los que depende este plan, con la línea donde estaban
 donde dice esta tabla, **detenerse y preguntar**, porque significa que alguien
 cambió el repositorio y el plan quedó viejo.
 
+> **Tabla refrescada el 2026-09-11 contra el commit
+> `61adf9676b1072115c5fd64e6a28f6bef5454a54`** (el que está desplegado en la
+> Pi). Las líneas de antes eran las de antes de la sub-fase 2b y **todas las de
+> abajo se volvieron a medir con `grep -n`**: esto cierra el censo de la ficha
+> **F-166** y las fichas **F-148**, **F-149** y **F-151**. Donde 2b hizo
+> desaparecer un texto, la fila lo dice en vez de dejar un número que ya no
+> existe.
+
 | Ancla | Cómo encontrarla | Por qué deriva |
 |---|---|---|
-| Clase `ImpresoraArchivo` completa | `grep -n "class ImpresoraArchivo" -A 40 ruleta/escpos.py` (hoy 546) | De su cuerpo salen §0-bis H5 y H6, la trampa 4 (`"ab"` con `O_CREAT`) y el cambio (b) de 2b |
-| Construcción del transporte por USB | `grep -n 'tipo == "archivo"' -A 2 ruleta/app.py` (hoy 56) | Dice `anexar=True` y **no** pasa `consultar_estado`: es la línea exacta que toca (b) |
-| Salida temprana del diagnóstico | `grep -n "no se prueba Bluetooth" ruleta/__main__.py` (hoy 344) | Es el origen de la decisión D7 y de lo que arregla (c) |
-| Conteo de líneas `[ok]` | `grep -c "\[ok\]" ruleta/__main__.py` → **6** antes de 2b | El golden de la Fase 1 (§7) cuenta 6 en la **salida** del diagnóstico. La sub-fase 2b lo deja en **8** (la ruta del dispositivo y la consulta del papel son dos líneas, no una); 7 si la impresora no contesta al estado. **Hay que actualizar ese golden de la Fase 1 y decirlo en el acta**: ficha F-140 |
-| Comandos que comprueban el servicio | `grep -n "servicio_activo" ruleta/__main__.py` → tras 2b: 90 (definición), 214, 230, 269, 417, 464 | Deriva la trampa 2: son **cinco** usos —`reporte --imprimir`, `liberar`, `reiniciar` y **dos** dentro de `diagnostico` (rama `archivo` y rama Bluetooth)— y `probar-impresora` no está entre ellos |
-| Bytes y bits del estado en tiempo real | `grep -n "CMD_ESTADO_PAPEL\|CMD_ESTADO_IMPRESORA\|_MASCARA_FIJA_ESTADO" ruleta/escpos.py` (hoy 54-57, 398, 415, 421) | Son los valores exactos de los goldens de (b): `0x93`/`0x12`, `0x60`, `0x0C`, `0x08` |
-| Tabla de códecs | `grep -n "CODECS_TABLA" ruleta/escpos.py ruleta/ticket.py` (hoy 50, y 15/229 en ticket) | De ahí sale la tabla de parejas `codepage_n` ↔ `codepage` del Paso 8. Si alguien añade una tabla, el boleto de prueba cambia |
-| Bytes del corte y su defecto | `grep -n "CMD_CORTE_AVANCE" ruleta/escpos.py` (43) y `grep -n "def lineas_antes_corte_por_defecto" -A 3 ruleta/escpos.py` (67) | Explican por qué `auto` es 1 línea y los demás 5 (trampa 18) |
+| Clase `ImpresoraArchivo` completa | `grep -n "class ImpresoraArchivo" ruleta/escpos.py` → **603** (era 546) | De su cuerpo salen §0-bis H5 y H6, la trampa 4 (los modos de apertura) y el cambio (b) de 2b, ya implementado |
+| Construcción del transporte por USB | `grep -n 'tipo == "archivo"' -A 3 ruleta/app.py` → **56-59** | **Corregido tras 2b:** hoy dice `anexar=True` **y sí pasa** `consultar_estado=imp.consultar_estado` (ficha F-148) |
+| Salida temprana del diagnóstico | `grep -n "no se prueba Bluetooth" ruleta/__main__.py` → **el `grep` ya no devuelve nada** | 2b la borró para el tipo `archivo`. Fue el origen de la decisión D7 y de lo que arregla (c); si volviera a aparecer, alguien deshizo 2b (ficha F-149) |
+| Conteo de líneas `[ok]` | `grep -c "\[ok\]" ruleta/__main__.py` → **8** en el **código** (eran 6) | Ojo: son las del código, no las de la salida. En la **salida** del diagnóstico se midió **7 `[ok]` + un `[??]`** en la Pi (§7.5, cuatro casos). El golden de la **Fase 1** sigue diciendo 6 y hay que actualizarlo: ficha **F-140** |
+| Comandos que comprueban el servicio | `grep -n "servicio_activo" ruleta/__main__.py` → 90 (definición), 214, 230, 269, 417, 464 | Deriva la trampa 2: son **cinco** usos —`reporte --imprimir`, `liberar`, `reiniciar` y **dos** dentro de `diagnostico` (rama `archivo` y rama Bluetooth)— y `probar-impresora` no está entre ellos |
+| Bytes y bits del estado en tiempo real | `grep -n "CMD_ESTADO_PAPEL\|CMD_ESTADO_IMPRESORA\|_MASCARA_FIJA_ESTADO\|BITS_SIN_PAPEL" ruleta/escpos.py` → **58-60 y 64-66** (constantes), **104**, **118-125** y **661-662** (usos) | Son los valores exactos de los goldens de (b): `0x93`/`0x12`, `0x60`, `0x0C`, `0x08`. Desde 2b los tres últimos tienen nombre (`BITS_SIN_PAPEL`, `BITS_POCO_PAPEL`, `BIT_FUERA_DE_LINEA`) y los comparte `ruleta/__main__.py` (351-355) |
+| Tabla de códecs | `grep -n "CODECS_TABLA" ruleta/escpos.py ruleta/ticket.py` → **54** en `escpos.py` (era 50) y **15/229** en `ticket.py` | De ahí sale la tabla de parejas `codepage_n` ↔ `codepage` del Paso 8. Si alguien añade una tabla, el boleto de prueba cambia |
+| Bytes del corte y su defecto | `grep -n "CMD_CORTE_AVANCE" ruleta/escpos.py` → **47** (era 43) y `grep -n "def lineas_antes_corte_por_defecto" -A 3 ruleta/escpos.py` → **77** (era 67) | Explican por qué `auto` es 1 línea y los demás 5 (trampa 18) |
 | Llaves válidas de `impresora` | `grep -n "class ConfigImpresora" -A 26 ruleta/config.py` (hoy 53) | `ruta` existe con defecto `salida_impresora.bin`; **una llave desconocida hace fallar el arranque entero** (`_construir` en `config.py`) |
 | Validación de la configuración | `grep -n "^def validar" -A 45 ruleta/config.py` (hoy 266) | Qué valores se aceptan: `chars_por_linea >= 32`, `corte` de la lista, `codepage` que Python conozca. Si se pone algo fuera de rango, el programa lo rechaza con un mensaje claro |
-| `config.json` de hoy | `grep -n '"tipo"\|"ruta"' config.json` → hoy **1** línea (16) y **cero** de `ruta` | La llave `ruta` hay que **añadirla**, no cambiarla (ficha F-077). Si aparece ya puesta, alguien tocó el archivo |
+| `config.json` de hoy | `grep -n '"tipo"\|"ruta"' config.json` → **16** (`"tipo": "archivo"`) y **19** (`"ruta": "/dev/ruleta-impresora"`) | **La `ruta` ya está puesta, a propósito, desde 2b** (antes había que añadirla, ficha F-077). Que aparezca **no** es motivo para detenerse; lo sería que volviera a decir `"bluetooth"` |
 | Censo de premios de prueba | `grep -c '"id": "test' config.json` → **7** | De ahí salen los goldens del Paso 9 (7 boletos de premio, 9 `[CORTE]`) |
-| Grupos suplementarios del servicio | `grep -n "SupplementaryGroups" ruleta.service` (hoy 13) | Hoy dice `gpio`; el punto 4 de (a) le añadiría `lp` |
-| Dónde va lo nuevo en el instalador | `grep -n "== 2/6" -A 3 instalar.sh` (36) y `grep -n "60-ruleta-rp1-gpiochip4" -B 4 -A 6 instalar.sh` (50) | Son los dos bloques que toca (a): grupos y reglas `udev` |
+| Grupos suplementarios del servicio | `grep -n "SupplementaryGroups" ruleta.service` → **15** (era 13) | **Ya dice `gpio lp`** desde 2b, y `grep -n "RestartPreventExitStatus" ruleta.service` → **27**. Golden por igualdad de la unidad entera en `tests/test_instalacion.py` |
+| Dónde va lo nuevo en el instalador | `grep -n "== 2/7" instalar.sh` → **37**; `grep -n "60-ruleta-rp1-gpiochip4" instalar.sh` → **51**; `grep -n "61-ruleta-impresora-usb" instalar.sh` → **65** | Los pasos se renumeraron a `n/7` en 2b: `grep -n "== 2/6"` **ya no devuelve nada**. El bloque de la impresora es el `5/7` |
 | `emparejar.sh` reescribe la configuración | `grep -n 'impresora"\]\["tipo"\]' herramientas/emparejar.sh` (hoy 131) | Trampa 10: deja `tipo: bluetooth` y reformatea el archivo |
 | `emparejar.sh` es interactivo | `grep -n "read -rp" herramientas/emparejar.sh` (hoy 55) | Ficha F-078: por SSH no interactivo hay que pasarle la MAC |
 | Rechazo de la MAC de relleno | `grep -n 'strip("0")' ruleta/app.py` (hoy 46) | Explica por qué hoy el servicio muere con código 2 en bucle (§0-bis H8) |
-| Mensajes del log del arranque | `grep -n "Lista. Esperando jugadas.\|Inventario impreso" ruleta/app.py` (hoy 115 y 268) | Son literalmente los goldens del Paso 13. Si alguien cambia el texto, los `grep -c` dejan de dar 1 |
-| Menciones de `/dev/usb/lp0` en el README | `grep -n "/dev/usb/lp0" README.md` → hoy **255** y **429** | Los dos sitios que hay que corregir juntos en (d) (ficha F-088) |
-| Afirmación del README §5 sobre el servicio | `grep -n "comandos lo detectan" README.md` (hoy **225**; con la cadena completa «Los comandos lo detectan» el `grep` **no encuentra nada**, porque «Los» cierra la línea 224) | Es falsa para `probar-impresora`: ficha F-089, y se corrige en (d) |
-| Zona horaria en el README | `grep -n "America/Mexico_City" README.md` (hoy 153) | La real es `America/Hermosillo` (ficha F-053), se corrige en (d) |
+| Mensajes del log del arranque | `grep -n "Lista. Esperando jugadas.\|Inventario impreso" ruleta/app.py` → **117** y **270** (eran 115 y 268) | Son literalmente los goldens del Paso 13, y los dos salieron en el journal del 2026-09-11 a las 22:32:48 |
+| Menciones de `/dev/usb/lp0` en el README | `grep -n "/dev/usb/lp0" README.md` → **128, 304, 514 y 518** (eran 255 y 429) | Ya no son un error que corregir (ficha F-088, resuelta): ahora nombran el **nodo real** que hay detrás de `/dev/ruleta-impresora` |
+| Afirmación del README §5 sobre el servicio | `grep -c "comandos lo detectan" README.md` → **0** | 2b la quitó: el §5 ya nombra los tres comandos que sí avisan y advierte de que `probar-impresora` no (ficha F-089, resuelta en la parte de documentación) |
+| Zona horaria en el README | `grep -c "America/Mexico_City" README.md` → **0**; `grep -c "America/Hermosillo" README.md` → **2** (líneas 82 y 182) | Corregido en 2b (ficha F-053, resuelta) |
 | Convenciones del repositorio | `grep -n "^## Convenciones de este repo" -A 12 CLAUDE.md` | Define `docs/planes/`, `docs/actas/<AAAA-MM-DD>-<fase>.md` y `docs/fichas.md`: las rutas que usa este plan |
-| Deploy y estado de la Fase 1 | `grep -n "^## 9. Siguientes fases" -A 30 docs/planes/fase-1-preparar-pi.md` y su §0-bis | De ahí vienen el orden USB→Bluetooth, el commit `601c4c2` y los pendientes que esta fase hereda |
+| Deploy y estado de la Fase 1 | `grep -n "^## 9. Siguientes fases" -A 30 docs/planes/fase-1-preparar-pi.md` y su §0-bis | De ahí vienen el orden USB→Bluetooth y los pendientes que esta fase hereda. **El commit `601c4c2` que cita ya no manda:** la Pi venía de `2052e47` (nunca llegó a clonar el de cierre de la Fase 1) y desde el deploy de 2b está en `61adf96` (fichas F-098 y F-127) |
 
 ---
 
@@ -2255,6 +2365,16 @@ Git Bash (con el `ssh` nativo de Windows), devuelven **exactamente** la salida
 indicada —comparación **por igualdad**, no «parecido»— y cuando los **goldens
 de papel** están cumplidos y fotografiados. Todos se pegan, con su salida real,
 en el acta del Paso 14.
+
+> **Estado de estos goldens el 2026-09-11, después del deploy de 2b.** El acta
+> (`docs/actas/2026-09-11-fase-2.md`, §3) los recorre uno por uno con su salida
+> real. Resumen: se midieron los de red y acceso, los del repositorio y las
+> pruebas (7.1, 7.2, 7.12), el grupo `lp`, la regla `udev` y el enlace (7.3), la
+> configuración (7.4), el diagnóstico entero (7.5) y el arranque del servicio
+> (7.8). **Quedaron sin medir tres del 7.3** —`ls /etc/udev/rules.d/ | grep -c
+> impresora`, el `stat` del nodo y el `ieee1284_id`, todos medidos a mano
+> aquella noche pero no vueltos a comprobar tras el deploy— y **los grupos del
+> proceso del Paso 13**. Ficha **F-187**.
 
 ### 7.1 Red y acceso
 
@@ -2337,9 +2457,17 @@ ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 
 # 0
 
 ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "\[ok\]"'
-# 6      <-- DESPUÉS de la sub-fase 2b son 8: se añaden la línea de la ruta del
-#            dispositivo y la de la consulta de papel. Si la impresora no
-#            contesta al estado, son 7 y la octava sale como [??] (no es fallo).
+# 7      <-- MEDIDO en la Pi el 2026-09-11 después del deploy de 2b.
+#
+# El conteo depende del estado real de la impresora y del servicio; son cuatro
+# casos y ninguno es un fallo. Antes de 2b siempre eran 6.
+#   8  impresora conectada, con papel de sobra y contestando, servicio parado.
+#   7  + [??] poco papel  <-- ESTE es el caso medido: la impresora contestó y
+#      dijo que le queda poco rollo (7 [ok] y un [??], código 0).
+#   7  + [??] no contestó al estado (firmware que no responde a DLE EOT).
+#   7  + [--] el servicio 'ruleta' está corriendo: el diagnóstico no le pregunta
+#      nada a la impresora para no interferir. Es el caso más probable DURANTE
+#      el evento (fichas F-140, F-178 y F-186).
 
 ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "no se prueba Bluetooth"'
 # 1      <-- 0 DESPUÉS del cambio (c) de la sub-fase 2b: esa salida temprana ya
@@ -2527,7 +2655,11 @@ porque esta es la fase donde más tienta saltárselas.
 - La impresora **funcionando por cable**, con sus valores medidos y
   commiteados, y el servicio demostrado en vivo.
 - La Pi con el servicio **`enabled` e `inactive`** (el mismo estado que dejó la
-  Fase 1).
+  Fase 1). **OJO, medido el 2026-09-11 tras el deploy: hoy está `enabled` y
+  `active`**, es decir, el kiosco está corriendo y cualquier pulsación de un
+  botón (cuando se cableen) gastaría papel y folio. Antes de empezar la Fase 3
+  hay que dejarlo como dice esta línea: `sudo systemctl stop ruleta` y, antes de
+  apagar la Pi para cablear, `sudo systemctl disable ruleta` (ficha **F-185**).
 - Un camino de red reproducible para trabajar **desde cualquier sitio** (Paso 0).
 
 ### Lo que esta fase deja pendiente, y no hay que olvidar
@@ -2535,10 +2667,13 @@ porque esta es la fase donde más tienta saltárselas.
 | Pendiente | Dónde está escrito | Cuándo se resuelve |
 |---|---|---|
 | **Batería RTC ML-2020** (la Pi irá **sin red**, así que sin ella los boletos salen con fecha equivocada tras un apagón) | Fase 1, Paso 12 y §0-bis D9 | **Antes del evento**; es el principal riesgo abierto del proyecto |
-| **Sub-fase 2b**, si se pospuso | §4, Paso 12 de este plan | Antes del evento si da tiempo; si no, con las fichas abiertas |
-| **Aviso de «sin papel» por USB** | §0-bis H5 y cambio (b) | **Implementado el 2026-09-11** (ficha F-091, resuelta a medias); falta comprobarlo en la Pi con el rollo fuera |
-| **README corregido** | cambio (d) y fichas F-001, F-002, F-003, F-052, F-053, F-088, F-089 | **Hecho el 2026-09-11** con el visto bueno del usuario; F-089 queda abierta a medias (falta la parte de código) |
-| **Golden `[ok]` = 6 de la Fase 1** | §6, mapa de anclas, y ficha F-140 | Se actualiza a **8** con el cambio (c) ya implementado (7 si la impresora no contesta al estado) |
+| **Sub-fase 2b** | §4, Paso 12 de este plan | **Hecha, commiteada (`61adf96`), desplegada y verificada en vivo** el 2026-09-11 |
+| **Aviso de «sin papel» por USB** | §0-bis H5 y cambio (b) | **Implementado y funcionando en hardware real:** el 2026-09-11 la impresora contestó `DLE EOT` por USB y el servicio avisó de **poco papel** antes de imprimir. Falta el caso extremo, con el rollo fuera (ficha F-091) |
+| **README corregido** | cambio (d) y fichas F-001, F-002, F-003, F-052, F-053, F-088, F-089 | **Hecho el 2026-09-11** con el visto bueno del usuario; F-089 queda abierta a medias (falta la parte de código) y quedan tres fichas nuevas de README: F-153, F-167 y F-177 |
+| **Golden `[ok]` = 6 de la Fase 1** | §6, mapa de anclas, y fichas F-140, F-178 y F-186 | Con 2b la **salida** del diagnóstico da **7 `[ok]` + un `[??]`** (medido en la Pi), y hasta 8 con papel de sobra. El plan y el acta de la **Fase 1** siguen diciendo 6: hay que corregirlos, están fuera del alcance de esta fase |
+| **Devolver el servicio a `enabled` + `inactive`** | Paso 13, final, y ficha F-185 | **Antes de la Fase 3.** Hoy quedó `active` |
+| **Volver a correr `probar-impresora` después de 2b** | Paso 7 y ficha F-188 | Antes del evento: nadie ha visto en papel las líneas de acentos a 48 columnas ni el pitido por boleto |
+| **Cambiar el rollo de papel** | ficha F-190 | Antes del evento: la impresora lleva avisando de poco papel desde el 2026-09-11 |
 
 ### Fase 3 · Botones y LED
 
@@ -2551,9 +2686,11 @@ después con los botones reales. Aquí se ajustan `rebote_ms`, `modo_habilitar` 
 
 **Tres avisos que salen de esta fase y que la Fase 3 debe respetar:**
 
-1. **Antes de apagar la Pi para cablear**, `sudo systemctl disable ruleta`; al
-   volver a encenderla, `sudo systemctl enable ruleta`. Si no, systemd la
-   arranca sola a media faena (§0-bis H8).
+1. **Antes de apagar la Pi para cablear**, `sudo systemctl stop ruleta` y
+   `sudo systemctl disable ruleta`; al volver a encenderla,
+   `sudo systemctl enable ruleta`. Si no, systemd la arranca sola a media faena
+   (§0-bis H8). **Hoy hace falta hacer las dos cosas**: la Fase 2 dejó el
+   servicio `enabled` **y `active`** (ficha F-185).
 2. **Ahora la impresora sí imprime**: cada pulsación de prueba con el servicio
    arriba **gasta papel y consume un folio**. Para probar los botones sin gastar
    nada, `--impresora vista` (los boletos salen por la consola).
@@ -2570,8 +2707,10 @@ partir de ahí arranca solo al encender) y se hace una prueba completa de punta 
 punta. Se **aísla la Pi de la red** (se apaga el punto de acceso y se deja sin
 Wi-Fi para el evento). Se cierra con la **capacitación del personal**: encender,
 leer el inventario impreso, qué hacer si no sale un boleto, cómo liberar un
-folio y —si el cambio (b) de 2b no se hizo— **que el programa no avisa cuando se
-acaba el papel por USB**.
+folio y **qué avisa y qué no avisa el programa cuando se acaba el papel**: con
+2b sí pregunta por USB antes de cada boleto y, si la impresora contesta que no
+hay papel, **no descuenta el premio**; pero si el firmware no contestara, el
+folio se gasta igual y hay que cotejarlo a mano (README §5, punto 8).
 
 ---
 
