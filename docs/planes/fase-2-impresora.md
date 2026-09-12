@@ -11,25 +11,36 @@ la §0 sí está marcada** con la evidencia de aquella noche, pegada en
 2b y cada casilla dice qué evidencia la sostiene (ver «De dónde salen las
 marcas de abajo», al principio de la §0).
 
-**ESTADO GLOBAL (actualizado el 2026-09-11 por la noche, tras el deploy).**
-**Fase 2 cumplida en lo esencial y verificada en vivo, con tres pendientes
-anotados.** La impresora imprime por USB; la sub-fase **2b** está implementada,
-commiteada (`61adf9676b1072115c5fd64e6a28f6bef5454a54`), publicada, desplegada
+**ESTADO GLOBAL (actualizado el 2026-09-11 ~23:20, tras la reprueba post-2b y
+la confirmación del usuario).** **FASE 2 CERRADA.** Cerrada **en papel**: el
+usuario volvió a correr las pruebas con el papel delante y confirmó en chat
+«todas las pruebas salieron y se escucharon los beeps» —boleto de prueba con las
+cuatro tablas de acentos **en dos renglones, sin líneas partidas**, boleto de
+inventario de arranque y **un pitido al final de cada boleto**—. El acta lo
+recoge en su §10. La impresora imprime por USB; la sub-fase **2b** está
+implementada, commiteada (`61adf9676b1072115c5fd64e6a28f6bef5454a54`), publicada, desplegada
 en la Pi y verificada por un agente independiente. Medido tras el deploy: HEAD
 de la Pi = HEAD remoto = `61adf96`, `instalar.sh` con código 0, **194 pruebas
 OK** en la Pi, diagnóstico `EXIT=0` **sin ningún `[!!]`** y con
 `[ok] impresora conectada en /dev/ruleta-impresora`, servicio
 `active`/`enabled`/`running` con **`NRestarts=0`** (se acabó el bucle de 118
 reinicios) e inventario impreso por USB a las 22:32:48 MST sin un solo `ERROR`
-ni `Traceback` en el journal. Lo que **falta** para cerrar la fase del todo:
+ni `Traceback` en el journal. Los tres pendientes que este bloque tenía antes
+de la reprueba quedaron así:
 
-1. **El servicio quedó `active`**, y el Paso 13 pide devolverlo a
-   `enabled` + `inactive`, que es como lo dejó la Fase 1 (ficha **F-185**).
-2. **Nadie ha vuelto a correr `probar-impresora` después de 2b**: el arreglo de
-   las 48 columnas y el pitido por boleto no se han visto en papel, y el usuario
-   todavía no confirma el boleto de inventario del deploy (ficha **F-188**).
+1. **El servicio quedó `active`** — **SUPERADO POR DECISIÓN del orquestador**:
+   **el kiosco se queda corriendo por USB**, con el servicio `active` y
+   `enabled`. El final del Paso 13, que pedía devolverlo a `enabled` +
+   `inactive`, **ya no aplica** (ficha **F-185**, cerrada). Lo que sigue en pie
+   es la receta de la Fase 3: `stop` **y** `disable` antes de apagar la Pi para
+   cablear los botones.
+2. **Nadie había vuelto a correr `probar-impresora` después de 2b** — **HECHO y
+   confirmado en papel** el 2026-09-11 ~23:20: las líneas de acentos salieron
+   partidas en dos renglones, sonó un pitido por boleto y el usuario dio por
+   bueno también el boleto de inventario (ficha **F-188**, cerrada).
 3. **Tres goldens de la §7 y la medición de grupos del Paso 13 no se midieron**
-   en el deploy (ficha **F-187**); el acta dice cuáles, uno por uno.
+   en el deploy (ficha **F-187**), y la reprueba tampoco los midió: **sigue
+   abierto**, sin bloquear nada. El acta dice cuáles, uno por uno.
 
 Acta de esta fase: `docs/actas/2026-09-11-fase-2.md`.
 
@@ -121,8 +132,9 @@ pegado en `docs/actas/2026-09-11-hechos-medidos.md` (sección «Noche del
 | 10 | Respaldo Bluetooth — **solo si el USB no es viable** | agente + usuario | [ ] | | Se salta con razón: el USB funcionó (Paso 7) |
 | 11 | Sincronizar el `config.json` final al repositorio (por la cadena) | ejecutor + agente de commit | [x] | 2026-09-11 | El `config.json` del repositorio trae `tipo: "archivo"`, `ruta: "/dev/ruleta-impresora"` y `"beep": true`, con golden en `tests/test_config.py`. Tras el `git pull` el verificador en vivo leyó **en la Pi** `archivo /dev/ruleta-impresora True`, y `git status --porcelain` allá solo muestra el respaldo `?? config.json.bak-2026-09-12` sin rastrear: los dos archivos son el mismo |
 | 12 | Sub-fase **2b**: cambios de código (a)(b)(c)(d) con goldens | cadena completa | [x] | 2026-09-11 | Commit `61adf9676b1072115c5fd64e6a28f6bef5454a54`, publicado y verificado contra el remoto por un agente distinto del que commiteó. Suite completa en verde: **194 pruebas OK** en la PC y **194 pruebas OK** en la Pi. Cadena: ejecutor → 2 rondas de lentes → escéptico (fichas F-141 a F-184) |
-| 13 | Arranque del servicio y verificación en vivo | agente + usuario | [~] | 2026-09-11 | **Arrancado y verificado, pero sin cerrar.** Medido a las 22:32:48 MST con la unidad nueva: `active`/`running`/`enabled`, `NRestarts=0`, journal con `impresora=archivo`, `Inventario impreso (arranque). Folio actual 00000` y `Lista. Esperando jugadas.`, cero `ERROR`/`Traceback`/`exception`. **Falta:** los grupos del proceso (`/proc/<pid>/status`, ficha **F-187**), la confirmación del usuario de que el boleto salió y sonó el pitido, y **devolver el servicio a `enabled` + `inactive`**, que sigue `active` (ficha **F-185**) |
-| 14 | Cierre: acta desde hechos medidos, fichas y memoria | agente | [~] | 2026-09-11 | Acta escrita desde los hechos medidos y los informes: `docs/actas/2026-09-11-fase-2.md`. Fichas al día (nuevas **F-185** a **F-190**). Falta lo que se lleva el acta a la Fase 3 y los documentos fuera de alcance (README §8, `CLAUDE.md`, `docs/PAUSA-2026-09-11.md` y los goldens de la Fase 1) |
+| 13 | Arranque del servicio y verificación en vivo | agente + usuario | [x] | 2026-09-11 | **Arrancado, verificado y cerrado.** Medido a las 22:32:48 MST con la unidad nueva: `active`/`running`/`enabled`, `NRestarts=0`, journal con `impresora=archivo`, `Inventario impreso (arranque). Folio actual 00000` y `Lista. Esperando jugadas.`, cero `ERROR`/`Traceback`/`exception`. El **boleto** lo confirmó el usuario a las ~23:20 (fila 13-bis). El final del paso —**devolver el servicio a `enabled` + `inactive`**— queda **SUPERADO por decisión del orquestador**: el kiosco se queda corriendo, `active` y `enabled` (ficha **F-185**, cerrada). **Lo único que no se midió:** los grupos del proceso (`/proc/<pid>/status`, ficha **F-187**, abierta) |
+| 13-bis | **Reprueba post-2b y confirmación en papel del usuario** | usuario + agente | [x] | 2026-09-11 ~23:20 | Cita literal del archivo de hechos: «todas las pruebas salieron y se escucharon los beeps». Cubre el **boleto de prueba con las cuatro tablas de acentos en dos renglones, sin líneas partidas** (cambio (f) de 2b), el **boleto de inventario de arranque** y **un pitido al final de cada boleto** (`"beep": true` por USB). Estado de la Pi al cerrar: servicio `active`/`enabled`, `NRestarts=0`, HEAD `61adf96`; la impresora sigue avisando de **poco papel** y el rollo de repuesto sigue pendiente (ficha **F-190**) |
+| 14 | Cierre: acta desde hechos medidos, fichas y memoria | agente | [x] | 2026-09-11 | Acta escrita desde los hechos medidos y los informes: `docs/actas/2026-09-11-fase-2.md`, **cerrada en papel en su §10**. Fichas al día (nuevas **F-185** a **F-190**; cerradas el ~23:20 las **F-140**, **F-169**, **F-180**, **F-185**, **F-186** y **F-188**). Documentos vecinos puestos al día en la misma pasada: `CLAUDE.md` §«Contexto del producto» con la realidad medida, y **notas fechadas** sobre los `[ok]` en la §7 del plan de la Fase 1 y en su acta, sin borrar el `6` histórico. **Siguen fuera de alcance y viejos:** README §8 (F-167) y `docs/PAUSA-2026-09-11.md` (F-170). La **memoria del proyecto** la actualiza el orquestador |
 
 ### Nota de la sub-fase 2b (2026-09-11): qué se implementó y en qué se aparta de este plan
 
@@ -208,7 +220,37 @@ volvió a medir contra la Pi. Todo lo de esta lista está **medido**, no contado
 (`/proc/<pid>/status`) del Paso 13, y tres goldens de la §7 —
 `ls /etc/udev/rules.d/ | grep -c impresora` → 1, `stat -c "%a %U %G"` del nodo e
 `ieee1284_id`—. **Y el servicio quedó `active`**, no `enabled` + `inactive` como
-manda el final del Paso 13 (ficha **F-185**).
+mandaba el final del Paso 13 (ficha **F-185**) — **ver la nota siguiente: eso
+último dejó de ser un pendiente y pasó a ser una decisión**.
+
+### Reprueba post-2b y cierre en papel (2026-09-11, ~23:20)
+
+Esto **no** lo midió un agente: lo confirmó **el usuario**, con el papel en la
+mano, y así quedó escrito en `docs/actas/2026-09-11-hechos-medidos.md`:
+
+> **Confirmación del usuario (2026-09-11 ~23:20, en chat, tras la reprueba
+> post-2b):** «**todas las pruebas salieron y se escucharon los beeps**».
+
+Qué cubre, según esa misma entrada: el **boleto de prueba con las cuatro tablas
+de acentos en dos renglones, sin líneas partidas** (el cambio (f) de 2b, visto
+por fin en papel), el **boleto de inventario de arranque**, y **un pitido al
+final de cada boleto** (`"beep": true` operativo por USB). La hora es
+**aproximada**: la anotó el orquestador al recibir el mensaje.
+
+Estado de la Pi al cerrar, tal como lo registra el archivo de hechos: servicio
+`ruleta` **`active` y `enabled`** con `NRestarts=0`, HEAD del clon `61adf96`
+(el repositorio de la PC en `6ab9680`, ya con el acta), impresora por USB
+avisando de **poco papel** y **rollo de repuesto pendiente** (ficha **F-190**).
+
+**DECISIÓN DEL ORQUESTADOR, la que cierra la fase: el kiosco queda corriendo
+por USB.** El servicio se deja **`active` y `enabled`** a propósito. Por tanto
+**el final del Paso 13 —«Al terminar, devolver el servicio al estado en que lo
+dejó la Fase 1», con su criterio `enabled` + `inactive`— queda SUPERADO**, igual
+que el golden de la §7.9. No es un incumplimiento: es una decisión tomada
+**después** de ver el servicio imprimir en hardware real. Ficha **F-185**,
+cerrada. **Lo que la decisión no cambia:** antes de apagar la Pi para cablear
+los botones de la Fase 3, `sudo systemctl stop ruleta` **y**
+`sudo systemctl disable ruleta`, y `enable` al volver.
 
 **Pasos que se pueden saltar, y solo esos:**
 
@@ -2042,6 +2084,16 @@ es lo que hacía falta.
 
 **Al terminar, devolver el servicio al estado en que lo dejó la Fase 1:**
 
+> **SUPERADO POR DECISIÓN DEL ORQUESTADOR (2026-09-11, ~23:20).** Este bloque y
+> su fila del criterio de aceptación (`enabled` + `inactive`) **ya no aplican**:
+> tras la reprueba post-2b y la confirmación del usuario se decidió que **el
+> kiosco queda corriendo por USB**, con el servicio **`active` y `enabled`**.
+> **No se ejecuta este `stop`.** El texto se conserva porque es lo que este plan
+> pedía cuando se escribió. Ficha **F-185**, cerrada; ver la nota «Reprueba
+> post-2b y cierre en papel» de la §0. **Lo que sí sigue en pie:** antes de
+> apagar la Pi para cablear los botones de la Fase 3, `sudo systemctl stop
+> ruleta` **y** `sudo systemctl disable ruleta`.
+
 ```bash
 ssh ruleta 'sudo systemctl stop ruleta'
 ssh ruleta 'systemctl is-enabled ruleta; systemctl is-active ruleta || true'
@@ -2056,7 +2108,7 @@ ssh ruleta 'systemctl is-enabled ruleta; systemctl is-active ruleta || true'
 | `journalctl -u ruleta -n 60 --no-pager \| grep -c "Inventario impreso (arranque)"` | `1` |
 | `journalctl -u ruleta -n 60 --no-pager \| grep -c "No se pudo imprimir el inventario"` | `0` |
 | **El boleto de inventario** | **en la mano, legible, cortado** (foto para el acta) |
-| al cerrar: `systemctl is-enabled ruleta` / `is-active` | `enabled` / `inactive` |
+| al cerrar: `systemctl is-enabled ruleta` / `is-active` | **SUPERADO el 2026-09-11:** el plan pedía `enabled` / `inactive`; por decisión del orquestador queda `enabled` / **`active`**, con el kiosco corriendo (ficha **F-185**) |
 
 **AVISO PARA LA FASE 3, que hay que escribir en el acta:** el servicio queda
 **habilitado**, así que **cualquier reinicio o corte de luz lo arranca solo**.
@@ -2522,23 +2574,31 @@ ssh ruleta 'journalctl -u ruleta -n 60 --no-pager | grep -c "No se pudo imprimir
 
 ### 7.9 El estado en que se deja la Pi (al cerrar la fase)
 
+> **SUPERADO POR DECISIÓN (2026-09-11, ~23:20).** Este golden pedía dejar la Pi
+> como la dejó la Fase 1. **Ya no:** el kiosco **queda corriendo por USB**, así
+> que lo que se espera hoy es `enabled` / **`active`** / **`running`**, que es
+> justo lo que midió el verificador en vivo (con `NRestarts=0`). Se conserva el
+> texto original de abajo por historia. Ficha **F-185**, cerrada.
+
 ```bash
 ssh ruleta 'systemctl is-enabled ruleta'
 # enabled
 
 ssh ruleta 'systemctl is-active ruleta || true'
 # inactive
+# SUPERADO: hoy dice 'active', y es lo correcto (decision del 2026-09-11).
 
 ssh ruleta 'systemctl show -p SubState --value ruleta'
 # dead
+# SUPERADO: hoy dice 'running'.
 ```
 
 ### 7.10 Goldens de papel (no hay comando que los sustituya)
 
 | # | Qué | Cómo se comprueba |
 |---|---|---|
-| **P1** | **Boleto de prueba** completo, legible, con logo, con **una** línea de acentos perfecta y **cortado** | está en la mano, y hay **foto** en el acta |
-| **P2** | **Boleto de inventario del arranque** del servicio, con los siete premios de prueba | está en la mano, y hay **foto** en el acta |
+| **P1** | **Boleto de prueba** completo, legible, con logo, con las líneas de acentos perfectas y **cortado** | está en la mano, y hay **foto** en el acta. **CUMPLIDO:** foto de las 19:25 con el código anterior a 2b, y **confirmación del usuario el 2026-09-11 ~23:20** con el código desplegado, ya con las cuatro tablas **en dos renglones, sin partirse** (el texto decía «**una** línea de acentos»: eran cuatro, y 2b las partió en dos renglones cada una) |
+| **P2** | **Boleto de inventario del arranque** del servicio, con los siete premios de prueba | está en la mano, y hay **foto** en el acta. **CUMPLIDO:** foto de las 19:22 y confirmación del usuario del arranque posterior al deploy (~23:20) |
 | **P3** | **Página de autoprueba** de la impresora, con los DIP y el ancho anotados | está guardada, y hay **foto** en el acta. **Única excepción:** si la autoprueba no sale con la combinación del Paso 2, manda su SI FALLA («no bloquea la fase»): P3 se da por cumplido escribiendo **«sin autoprueba»** en el acta y anotando el ancho y el DIP 5 deducidos del papel del Paso 7 |
 
 **Los goldens de papel mandan sobre los de consola.** Si `codigo=0` y no hay
@@ -2654,12 +2714,15 @@ porque esta es la fase donde más tienta saltárselas.
 
 - La impresora **funcionando por cable**, con sus valores medidos y
   commiteados, y el servicio demostrado en vivo.
-- La Pi con el servicio **`enabled` e `inactive`** (el mismo estado que dejó la
-  Fase 1). **OJO, medido el 2026-09-11 tras el deploy: hoy está `enabled` y
-  `active`**, es decir, el kiosco está corriendo y cualquier pulsación de un
-  botón (cuando se cableen) gastaría papel y folio. Antes de empezar la Fase 3
-  hay que dejarlo como dice esta línea: `sudo systemctl stop ruleta` y, antes de
-  apagar la Pi para cablear, `sudo systemctl disable ruleta` (ficha **F-185**).
+- La Pi con el servicio **`enabled` y `active`**: **el kiosco queda corriendo
+  por USB**, por decisión del orquestador del 2026-09-11 ~23:20. *(Esta línea
+  decía «`enabled` e `inactive`, el mismo estado que dejó la Fase 1»; la
+  decisión la superó, igual que al final del Paso 13 y al golden §7.9. Ficha
+  **F-185**, cerrada.)* **Consecuencia que la Fase 3 tiene que respetar:** con
+  el servicio arriba, cualquier pulsación de un botón —cuando se cableen—
+  gastaría papel y folio, y un apagón lo vuelve a arrancar solo. Antes de apagar
+  la Pi para cablear: `sudo systemctl stop ruleta` **y**
+  `sudo systemctl disable ruleta`; al terminar, `sudo systemctl enable ruleta`.
 - Un camino de red reproducible para trabajar **desde cualquier sitio** (Paso 0).
 
 ### Lo que esta fase deja pendiente, y no hay que olvidar
@@ -2670,9 +2733,9 @@ porque esta es la fase donde más tienta saltárselas.
 | **Sub-fase 2b** | §4, Paso 12 de este plan | **Hecha, commiteada (`61adf96`), desplegada y verificada en vivo** el 2026-09-11 |
 | **Aviso de «sin papel» por USB** | §0-bis H5 y cambio (b) | **Implementado y funcionando en hardware real:** el 2026-09-11 la impresora contestó `DLE EOT` por USB y el servicio avisó de **poco papel** antes de imprimir. Falta el caso extremo, con el rollo fuera (ficha F-091) |
 | **README corregido** | cambio (d) y fichas F-001, F-002, F-003, F-052, F-053, F-088, F-089 | **Hecho el 2026-09-11** con el visto bueno del usuario; F-089 queda abierta a medias (falta la parte de código) y quedan tres fichas nuevas de README: F-153, F-167 y F-177 |
-| **Golden `[ok]` = 6 de la Fase 1** | §6, mapa de anclas, y fichas F-140, F-178 y F-186 | Con 2b la **salida** del diagnóstico da **7 `[ok]` + un `[??]`** (medido en la Pi), y hasta 8 con papel de sobra. El plan y el acta de la **Fase 1** siguen diciendo 6: hay que corregirlos, están fuera del alcance de esta fase |
-| **Devolver el servicio a `enabled` + `inactive`** | Paso 13, final, y ficha F-185 | **Antes de la Fase 3.** Hoy quedó `active` |
-| **Volver a correr `probar-impresora` después de 2b** | Paso 7 y ficha F-188 | Antes del evento: nadie ha visto en papel las líneas de acentos a 48 columnas ni el pitido por boleto |
+| **Golden `[ok]` = 6 de la Fase 1** | §6, mapa de anclas, y fichas F-140, F-178 y F-186 | Con 2b la **salida** del diagnóstico da **7 `[ok]` + un `[??]`** (medido en la Pi), y hasta 8 con papel de sobra. **Resuelto el 2026-09-11 ~23:20:** el plan de la **Fase 1** (§7 y §6) y su acta llevan ya una **nota fechada** que dice que desde `61adf96` son **8** con la impresora conectada y respondiendo (**7** si no responde), **sin borrar el `6` histórico** (fichas F-140 y F-186, cerradas) |
+| **Devolver el servicio a `enabled` + `inactive`** | Paso 13, final, §7.9 y ficha F-185 | **SUPERADO POR DECISIÓN el 2026-09-11 ~23:20:** el kiosco **se queda corriendo** (`active` y `enabled`). Ficha F-185, cerrada. Lo que queda para la Fase 3 es el `stop` + `disable` **antes de apagar la Pi para cablear** |
+| **Volver a correr `probar-impresora` después de 2b** | Paso 7 y ficha F-188 | **HECHO el 2026-09-11 ~23:20**, confirmado en papel por el usuario: acentos en dos renglones sin partirse y un pitido por boleto. Ficha F-188, cerrada |
 | **Cambiar el rollo de papel** | ficha F-190 | Antes del evento: la impresora lleva avisando de poco papel desde el 2026-09-11 |
 
 ### Fase 3 · Botones y LED
@@ -2690,7 +2753,8 @@ después con los botones reales. Aquí se ajustan `rebote_ms`, `modo_habilitar` 
    `sudo systemctl disable ruleta`; al volver a encenderla,
    `sudo systemctl enable ruleta`. Si no, systemd la arranca sola a media faena
    (§0-bis H8). **Hoy hace falta hacer las dos cosas**: la Fase 2 dejó el
-   servicio `enabled` **y `active`** (ficha F-185).
+   servicio `enabled` **y `active`**, y eso ya no es un descuido sino una
+   decisión —el kiosco se queda corriendo por USB— (ficha F-185, cerrada).
 2. **Ahora la impresora sí imprime**: cada pulsación de prueba con el servicio
    arriba **gasta papel y consume un folio**. Para probar los botones sin gastar
    nada, `--impresora vista` (los boletos salen por la consola).

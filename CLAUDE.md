@@ -106,8 +106,29 @@ Cada eslabón que produce commit espera un «listo» explícito de los revisores
 ## Contexto del producto
 
 Ruleta de premios para el restaurante Asadero 33: Raspberry Pi 5, botón arcade
-JUGAR más botón HABILITAR del mesero, impresora térmica Bluetooth AOMU My-A1 de
-80 mm (ESC/POS, familia Xprinter/Zjiang), sin pantalla. Ver `README.md` para
-operación e instalación. Los valores de impresora (canal, tabla de acentos,
-corte) están sin confirmar en hardware real hasta que el usuario corra
-`python3 -m ruleta probar-impresora` y `diagnostico` en la Pi.
+JUGAR más botón HABILITAR del mesero, impresora térmica de 80 mm y sin pantalla.
+
+*(Actualizado el 2026-09-11 con lo medido en la Fase 2; antes decía «impresora
+Bluetooth» y «valores sin confirmar». Evidencia:
+`docs/actas/2026-09-11-fase-2.md`.)*
+
+- **La impresora es una AOMU My-A1, que es un clon POS-80** (ESC/POS). Medido en
+  la Pi: USB `0418:5011` e `ieee1284_id` =
+  `MFG:Printer;CMD:EPSON;MDL:POS-80;CLS:PRINTER;1`, es decir **emulación EPSON**.
+  El PPD del driver del fabricante la llama **Zjiang ZJ-80250**; eso sale del
+  PPD, no del aparato.
+- **Va conectada por cable USB:** `impresora.tipo = "archivo"` y
+  `impresora.ruta = "/dev/ruleta-impresora"` (nombre fijo que crea una regla
+  `udev` por VID:PID, con grupo `lp`). **El Bluetooth queda solo como respaldo**,
+  escrito pero nunca ejercido en hardware.
+- **Valores confirmados en hardware** (papel en la mano, 2026-09-11): tabla de
+  acentos **19 (`cp858`)**, **48 columnas**, **corte automático** y zumbador que
+  da **un pitido corto por comando `ESC B`** —ignora cantidad y duración—, con
+  `"beep": true` = un pitido al final de cada boleto.
+- **Red:** la de laboratorio es el **punto de acceso móvil de Windows** de la
+  laptop del usuario, con el mismo nombre y contraseña que el Wi-Fi del asadero;
+  la Pi entra sola. **En producción la Pi va sin red**, y por eso la **batería
+  RTC** es necesaria.
+
+Ver `README.md` para operación e instalación, y `docs/actas/` para la evidencia
+medida de cada uno de estos valores.

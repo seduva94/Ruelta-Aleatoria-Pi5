@@ -1548,7 +1548,7 @@ viejo.
 | Diagnóstico dentro de `instalar.sh` | `grep -n "== Diagnóstico" -A 3 instalar.sh` | Es lo que hace que el instalador termine mostrando errores de impresora en la Fase 1. |
 | Convenciones de `CLAUDE.md` | `grep -n "^## Convenciones de este repo" -A 12 CLAUDE.md` | Define `docs/planes/`, `docs/actas/<AAAA-MM-DD>-<fase>.md` y `docs/fichas.md`: las rutas que usa este plan. |
 | Plantilla del servicio | `grep -n "@USUARIO@\|@DIR@\|SupplementaryGroups" ruleta.service` | De ahí salen los goldens `User=asadero` y `WorkingDirectory=/home/asadero/ruleta`, y la razón por la que el servicio no necesita re-login para el grupo `gpio`. |
-| Líneas `[ok]` del diagnóstico | `grep -n "\[ok\]" ruleta/__main__.py` | El golden "6 líneas `[ok]`" se deriva de ahí. Si alguien agrega o quita una comprobación, ese número cambia. |
+| Líneas `[ok]` del diagnóstico | `grep -n "\[ok\]" ruleta/__main__.py` | El golden "6 líneas `[ok]`" se deriva de ahí. Si alguien agrega o quita una comprobación, ese número cambia. *(Nota del 2026-09-11: ya cambió. Desde el commit `61adf96` son **8** con la impresora USB conectada y respondiendo, y **7** si no responde. El `6` de la §7 se deja como valor histórico de esta fase; fichas **F-140** y **F-186**.)* |
 | Rechazo de la MAC toda a ceros | `grep -n 'strip("0")' ruleta/app.py` | *(Ancla nueva, 2026-09-11.)* De esa línea de `crear_impresora` sale el golden de **un solo** `[!!]` y el hecho de que el diagnóstico termine en segundos (§5 trampa 12, §0-bis D13). Si alguien la quita, el diagnóstico volvería a intentar la conexión RFCOMM y el golden cambiaría. |
 | `README.md` §9, impresora por USB | `grep -n "/dev/usb/lp0" README.md` | *(Ancla nueva, 2026-09-11.)* Dice `"tipo": "archivo", "ruta": "/dev/usb/lp0"` y "agrega tu usuario al grupo `lp`". De ahí arranca la Fase 2 por USB (§9). **Medido: `asadero` NO está en `lp`** (sí en `lpadmin`): ficha F-052. |
 | Versiones de `gpiozero` y `lgpio` en el diagnóstico | `grep -n "__version__" ruleta/__main__.py` | *(Ancla nueva, 2026-09-11.)* `getattr(m, '__version__', '')` es la razón de que esas dos líneas `[ok]` salgan sin número. Ficha F-051. |
@@ -1628,6 +1628,14 @@ ssh ruleta 'cd ~/ruleta && python3 -m unittest discover -s tests -t . 2>&1 | tai
 
 ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "\[ok\]"'
 # 6
+# (NOTA del 2026-09-11, escrita al cerrar la FASE 2. El 6 era cierto ese dia y
+#  se deja tal cual: es lo que se midio en esta fase, con seis comprobaciones
+#  en el diagnostico. Desde el commit 61adf96 (sub-fase 2b) el diagnostico
+#  revisa ademas la ruta del dispositivo y le pregunta a la impresora por el
+#  papel, asi que hoy imprime 8 [ok] con la impresora USB conectada y
+#  respondiendo, y 7 si no responde -esa linea sale como [??]- o si el
+#  servicio 'ruleta' esta corriendo. Ver docs/planes/fase-2-impresora.md
+#  seccion 7.5 y las fichas F-140 y F-186.)
 
 ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "\[!!\]"'
 # 1
@@ -1659,7 +1667,11 @@ ssh ruleta 'timedatectl show -p NTPSynchronized --value'
   Ver §0-bis D13.)*
 - `python3 -m ruleta diagnostico` termina con **código de salida 1** en esta
   fase. Eso **no** invalida el golden: lo que se compara es el conteo de líneas
-  `[ok]`, que debe ser 6.
+  `[ok]`, que debe ser 6. *(Nota del 2026-09-11, al cerrar la Fase 2: ese `6`
+  vale para esta fase y no se toca. Desde el commit `61adf96` el diagnóstico
+  tiene dos comprobaciones más y da **8 `[ok]`** con la impresora USB conectada
+  y respondiendo, **7** si no responde; y con la impresora ya configurada el
+  código de salida es **0**. Fichas **F-140** y **F-186**.)*
 - Las líneas `[ok] gpiozero` y `[ok] lgpio` salen **sin número de versión**, y
   está bien: esos módulos no exponen `__version__`. El golden es un conteo, así
   que no se ve afectado. Ficha F-051.
@@ -1672,7 +1684,12 @@ ssh ruleta 'timedatectl show -p NTPSynchronized --value'
   pueden volver a correr **reconectando la Pi al Wi-Fi**. No son verificables
   con la Pi aislada.
 - Si alguien agrega o quita una comprobación en `cmd_diagnostico`
-  (`ruleta/__main__.py`), el `6` deja de valer: ver la §6, última fila.
+  (`ruleta/__main__.py`), el `6` deja de valer: ver la §6, última fila. **Y ya
+  pasó:** el 2026-09-11, el commit `61adf96` (sub-fase 2b de la Fase 2) añadió
+  dos comprobaciones —la ruta del dispositivo y la consulta del papel—, así que
+  **hoy el conteo es 8** con la impresora USB conectada y respondiendo, y **7**
+  si no responde. El `6` se conserva arriba porque es lo que se midió en esta
+  fase, no porque siga siendo el valor de hoy.
 
 ---
 
@@ -1740,7 +1757,11 @@ Ver §0-bis D16.)*
 - **Cierre de la Fase 2:** `python3 -m ruleta diagnostico` debe salir **sin
   ningún `[!!]`** y con código 0. Con `"tipo": "archivo"` el diagnóstico ni
   siquiera prueba Bluetooth: imprime `[--] impresora tipo 'archivo': no se
-  prueba Bluetooth` y devuelve 0 si lo demás está bien.
+  prueba Bluetooth` y devuelve 0 si lo demás está bien. *(Nota del 2026-09-11:
+  la Fase 2 **cerró así** —`EXIT=0` y cero `[!!]`—, pero esa línea `[--]` **ya
+  no existe**: desde el commit `61adf96` el diagnóstico sí revisa la ruta del
+  dispositivo y le pregunta a la impresora por el papel. Ver
+  `docs/planes/fase-2-impresora.md` §7.5.)*
 - **Pendiente físico:** el 2026-09-11 no se pudo probar nada porque el usuario
   **no trajo el cable de corriente de la impresora**. Queda para el día
   siguiente.

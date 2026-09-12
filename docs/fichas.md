@@ -1384,7 +1384,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Origen:** lentes f2 ronda 1
 - **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 8; `ruleta/ticket.py`, `boleto_prueba`.
 - **Qué pasa (texto del lente, tal cual):** Paso 8 no menciona el hallazgo cosmético ya medido: las cuatro líneas de acentos del boleto de prueba pasan de 48 columnas y se parten en el papel. Es candidato a ficha y a un arreglo de `ticket.boleto_prueba` en 2b.
-- **Estado:** **resuelta** el 2026-09-11 (2b, cambio (f) + bitácora del plan). El boleto de prueba imprime la etiqueta (`  ESC t 19 (cp858):`) en una línea y la muestra de acentos en la siguiente, así que ninguna pasa de 48 columnas; hay golden en `tests/test_ticket.py` que compara el bloque entero por igualdad y comprueba a 32, 42 y 48 columnas. Y la bitácora del Paso 8 ya lo anota como cosmético medido esa noche. **Ojo: no se ha comprobado en papel.** El boleto de prueba de las 19:25 se imprimió con el código viejo y nadie ha vuelto a correr `probar-impresora` en la Pi después del deploy (ficha **F-188**).
+- **Estado:** **resuelta** el 2026-09-11 (2b, cambio (f) + bitácora del plan). El boleto de prueba imprime la etiqueta (`  ESC t 19 (cp858):`) en una línea y la muestra de acentos en la siguiente, así que ninguna pasa de 48 columnas; hay golden en `tests/test_ticket.py` que compara el bloque entero por igualdad y comprueba a 32, 42 y 48 columnas. Y la bitácora del Paso 8 ya lo anota como cosmético medido esa noche. **Comprobado en papel el 2026-09-11 ~23:20:** el usuario corrió la reprueba post-2b y confirmó que las cuatro tablas de acentos salen **en dos renglones, sin partirse** (ficha **F-188**, cerrada). *(Hasta ese momento solo estaba el boleto de las 19:25, impreso con el código viejo.)*
 ---
 
 ## F-114 · El golden `"canal": 1` de la §7.11 fija un canal que decide el diagnóstico
@@ -1710,7 +1710,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   esperaba 6 y crea que hay una regresión.
 - **Propuesta:** corregirlo en el cierre de la Fase 2 (Paso 14), junto con el
   acta, en la misma pasada en que se toquen los documentos de la Fase 1.
-- **Estado:** abierta, **con el número corregido por la medición**. Lo que salió en la Pi el 2026-09-11 después del deploy fueron **7 `[ok]` y un `[??]` de poco papel**, no 8: los 8 solo se dan con la impresora contestando y con papel de sobra. La §7.5 y la §6 del plan de la **Fase 2** ya listan los cuatro casos posibles; el plan y el acta de la **Fase 1** siguen diciendo 6 y siguen fuera del alcance de esta fase. Ver **F-186**.
+- **Estado:** **resuelta** el 2026-09-11 ~23:20, en el cierre de la Fase 2. Los documentos de la **Fase 1** llevan ya su **nota fechada**, y **el `6` histórico no se borró** porque era cierto cuando se midió: `docs/planes/fase-1-preparar-pi.md` §7 (dentro del bloque de goldens y en dos de sus notas), §6 (mapa de anclas) y §9, y `docs/actas/2026-09-11-fase-1.md` (tabla de goldens y bajo el Anexo C). Todas dicen lo mismo: desde el commit `61adf96` el diagnóstico imprime **8 `[ok]`** con la impresora USB conectada y respondiendo, y **7** si no responde —o si el servicio `ruleta` está corriendo—. Lo medido en la Pi tras el deploy fueron **7 `[ok]` y un `[??]` de poco papel**: es el cuarto caso, ver **F-186**.
 
 ---
 
@@ -2489,7 +2489,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Propuesta:** que el orquestador lo lleve al usuario en el cierre de la Fase 2
   con el texto de reemplazo ya redactado, para que él solo tenga que decir sí o
   no.
-- **Estado:** abierta (requiere visto bueno del usuario).
+- **Estado:** **resuelta** el 2026-09-11 ~23:20, **con el visto bueno del usuario**, en el cierre de la Fase 2. `CLAUDE.md` §«Contexto del producto» dice ahora: AOMU My-A1 = **clon POS-80** (USB `0418:5011`, `ieee1284_id` con **emulación EPSON**; el PPD del fabricante la llama **Zjiang ZJ-80250**), **conectada por cable USB** (`impresora.tipo = "archivo"`, `ruta = "/dev/ruleta-impresora"`), **Bluetooth solo de respaldo y nunca ejercido**; **valores confirmados en hardware** (tabla **19 / `cp858`**, **48 columnas**, **corte automático**, **un pitido por comando `ESC B`**); red de laboratorio = **punto de acceso de Windows** y **producción sin red**, con la batería RTC como consecuencia. El resto de `CLAUDE.md` —§1 a §7 y las convenciones del repositorio— quedó **intacto**.
 
 ---
 
@@ -2759,8 +2759,11 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   así que cada agente nuevo arranca con el hardware equivocado.
 - **Propuesta:** la de **F-169**: que el orquestador lo lleve al usuario en el
   cierre de la Fase 2 con el texto de reemplazo ya redactado.
-- **Estado:** abierta (misma acción que **F-169**; requiere visto bueno del
-  usuario).
+- **Estado:** **resuelta** el 2026-09-11 ~23:20, junto con **F-169** y con el
+  visto bueno del usuario: `CLAUDE.md` §«Contexto del producto» ya describe la
+  impresora por **USB** (clon POS-80, emulación EPSON) con el **Bluetooth de
+  respaldo**, y lista los valores **confirmados en papel**. Ver el estado de
+  **F-169** para el detalle de lo que quedó escrito.
 
 ---
 
@@ -2885,7 +2888,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   `sudo systemctl disable ruleta` antes de apagar la Pi para cablear, como
   manda el aviso 1 de la Fase 3). Ya está anotado en el plan: §0 bitácora Paso
   13, nota del deploy, §9 y aviso 1 de la Fase 3.
-- **Estado:** abierta (acción antes de la Fase 3).
+- **Estado:** **cerrada** el 2026-09-11 ~23:20, **no por ejecución sino por decisión del orquestador**: **el kiosco queda corriendo por USB**, con el servicio `active` y `enabled`. Por tanto el final del Paso 13 («devolver el servicio al estado en que lo dejó la Fase 1») y el golden **§7.9** quedan **SUPERADOS**, y así consta en `docs/planes/fase-2-impresora.md` (estado global, bitácora filas 13 y 13-bis, nota «Reprueba post-2b y cierre en papel», Paso 13, §7.9 y §9) y en `docs/actas/2026-09-11-fase-2.md` (§3, §7, §8 y §10). **Lo que la decisión NO cambia, y sigue siendo obligatorio en la Fase 3:** antes de apagar la Pi para cablear los botones, `sudo systemctl stop ruleta` **y** `sudo systemctl disable ruleta`, y `sudo systemctl enable ruleta` al volver; con el servicio arriba y los botones cableados, **cada pulsación de prueba gasta papel y consume un folio** (para probar sin gastar, `--impresora vista`).
 
 ---
 
@@ -2911,8 +2914,13 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   Fase 2 listan ahora los **cuatro** casos con su conteo. Falta el mismo
   arreglo en los documentos de la **Fase 1** (F-140), que están fuera de
   alcance.
-- **Estado:** abierta solo por la parte de la Fase 1 (ver **F-140**); la parte
-  de la Fase 2 quedó corregida el 2026-09-11.
+- **Estado:** **resuelta** el 2026-09-11 ~23:20. La parte de la Fase 2 ya
+  estaba corregida esa misma noche; la parte de la **Fase 1** se cerró en el
+  cierre de fase, con notas fechadas en el plan (§7, §6 y §9) y en el acta de
+  la Fase 1, sin borrar el `6` histórico (ver **F-140**). Los cuatro casos del
+  conteo —8 con papel de sobra; 7 + `[??]` de poco papel (el medido); 7 + `[??]`
+  si el firmware no contesta; 7 + `[--]` con el servicio corriendo— quedan
+  escritos donde alguien los va a buscar.
 
 ---
 
@@ -2972,7 +2980,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   F-185): `cd ~/ruleta && python3 -m ruleta probar-impresora`, mirar el papel y
   decidir sobre `beep` (F-160). Y preguntarle al usuario por el boleto de las
   22:32.
-- **Estado:** abierta (requiere al usuario).
+- **Estado:** **resuelta** el 2026-09-11 ~23:20 con la reprueba post-2b, **confirmada en papel por el usuario**: «todas las pruebas salieron y se escucharon los beeps». Cubre las tres cosas que faltaban: el **boleto de prueba con las cuatro tablas de acentos en dos renglones, sin líneas partidas** (cambio (f) de 2b, visto por fin impreso); el **boleto de inventario de arranque**; y **un pitido al final de cada boleto** (`"beep": true` operativo por USB). Queda escrito en `docs/actas/2026-09-11-fase-2.md` §10 y en la bitácora del plan (fila 13-bis). **Lo que esta ficha NO cierra:** el cambio de rollo (**F-190**, abierta) y la decisión de dejar `beep` en `true` durante toda la semana del evento (**F-160**, abierta).
 
 ---
 
@@ -3173,5 +3181,284 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   con calma: correr `herramientas/emparejar.sh`, anotar la MAC y el canal reales,
   imprimir un boleto por Bluetooth y volver a dejar `tipo=archivo`.
 - **Estado:** abierta.
+
+---
+
+## F-196 · Ortografía del fabricante: los documentos escriben «Zjiang» y el PPD medido dice «Zijiang»
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `CLAUDE.md` §«Contexto del producto» (`grep -n "Zjiang" CLAUDE.md`)
+  y `docs/actas/2026-09-11-fase-2.md` §9, duda 4. El dato medido está en
+  `docs/actas/2026-09-11-hechos-medidos.md` (PPD `ppd/POS80.ppd`) y en
+  `docs/planes/fase-2-impresora.md` §0-bis H3.
+- **Qué pasa (texto del lente, tal cual):** Ortografía del fabricante:
+  `CLAUDE.md` (y la duda 4 de la §9 del acta) escriben «Zjiang ZJ-80250», pero
+  el PPD medido dice Manufacturer «Zijiang» (`ModelName` sí es «ZJ-80250»). Es
+  un uso ya extendido en todo el repositorio; no cambia ningún hecho técnico.
+- **Por qué es residual:** es una letra en un nombre comercial que, además, ya
+  está declarado como **deducción y no como medición** (ficha **F-134**). No
+  afecta al código, ni a los goldens, ni a nada que salga impreso en papel.
+- **Riesgo si no se toca:** casi ninguno; a lo sumo, quien busque el modelo por
+  internet para comprar repuestos escribe mal el nombre.
+- **Propuesta:** si algún día se toca esa parte de `CLAUDE.md`, escribir
+  «Zijiang ZJ-80250» tal como lo dice el PPD, y dejar «zjiang» solo donde se cite
+  el nombre del directorio del driver (`usr/share/cups/model/zjiang`). No vale la
+  pena una pasada solo para esto.
+- **Estado:** abierta (cosmética).
+
+---
+
+## F-197 · La fila 14 de la bitácora enumera «F-185 a F-190» y la misma pasada creó hasta la F-195
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-2-impresora.md` §0, bitácora, fila 14 («Cierre:
+  acta desde hechos medidos, fichas y memoria»).
+- **Qué pasa (texto del lente, tal cual):** Bitácora del plan de la Fase 2, fila
+  14: dice «Fichas al día (nuevas **F-185** a **F-190**…)», pero F-191 a F-195
+  también se crearon en la misma pasada (todas entraron en el commit `6ab9680`).
+  La enumeración se quedó corta; es redacción heredada, no un hecho nuevo falso.
+- **Por qué es residual:** las fichas existen y están completas en
+  `docs/fichas.md`; lo que falla es el rango citado en una celda de bitácora.
+  No se pierde información: se pierde el rastro de cinco números.
+- **Riesgo si no se toca:** quien audite el cierre por la bitácora creerá que la
+  Fase 2 produjo seis fichas nuevas y no once, y podría dar por huérfanas las
+  F-191 a F-195. Es el mismo defecto que ya se anotó para la Fase 1 en **F-082**.
+- **Propuesta:** cambiar el rango a «**F-185** a **F-195**» la próxima vez que se
+  toque el plan.
+- **Estado:** abierta.
+
+---
+
+## F-198 · La fila 14 de la bitácora está `[x]` aunque su propia celda dice que falta la memoria del proyecto
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-2-impresora.md` §0, bitácora, fila 14, última
+  frase: «La **memoria del proyecto** la actualiza el orquestador».
+- **Qué pasa (texto del lente, tal cual):** Bitácora del plan de la Fase 2, fila
+  14 marcada `[x]` cuando la propia celda dice que «la **memoria del proyecto**
+  la actualiza el orquestador», es decir, una parte del paso todavía no está
+  hecha. Queda explícito en el texto, pero la casilla no lo refleja.
+- **Por qué es residual:** no engaña a nadie que lea la celda entera —la
+  salvedad está escrita ahí mismo— y cumple el encabezado de la §0, que obliga a
+  que cada casilla marcada diga qué evidencia la sostiene.
+- **Riesgo si no se toca:** contradice la regla del propio encabezado de la §0
+  («se marcan `[x]` solo cuando el criterio de aceptación del paso se cumplió»).
+  Es el mismo patrón ya anotado para la Fase 1 en **F-065**.
+- **Propuesta:** usar `[~]` (o «✅ parcial», como hace el acta) hasta que el
+  orquestador anote el hito en la memoria del proyecto, y entonces sí `[x]`.
+- **Estado:** abierta.
+
+---
+
+## F-199 · La fila 13 de la bitácora está `[x]` aunque su propia celda dice que los grupos del proceso no se midieron
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-2-impresora.md` §0, bitácora, fila 13 («Arranque
+  del servicio y verificación en vivo»), última frase: «**Lo único que no se
+  midió:** los grupos del proceso (`/proc/<pid>/status`, ficha **F-187**,
+  abierta)».
+- **Qué pasa (texto del lente, tal cual):** Bitácora del plan de la Fase 2, fila
+  13 marcada `[x]` mientras la celda reconoce que los grupos del proceso
+  (`/proc/<pid>/status`, F-187) no se midieron. Igual que arriba: está
+  declarado, pero la casilla dice cumplido.
+- **Por qué es residual:** el hueco está declarado en la misma celda y tiene
+  ficha propia (**F-187**), y lo que esa medición probaría —que el proceso tiene
+  el grupo `lp`— ya está demostrado por la vía de los hechos: el servicio abrió
+  `/dev/ruleta-impresora` y escribió en él.
+- **Riesgo si no se toca:** el mismo que **F-198**: la casilla contradice la
+  regla del encabezado de la §0.
+- **Propuesta:** dejarla en `[~]` mientras **F-187** siga abierta, o cerrar
+  F-187 con la medición y entonces sí marcar `[x]`.
+- **Estado:** abierta.
+
+---
+
+## F-200 · El resumen del acta se lee como lista completa de lo que queda, y no lo es
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/actas/2026-09-11-fase-2.md`, viñeta **«Resultado»** del
+  preámbulo (`grep -n "Lo que queda" docs/actas/2026-09-11-fase-2.md`), que es el
+  resumen que precede a la §2 «Resumen del resultado».
+- **Qué pasa (texto del lente, tal cual):** Resumen de la §2 del acta: «Lo que
+  queda son anotaciones residuales, no bloqueos: el **cambio de rollo**
+  (**F-190**) y cuatro mediciones de solo lectura (**F-187**)». La §10 del mismo
+  acta enumera además F-189, F-055/F-056/F-105, F-194 y F-195, y la §8 mantiene
+  F-091 y F-089 como riesgos abiertos. El resumen se lee como lista completa y no
+  lo es.
+- **Por qué es residual:** el acta **sí** enumera todo lo que queda, en la §8 y
+  en la §10; el resumen no oculta nada, solo se queda corto donde el lector
+  espera un inventario. Y las dos cosas que nombra son, efectivamente, las
+  únicas con efecto directo en el evento.
+- **Riesgo si no se toca:** quien lea solo el encabezado —que es lo que hace
+  cualquiera que retome el proyecto tras un `/clear`— cerrará la Fase 2 creyendo
+  que quedan dos pendientes y no nueve.
+- **Propuesta:** añadir al final de esa frase «…; la §10 los enumera todos», o
+  cambiar «Lo que queda son» por «Lo más urgente que queda son».
+- **Estado:** abierta.
+
+---
+
+## F-201 · La decisión de dejar el kiosco corriendo no está en el archivo de hechos medidos
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/actas/2026-09-11-hechos-medidos.md` (sección «Noche del
+  2026-09-11»), frente a `docs/actas/2026-09-11-fase-2.md` §10 («La decisión del
+  orquestador sobre el servicio»), `docs/planes/fase-2-impresora.md` (Paso 13 y
+  §7.9) y la ficha **F-185**. La regla que lo pide: `CLAUDE.md` §6, primera
+  viñeta.
+- **Qué pasa (texto del lente, tal cual):** La «DECISIÓN DEL ORQUESTADOR» de
+  dejar el kiosco corriendo no aparece en
+  `docs/actas/2026-09-11-hechos-medidos.md`, que solo registra el estado
+  (`active`/`enabled`). Los documentos la etiquetan con honestidad como decisión
+  y no como medición, pero la §6 de `CLAUDE.md` pide que las actas se escriban
+  desde el archivo de hechos: convendría anotar también la decisión ahí.
+- **Por qué es residual:** no hay ninguna afirmación falsa. El estado sí está
+  medido y sí está en el archivo de hechos; lo que falta es la **decisión**, que
+  además está rotulada como tal en los cuatro documentos donde aparece.
+- **Riesgo si no se toca:** el archivo de hechos deja de ser la fuente única del
+  cierre. Quien reconstruya la Fase 2 solo desde él verá un servicio `active` sin
+  saber que quedó así **a propósito**, y podría «arreglarlo» apagándolo.
+- **Propuesta:** añadir una línea a la última entrada del archivo de hechos, del
+  estilo: «Decisión del orquestador (2026-09-11 ~23:20): el kiosco se queda
+  corriendo, `active` y `enabled`; el final del Paso 13 queda superado».
+  Marcarla como decisión, no como medición.
+- **Estado:** abierta.
+
+---
+
+## F-202 · Encabezados de fichas ya cerradas que siguen redactados en presente
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/fichas.md`, títulos de **F-185** («…y el Paso 13 pide
+  devolverlo a `enabled` + `inactive`») y **F-188** («Nadie ha vuelto a correr
+  `probar-impresora`…»).
+- **Qué pasa (texto del lente, tal cual):** Encabezados de fichas ya cerradas que
+  siguen redactados en presente: F-185 («…y el Paso 13 pide devolverlo a
+  `enabled` + `inactive`») y F-188 («Nadie ha vuelto a correr
+  `probar-impresora`…»). Sólo se actualizó su campo **Estado**. Es la convención
+  del archivo (F-113 hace lo mismo), así que se deja.
+- **Por qué es residual:** es **la convención del archivo**, no un descuido: el
+  título describe el hallazgo tal como se encontró y el campo **Estado** dice qué
+  pasó con él. **F-113** está redactada igual.
+- **Riesgo si no se toca:** quien hojee solo el índice de títulos puede creer
+  abierto algo que está cerrado. Lo mitiga que el estado esté siempre en la
+  última viñeta de cada ficha.
+- **Propuesta:** ninguna. Se anota para que no se vuelva a abrir como hallazgo en
+  la próxima ronda de lentes. Si algún día se decide cambiar la convención, hay
+  que cambiarla en **todo** el archivo de una vez, no ficha por ficha.
+- **Estado:** cerrada por convención (no se actúa).
+
+---
+
+## F-203 · La fila 1 de la bitácora cita F-185, que trata del estado final y no del trabajo
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-2-impresora.md` §0, bitácora, fila 1 («Poner la Pi
+  en estado de trabajo…»), frente al título y al «Dónde» de la ficha **F-185** en
+  `docs/fichas.md`.
+- **Qué pasa (texto del lente, tal cual):** Bitácora del plan de la Fase 2, fila
+  1: cita F-185 para el hecho de que el servicio nunca se deshabilitó **durante**
+  el trabajo, cuando F-185 trata del **estado final**. Atribución imprecisa,
+  heredada de antes de esta pasada.
+- **Por qué es residual:** los dos hechos son ciertos y están medidos
+  (`systemctl is-enabled ruleta` → `enabled` durante todo el deploy), y son las
+  dos caras de la misma omisión; lo único torcido es a qué ficha se le cuelga
+  cada una.
+- **Riesgo si no se toca:** ahora que **F-185** está **cerrada** por la decisión
+  del orquestador, un lector puede concluir que también quedó saldado el
+  incumplimiento del Paso 1 —que el servicio debía trabajar **detenido y
+  deshabilitado**—, y eso no lo cerró nadie: simplemente no se hizo, y por eso la
+  fila 1 sigue en `[~]`.
+- **Propuesta:** dejar en la fila 1 el hecho medido sin colgarlo de F-185, o
+  abrir una ficha propia para el incumplimiento del Paso 1 si se quiere seguirle
+  el rastro. La fila 1 debe seguir en `[~]`.
+- **Estado:** abierta.
+
+---
+
+## F-204 · El conteo de `[ok]` tiene un quinto camino a 7 que el plan y F-186 no enumeran
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-2-impresora.md` §7.5 (bloque «son cuatro casos y
+  ninguno es un fallo») y la ficha **F-186**; el código, en `ruleta/__main__.py`
+  líneas 414-415 (`grep -n "consultar_estado" ruleta/__main__.py`).
+- **Qué pasa (texto del lente, tal cual):** §7.5 del plan de la Fase 2 y la ficha
+  F-186 enumeran «cuatro casos» del conteo de `[ok]`, pero el código tiene un
+  quinto camino a 7: `consultar_estado: false` (`ruleta/__main__.py`, rama `[--]
+  consultar_estado está en false`). Hoy vale `true` en `config.json`, así que no
+  se da en la práctica.
+- **Por qué es residual:** el quinto caso **no puede ocurrir** con el
+  `config.json` que está desplegado (`"consultar_estado": true`, con golden en
+  `tests/test_config.py`), y si ocurriera daría 7 `[ok]` y código 0, igual que
+  los otros dos casos de 7: ningún golden se rompe.
+- **Riesgo si no se toca:** si alguien pone `consultar_estado: false` para
+  silenciar el aviso de poco papel, el diagnóstico dará 7 `[ok]` y un `[--]` que
+  no está en la lista de casos, y el ejecutor de turno se detendrá creyendo que
+  encontró una regresión.
+- **Propuesta:** añadir el quinto caso a la lista de la §7.5 y a **F-186**:
+  «7 + `[--] consultar_estado está en false`: nadie le preguntó a la impresora
+  porque la configuración lo pidió así».
+- **Estado:** abierta.
+
+---
+
+## F-205 · La nota de los «8 `[ok]`» en los documentos de la Fase 1 no dice que supone `tipo = "archivo"`
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-1-preparar-pi.md` §7 y su tabla de anclas
+  (`grep -n "USB conectada" docs/planes/fase-1-preparar-pi.md`) y
+  `docs/actas/2026-09-11-fase-1.md` (fila del golden `grep -c "\[ok\]"` y la nota
+  del anexo).
+- **Qué pasa (texto del lente, tal cual):** La nota nueva de la §7 del plan de la
+  Fase 1 y de su acta habla de «8 `[ok]` con la impresora USB conectada» sin
+  decir que ese conteo supone `impresora.tipo = "archivo"`. En la Fase 1 la
+  configuración era `bluetooth`, así que el lector podría comparar peras con
+  manzanas; el calificativo «USB conectada» lo insinúa pero no lo cierra.
+- **Por qué es residual:** la nota está fechada, remite a las fichas **F-140** y
+  **F-186**, y **no borra el `6` histórico**, que es lo que de verdad importaba
+  para no falsear el acta de la Fase 1.
+- **Riesgo si no se toca:** alguien reproduce el diagnóstico de la Fase 1 tal
+  cual (con `tipo: "bluetooth"`), cuenta 6 `[ok]` y cree que la nota miente o que
+  la Pi se rompió. El conteo de 8 solo sale con `tipo = "archivo"`, la ruta
+  existente y la impresora contestando.
+- **Propuesta:** añadir cinco palabras a la nota: «…con `impresora.tipo =
+  "archivo"` y la impresora USB conectada y respondiendo».
+- **Estado:** abierta.
+
+---
+
+## F-206 · El texto del golden de papel P1 se reescribió, no solo su estado
+
+- **Fecha:** 2026-09-11
+- **Origen:** lente cierre F2
+- **Dónde:** `docs/planes/fase-2-impresora.md` §7.10, fila **P1** de la tabla de
+  goldens de papel.
+- **Qué pasa (texto del lente, tal cual):** §7.10 del plan de la Fase 2: el texto
+  del golden P1 se reescribió («una línea de acentos perfecta» → «las líneas de
+  acentos perfectas»). El cambio está anotado y justificado en la misma celda,
+  pero es una modificación de la definición del golden, no sólo de su estado.
+- **Por qué es residual:** la celda dice **por qué** se cambió, y con literalidad
+  poco común: «el texto decía "**una** línea de acentos": eran cuatro, y 2b las
+  partió en dos renglones cada una». El golden nuevo es **más exigente** que el
+  viejo, no menos, y lo que se confirmó en papel cubre las cuatro tablas.
+- **Riesgo si no se toca:** ninguno hoy. Importa como precedente: el formato
+  antidrift trata los goldens como contrato, y reescribir uno en la misma pasada
+  en que se declara cumplido es justo el movimiento que ese formato quiere hacer
+  visible. Aquí quedó visible; conviene que siga siendo la excepción documentada
+  y no la costumbre.
+- **Propuesta:** ninguna sobre el texto —el nuevo es el correcto—. Se anota para
+  dejar rastro de que el golden P1 **cambió de definición** el 2026-09-11, por si
+  alguien compara el plan con una copia anterior.
+- **Estado:** cerrada como anotación (no se actúa).
 
 ---
