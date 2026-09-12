@@ -3462,3 +3462,479 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Estado:** cerrada como anotación (no se actúa).
 
 ---
+
+## F-207 · Procedencia del `logo.png` real y qué se le hizo antes de imprimirlo
+
+- **Fecha:** 2026-09-12
+- **Origen:** fase 4 logo
+- **Dónde:** `logo.png` (raíz del repositorio) y las llaves `negocio.logo`,
+  `negocio.logo_ancho` y `negocio.logo_tramado` de `config.json`.
+- **Qué pasa:** el `logo.png` de 384 × 150 px que se había generado con Pillow
+  para no dejar el repositorio sin logo **ya no está**: lo reemplaza el logo
+  real del negocio (la corona sobre los «33»).
+  - **Origen del archivo:** `G:/Other computers/Miltimex/Negocios/Asadero 33/Logo
+    Corto.png`, en el Google Drive del usuario (archivo del 26/03/2024,
+    204 357 bytes). Medido: PNG **RGBA de 4160 × 3475 px a 300 dpi**, fondo
+    transparente (las cuatro esquinas con alfa 0), **dos colores** en RGB
+    (negro y blanco) y solo **0.25 %** de los píxeles con alfa intermedio, que
+    es el antialias del contorno. El original **no se tocó**: se abrió en modo
+    solo lectura y sigue igual en su carpeta.
+  - **Tratamiento** (script desechable con Pillow, fuera del repositorio):
+    aplanado sobre blanco → conversión a gris (`L`) → recorte a la caja del
+    contenido, que resultó ser **el lienzo completo** (`(0, 0, 4160, 3475)`: el
+    original ya venía al ras por los cuatro lados, no había margen que quitar) →
+    margen blanco del **2 % del ancho = 83 px por lado** (lienzo 4326 × 3641) →
+    reducción a **576 × 485 px con LANCZOS** → guardado como **PNG gris de 8
+    bits** (tipo de color 0, sin alfa, sin `tRNS`, sin entrelazado) con
+    `optimize=True`: **21 057 bytes**, esquinas en 255, 10.25 % de píxeles bajo
+    128 y apenas 0.91 % de tonos medios (el antialias).
+  - **Cómo sale en papel:** con el `logo_ancho: 384` que trae `config.json`,
+    `ruleta.escpos.preparar_imagen` lo deja en **384 × 323 px**, es decir
+    **40.4 mm de alto** en papel de 203 dpi (mm = px / 8). En
+    `python -m ruleta vista-previa` aparece como cinco bandas de 64 filas más
+    una de 3, porque `banda_imagen` vale 64.
+  - **Grosor del trazo:** medido sobre la imagen binaria que devuelve
+    `preparar_imagen(Image.open("logo.png"), 384, False)`, la línea más delgada
+    (las diagonales de la corona) queda en **≈2.8 px** (percentil 1 de la cuerda
+    negra mínima en las 4 direcciones; mediana 8.5 px). Solo 19 píxeles de
+    12 668 bajan de 2 px y son las puntas de las líneas. Por eso **no** se le
+    aplicó el engrosado `MinFilter(3)` que se había previsto por si el trazo
+    quedaba bajo 2 px: la versión engrosada sube el mínimo a ≈4 px, pero engorda
+    las bolitas de la corona y cierra el hueco interior de los «33».
+- **Por qué es residual:** no hay nada roto ni ninguna decisión pendiente. La
+  suite sigue en verde (`python -m unittest discover -s tests -t .` → **194
+  tests, OK**, con `test_prueba_del_config_real_cabe_entero`, que abre el
+  `config.json` y el `logo.png` de verdad) y el logo nunca se validó en las
+  pruebas por tamaño ni por contenido, así que cambiarlo no mueve ningún golden.
+  Se anota porque, si mañana alguien quiere regenerarlo o retocarlo, esto es lo
+  único que dice de dónde salió y con qué receta.
+- **Riesgo si no se toca:** ninguno en el programa. El riesgo es de memoria: sin
+  esta ficha, dentro de un mes nadie sabrá que el archivo bueno vive en el Drive
+  del usuario, que el repositorio guarda una versión **ya reducida a 576 px** y
+  que volver a reducirla desde el repositorio (en vez de desde el original de
+  4160 px) degrada el trazo cada vez.
+- **Propuesta (para cuando se vea en papel):** si el logo sale delgado o
+  entrecortado, subir `negocio.logo_ancho` de **384 a 576**, que es el máximo del
+  rollo de 80 mm y justo el ancho nativo del archivo (no hay que regenerar nada;
+  a 576 el logo mide 485 px = **60.6 mm** de alto). Al revés, si 40 mm de logo
+  por boleto se comen demasiado papel: `320` → 269 px ≈ 33.6 mm y `256` → 216 px
+  = 27 mm. Y si alguna vez se cambia el logo por uno con fotografía o degradados,
+  entonces sí hay que poner `"logo_tramado": true`.
+- **Estado:** anotación de procedencia (no se actúa).
+
+---
+
+## F-208 · El README todavía llama «provisional» al `logo.png`
+
+- **Fecha:** 2026-09-12
+- **Origen:** fase 4 logo
+- **Dónde:** `README.md`, árbol de archivos del final
+  (`grep -n "logo provisional" README.md`), y el «Paso 5 · Tu logo» del §4
+  (`grep -n "Paso 5 . Tu logo" README.md`).
+- **Qué pasa:** el árbol de archivos del README dice
+  `logo.png              logo provisional (reemplázalo por el real)`, y desde el
+  2026-09-12 eso ya no es cierto: el archivo del repositorio **es** el logo real
+  del negocio, a 576 × 485 px (ver **F-207**). El «Paso 5» sigue siendo correcto
+  como instrucción para cambiarlo (pide un PNG o JPG de 8 bits entre 384 y 576
+  px de ancho, que es exactamente lo que hay), pero al leerlo junto al árbol da a
+  entender que el paso está pendiente.
+- **Por qué es residual:** es una línea de documentación que se quedó vieja, no
+  un error del programa ni una afirmación sobre el código que engañe al ejecutar
+  nada. El boleto sale igual la lea alguien o no.
+- **Riesgo si no se toca:** que el usuario (o quien instale la Pi) crea que
+  todavía falta subir el logo y copie encima otro archivo —por ejemplo el
+  original de 4160 px del Drive, que pesa 200 KB y hace que cada boleto tarde
+  más en enviarse por Bluetooth—, o al revés, que dé por hecho que el logo se ve
+  mal porque «es el de prueba».
+- **Propuesta:** dos retoques de una línea en el `README.md`: en el árbol,
+  `logo.png              logo del negocio (576 px; ver docs/fichas.md F-207)`; y
+  en el «Paso 5», abrir con «El repositorio ya trae el logo del Asadero 33; este
+  paso es solo para cambiarlo». **Requiere visto bueno del usuario**, porque toca
+  documentación que él lee. No se hizo aquí: esta pasada solo tenía permiso para
+  `logo.png` y `docs/fichas.md`.
+- **Estado:** abierta. **Reconfirmada el 2026-09-12** por los lentes del
+  logo (ronda 1), que la volvieron a levantar **dos veces** en la misma
+  ronda (`README.md:538`) y coincidieron en dejarla fuera de alcance: el
+  `README.md` no estaba entre los archivos que esa pasada podía tocar.
+  **F-211** le agrega el motivo técnico para atenderla: hoy ninguna prueba
+  impide que alguien copie otro archivo encima de `logo.png`.
+
+---
+
+## F-209 · El «0.91 % de tonos medios» de F-207 es una banda del histograma, no todo el antialias
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `docs/fichas.md`, ficha **F-207**, viñeta «Tratamiento»: la frase
+  «apenas **0.91 %** de tonos medios (el antialias)». El número sale de
+  `histograma_tonos()`, del script desechable `scratchpad/logo_medidas.py`, que
+  define «medios» como la banda **64-191** del histograma.
+- **Qué pasa:** el 0.91 % es exacto, pero es esa banda, no «el antialias».
+  Vuelto a medir hoy sobre `logo.png` (576 × 485 = **279 360** píxeles):
+  - negro puro (valor 0): **20 208 px**
+  - blanco puro (valor 255): **242 511 px**
+  - todo lo demás, que es el antialias real: **16 641 px = 5.96 %**
+  - de esos, la banda 64-191: **2 555 px = 0.91 %** (lo que dice F-207)
+  - el resto vive pegado a los extremos: 7 155 px en 1-63 y 6 931 px en 192-254.
+
+  Aviso sobre el hallazgo mismo: los lentes reportaron «34 322 de 279 360» para
+  el antialias, y ese conteo **no cuadra** (279 360 − 20 208 − 242 511 =
+  **16 641**). El porcentaje que dieron, 5.96 %, sí es el correcto, así que fue
+  error al transcribir el conteo, no error del hallazgo.
+- **Por qué es residual:** F-207 no afirma nada falso; con la banda declarada,
+  0.91 % es el número correcto. Lo único flojo es la etiqueta «(el antialias)» a
+  secas, que hace parecer que el suavizado es seis veces menor de lo que es.
+- **Riesgo si no se toca:** que alguien lea «casi no hay grises» y dé por hecho
+  que la imagen ya está prácticamente binarizada. No lo está: 1 de cada 17
+  píxeles es gris. Para imprimir da igual (`preparar_imagen` corta en 128 y
+  `logo_tramado` está en `false`), pero importaría si algún día se compara este
+  archivo contra otro para medir degradación.
+- **Propuesta:** dejar en F-207 «apenas 0.91 % de tonos medios (banda 64-191);
+  el antialias completo —todo lo que no es 0 ni 255— es 5.96 %». Es gusto de
+  redacción, no corrección de un dato falso, así que **no se aplicó**: esta
+  ficha ya deja el número fino anotado y F-207 no se reescribe por una precisión
+  de estilo.
+- **Estado:** anotación (no se actúa).
+
+---
+
+## F-210 · Las fichas del logo publican la ruta del Drive del usuario, con el nombre de otro negocio
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `docs/fichas.md`, ficha **F-207**, viñeta «Origen del archivo»:
+  `G:/Other computers/Miltimex/Negocios/Asadero 33/Logo Corto.png`.
+- **Qué pasa:** esa línea publica tres cosas que no hacen falta para entender de
+  dónde salió el logo: que el usuario sincroniza un Google Drive con la carpeta
+  «Other computers», el nombre de **otra** empresa suya, «Miltimex», que no
+  tiene nada que ver con la ruleta, y la letra de unidad de su PC. Y el
+  repositorio no es privado: el `README.md:106` manda
+  `git clone https://github.com/seduva94/Ruelta-Aleatoria-Pi5.git` **sin
+  credenciales**, y así se clonó en la Pi el 2026-09-11
+  (`docs/planes/fase-1-preparar-pi.md:84`, `EXIT=0`).
+- **Por qué es residual (y no corrección):** ya es la convención del
+  repositorio, no un desliz de esta ficha. Antes de F-207 ya había rutas locales
+  del usuario en `docs/actas/2026-09-11-fase-1.md:175`,
+  `docs/actas/2026-09-11-hechos-medidos.md:17` y `:232`,
+  `docs/planes/fase-1-preparar-pi.md:592` (ahí con contrabarras,
+  `C:\Users\seduv\.ssh\config`), `docs/PAUSA-2026-09-11.md:31` y `:115`; y el
+  nombre de equipo `DUVA_LAP\seduv` en `fase-1-preparar-pi.md:194`. Borrarla
+  solo de F-207 daría una falsa sensación de limpieza.
+- **Riesgo si no se toca:** bajo, pero permanente: lo que entra al historial de
+  git ya no sale con un simple editar. Conviene decir qué **no** hay: no hay
+  contraseñas, ni tokens, ni la llave SSH privada (esa se cita siempre por ruta,
+  `C:/Users/seduv/.ssh/id_ruleta`, nunca por contenido; `grep "BEGIN OPENSSH"`
+  sobre el repositorio → **0**). La llave **pública** sí está transcrita
+  (`docs/actas/2026-09-11-fase-1.md:172`), y una llave pública es pública por
+  diseño. Lo expuesto es contexto: nombre de usuario de Windows, nombre de
+  equipo y el nombre comercial «Miltimex».
+- **Propuesta:** es decisión del usuario, y de hacerse hay que hacerla en una
+  pasada aparte que toque **todos** esos documentos a la vez. Dos caminos:
+  dejarlo como está (es su repositorio y no hay secretos), o cambiar las rutas
+  por algo genérico del tipo `<Drive del usuario>/Asadero 33/Logo Corto.png` y
+  `~/.ssh/id_ruleta`. **Requiere visto bueno del usuario.**
+- **Estado:** abierta (decisión del usuario).
+
+---
+
+## F-211 · Ninguna prueba fija el tamaño, los bytes ni el contenido de `logo.png`
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `tests/test_ticket.py:227`
+  (`test_prueba_del_config_real_cabe_entero`) y el ayudante `lineas_vista` del
+  mismo archivo (`tests/test_ticket.py:28`); también `tests/test_config.py:140`
+  y `:145`.
+- **Qué pasa:** el único test que abre el `logo.png` de verdad es
+  `test_prueba_del_config_real_cabe_entero`. Carga el `config.json` del
+  repositorio (que trae `"logo": "logo.png"`) y arma el boleto de prueba, así
+  que el raster **sí** se genera: el boleto real pesa **16 381 bytes** y salen
+  seis bandas de imagen (cinco `[IMAGEN 384x64 px]` y una `[IMAGEN 384x3 px]`).
+  Pero lo único que comprueba es que ninguna **línea de texto** pase de las 48
+  columnas. Las bandas de imagen ni siquiera llegan a esa comprobación:
+  `lineas_vista` las descarta a propósito, con un `continue` para las marcas
+  `[CORTE]`, `[IMAGEN` y `[BEEP]`. Matiz sobre el hallazgo: los lentes
+  explicaron que esas líneas pasan «porque miden 19 caracteres»; medidas, miden
+  **18** (`[IMAGEN 384x64 px]`) y **17** la última, y da igual, porque el filtro
+  las salta antes de medirlas. La conclusión no cambia; queda más fuerte: aunque
+  una banda midiera 500 caracteres, el test seguiría en verde.
+  Del lado de la configuración pasa lo mismo:
+  `test_config_json_del_proyecto_apunta_a_la_impresora_usb` ancla por igualdad
+  los once campos del bloque `impresora`, pero nadie ancla `negocio.logo`,
+  `negocio.logo_ancho` ni `negocio.logo_tramado`.
+- **Por qué es residual:** es hueco de cobertura, no defecto. Hoy el archivo del
+  repositorio es el correcto y el programa lo imprime bien; la suite completa
+  sigue en **194 tests, OK**.
+- **Riesgo si no se toca:** si alguien copia encima el original de 4 160 px del
+  Drive —o cualquier otro PNG—, la suite sigue dando 194 OK y el problema
+  aparece solo en papel: cada boleto tarda más en enviarse a la impresora y el
+  logo puede salir con otro encuadre. Es exactamente el accidente que teme
+  **F-208**, sin red que lo detenga.
+- **Propuesta:** un golden de una línea que ancle las propiedades estables del
+  archivo, no sus bytes: `Image.open("logo.png")` → `mode == "L"`,
+  `size == (576, 485)` y `info.get("transparency") is None`. Los bytes exactos
+  no sirven como golden porque cambian con la versión de Pillow y con
+  `optimize`. Es **mejora, no defecto**, y toca `tests/`, que quedó fuera del
+  alcance de esta pasada.
+- **Estado:** abierta (mejora de pruebas).
+
+---
+
+## F-212 · `logo_ancho` sigue en 384 y la decisión se toma con el boleto impreso en la mano
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `config.json` → `negocio.logo_ancho: 384`; las equivalencias
+  medidas están en la «Propuesta» de **F-207**.
+- **Qué pasa:** con 384, el logo sale a 384 × 323 px, o sea **40.4 mm de alto en
+  cada boleto**. El archivo ya soporta 576 sin regenerar nada, porque 576 es su
+  ancho nativo y el máximo del rollo de 80 mm. Nadie ha visto todavía un boleto
+  salido de la impresora **con este logo**: la última prueba confirmada en papel
+  es la del 2026-09-11 ~23:20 (**F-188**, resuelta), y el logo cambió el
+  2026-09-12.
+- **Por qué es residual:** no hay nada roto ni ninguna afirmación falsa. Es
+  gusto y consumo de papel. Los lentes lo levantaron **dos veces en la misma
+  ronda**, lo que dice que es lo más visible que queda por decidir del logo, no
+  que sea un defecto. Se anota aparte de F-207 porque F-207 está cerrada como
+  anotación de procedencia y esta decisión sigue **abierta**.
+- **Riesgo si no se toca:** solo papel y tiempo de impresión. A 384 el logo
+  ocupa 40.4 mm de cada boleto; a 576 ocuparía 60.7 mm.
+- **Propuesta:** imprimir un boleto y decidir viéndolo. Medidas ya verificadas:
+  `576` → 485 px, `384` → 323 px, `320` → 269 px, `256` → 216 px. Cambiar el
+  número en `config.json` es todo lo que hace falta; la imagen no se regenera.
+  **Requiere visto bueno del usuario.**
+- **Estado:** abierta (decisión con el boleto en la mano).
+
+---
+
+## F-213 · La regla «mm = px / 8» de F-207 redondea por lo bajo frente a los 203 dpi
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `docs/fichas.md`, ficha **F-207**, viñetas «Cómo sale en papel» y
+  «Propuesta», donde convierte píxeles a milímetros con `mm = px / 8`.
+- **Qué pasa:** 8 px/mm equivale a **203.2 dpi**, y la impresora es de 203, así
+  que la regla se queda medio décimo corta. Medido: 485 px son **60.69 mm** (la
+  ficha dice 60.6), 269 px son **33.66 mm** (dice 33.6), 216 px son **27.03 mm**
+  (dice 27) y 323 px son **40.42 mm** (dice 40.4). La diferencia va de 0.03 a
+  0.06 mm.
+- **Por qué es residual:** no es una afirmación falsa. F-207 escribe la fórmula
+  `(mm = px / 8)` al lado del número, así que cualquiera puede rehacer la
+  cuenta. Y el error —seis centésimas de milímetro sobre sesenta— es la mitad de
+  un punto de la impresora (un punto a 203 dpi mide 0.125 mm): no se podría
+  imprimir esa diferencia aunque se quisiera.
+- **Riesgo si no se toca:** ninguno práctico. Solo importaría si alguien suma
+  alturas de muchos boletos para calcular cuánto rollo gasta el evento y
+  arrastra el redondeo.
+- **Propuesta:** ninguna. Se anota para que quien compare las cifras con una
+  regla no crea que encontró un error.
+- **Estado:** anotación (no se actúa).
+
+---
+
+## F-214 · La variante engrosada del logo se descartó por gusto, y sigue siendo la salida si el trazo sale entrecortado
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `scratchpad/construir_logo.py`, función `construir(engrosar=...)`,
+  que genera dos candidatos (`logo576-lisa.png` y `logo576-eng.png`) y sus
+  comparativas `cmp-lisa-384.png` y `cmp-eng-384.png`; la decisión está contada
+  en **F-207**, viñeta «Grosor del trazo».
+- **Qué pasa:** se eligió el candidato **liso** mirando las comparativas: el
+  engrosado con `ImageFilter.MinFilter(3)` infla las bolitas de la corona y
+  cierra el hueco interior de los «33». Es criterio estético, y los lentes lo
+  revisaron y coincidieron. Medido hoy sobre los dos candidatos, pasados los dos
+  por `preparar_imagen(..., 384, False)`:
+  - píxeles negros: **12 668** (liso) contra **15 676** (engrosado), +23.7 % de
+    tinta
+  - grosor mínimo: **1.0 px** contra **1.41 px**
+  - percentil 1: **2.83 px** contra **4.0 px**
+  - mediana: **8.49 px** contra **10.0 px**
+  - píxeles bajo 2 px: **19** contra **17**
+
+  O sea: engrosar sube bien el percentil 1, pero casi no mueve el mínimo
+  absoluto ni el número de puntas finas (ver **F-216**).
+- **Por qué es residual:** es una preferencia sobre algo que nadie ha visto
+  impreso. No hay defecto que arreglar mientras el papel no diga lo contrario.
+- **Riesgo si no se toca:** si en papel térmico el trazo sale entrecortado hay
+  que rehacer el logo, y la receta vive **fuera** del repositorio.
+- **Propuesta:** si el papel decepciona, volver a correr `construir_logo.py` con
+  `engrosar=True` y copiar el resultado sobre `logo.png`. Dos avisos: el script
+  está en el scratchpad, que es efímero (ver **F-215**), y lee el original desde
+  el Drive, así que hace falta la unidad `G:` montada. Si el script se perdiera,
+  la receta completa está escrita en prosa en **F-207** y se puede reescribir.
+- **Estado:** anotación (no se actúa; es la salida de emergencia si el papel
+  decepciona).
+
+---
+
+## F-215 · El respaldo del logo provisional anterior solo vive en el scratchpad, que es efímero
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `scratchpad/logo-provisional-anterior.png` y
+  `scratchpad/prev-head-logo.png`.
+- **Qué pasa:** el `logo.png` que había antes —el de relleno generado con
+  Pillow, **384 × 150 px, modo L, 4 717 bytes**— se guardó como copia en el
+  scratchpad, en dos archivos **byte a byte idénticos** (mismo SHA-256,
+  `4ac7902c…94817f`). El scratchpad es temporal: se borra sin avisar.
+- **Por qué es residual:** no es pérdida. Los lentes verificaron que
+  `git show HEAD:logo.png` devuelve ese mismo archivo, así que el historial del
+  repositorio lo conserva. Yo **no** lo recomprobé: esta pasada tenía prohibido
+  correr `git`. Lo que sí medí es que las dos copias del scratchpad son
+  idénticas entre sí y coinciden con los 4 717 bytes y los 384 × 150 px que
+  describe F-207.
+- **Riesgo si no se toca:** ninguno, y además nadie lo quiere de vuelta: era un
+  relleno para que el repositorio no quedara sin logo.
+- **Propuesta:** ninguna. Se anota para que nadie pierda tiempo buscando ese
+  archivo en el scratchpad dentro de un mes: se busca en el historial de git.
+- **Estado:** cerrada como anotación (no se actúa).
+
+---
+
+## F-216 · El grosor mínimo real del trazo a 384 px es 1.0 px, no 2.83
+
+- **Fecha:** 2026-09-12
+- **Origen:** lentes logo ronda 1
+- **Dónde:** `docs/fichas.md`, ficha **F-207**, viñeta «Grosor del trazo».
+- **Qué pasa:** F-207 dice que «la línea más delgada … queda en **≈2.8 px**
+  (percentil 1 de la cuerda negra mínima en las 4 direcciones; mediana 8.5 px).
+  Solo 19 píxeles de 12 668 bajan de 2 px y son las puntas de las líneas». Los
+  dos números son correctos y la ficha aclara que 2.8 es el **percentil 1**,
+  pero leído de corrido se entiende que nada baja de ahí. El **mínimo absoluto
+  es 1.0 px** (cinco píxeles exactos) y el percentil 0.1 es 1.41 px. Verifiqué
+  dónde caen los 19 píxeles finos, y todos son extremos de trazo, no tramos
+  largos: `y = 10` (la punta de la bolita de arriba de la corona), `y = 145` en
+  `x = 7` y `x = 376` (los dos cabos de la línea de base, la que cruza el logo
+  de lado a lado) y `y = 132-133, 146, 163, 170, 202, 235-238` (remates y
+  esquinas de los «33» y de las diagonales).
+- **Por qué es residual:** la ficha no engaña —declara el percentil— y el
+  diagnóstico de fondo se sostiene: 19 píxeles de 12 668 es **0.15 %**, ruido.
+  Por eso mismo la decisión de no engrosar sigue siendo la correcta.
+- **Riesgo si no se toca:** si en la impresora real se ven **cabos
+  desvanecidos** —la punta de la corona o los extremos de la línea de base—,
+  este es el motivo y no hay que buscar otro. Dato medido para esa conversación:
+  engrosar con `MinFilter(3)` tampoco los arregla del todo, porque el mínimo
+  solo sube de 1.0 a 1.41 px y siguen quedando 17 píxeles bajo 2 px
+  (ver **F-214**).
+- **Propuesta:** ninguna hasta ver papel. Si hay que actuar, la salida está en
+  F-214.
+- **Estado:** anotación (no se actúa).
+
+---
+
+## F-217 · El logo se manda centrado con `ESC a 1`, y varias térmicas baratas ignoran esa alineación en los rasters
+
+- **Fecha:** 2026-09-12
+- **Origen:** esceptico logo
+- **Dónde:** `ruleta/ticket.py:78` (`_encabezado`, que hace
+  `doc.inicializar().alinear("centro")` y enseguida `doc.imagen(...)`) y
+  `ruleta/escpos.py:372` (`raster_gs_v0`); `config.json` →
+  `negocio.logo_ancho: 384` contra `impresora.ancho_puntos: 576`.
+- **Qué pasa:** el raster del logo sale de **384 px de ancho** y el cabezal
+  tiene **576**. El documento manda lo correcto: medido sobre los bytes del
+  boleto de premio, el `ESC a \x01` (centrar) está en el **offset 10** y el
+  primer `GS v 0` en el **13**, o sea pegado, sin ningún otro comando en medio.
+  En la especificación de Epson la alineación vigente afecta también a la imagen
+  raster; lo que **no** se puede verificar sin papel es si el firmware de esta
+  impresora la respeta. Muchas térmicas chinas baratas la aplican solo al texto
+  y sacan el raster pegado al margen izquierdo. Si ésta es una de ésas, el logo
+  saldrá corrido a la izquierda con **192 px de papel en blanco a la derecha**
+  (576 − 384 = 192 px, que a 203 dpi son **24.03 mm**).
+- **Por qué es residual:** no hay defecto que arreglar. El programa emite la
+  secuencia correcta y nadie ha visto todavía un boleto con este logo (la última
+  prueba en papel confirmada es del 2026-09-11, **F-188**, y el logo cambió el
+  2026-09-12). Es una duda que solo el papel contesta.
+- **Riesgo si no se toca:** cosmético y acotado: el logo del evento sale
+  descentrado en todos los boletos.
+- **Propuesta:** se resuelve **mirando el primer boleto impreso**, la misma
+  mirada que ya pide **F-212**. Si sale descentrado, subir
+  `negocio.logo_ancho` de 384 a 576 lo arregla de paso, porque a 576 el raster
+  ocupa el cabezal completo y no queda margen donde descentrarlo (ojo: eso
+  también multiplica por 2.25 el peso del boleto, ver **F-218**). Si se quieren
+  conservar los 40 mm de logo, la otra salida es rellenar la imagen con blanco
+  hasta 576 px antes de mandarla, y eso sí obliga a regenerar el archivo.
+  Detalle para quien toque el ancho: `preparar_imagen` no añade relleno hoy
+  porque 384 ya es múltiplo de 8, pero si se pusiera un ancho que no lo fuera,
+  el relleno blanco iría **a la derecha** (`ImageOps.pad(..., centering=(0, 0))`),
+  empujando el logo aún más a la izquierda.
+- **Estado:** abierta (se cierra con el primer boleto impreso; misma decisión
+  que **F-212**).
+
+---
+
+## F-218 · El logo es el 97.6 % del peso del boleto de premio
+
+- **Fecha:** 2026-09-12
+- **Origen:** esceptico logo
+- **Dónde:** los bytes que devuelve `ruleta.ticket.boleto_premio` con el
+  `config.json` del repositorio; `impresora.tipo: "archivo"`,
+  `bytes_por_segundo: 16000`, `tamano_bloque: 512`, `pausa_bloque_seg: 0.03`,
+  `pausa_inicial_seg: 0.4`, `pausa_final_seg: 1.5`; y
+  `juego.espera_entre_jugadas_seg: 5.0`. El envío está en
+  `ruleta/escpos.py`, `ImpresoraBluetooth.imprimir` y `_espera_drenado`.
+- **Qué pasa:** medido hoy, el raster del logo son **15 552 bytes** de los
+  ~15 930 del boleto de premio: el **97.6 %**. Todo el texto del boleto —
+  encabezado, premio, folio, fecha, pie, corte y pitido— cabe en **381 bytes**.
+  - Matiz sobre el hallazgo: el escéptico citó «15 933 bytes» de total, y ése es
+    el tamaño exacto del boleto de **TEST 3**. El total cambia con el nombre y
+    el detalle del premio: entre **15 927** (TEST 6) y **15 935** (TEST 4) en
+    los siete premios del `config.json`, y **no** depende del folio. El raster
+    en cambio es siempre el mismo, 15 552 B = 6 bandas =
+    5 × (8 + 64 × 48) + (8 + 3 × 48).
+  - Con `impresora.tipo: "archivo"` (el USB de hoy) el peso da igual: se escribe
+    al nodo de una vez y ninguna de esas llaves de temporización tiene efecto
+    por cable (ver **F-091**).
+  - Por el respaldo **Bluetooth** sí cuesta tiempo de reloj, y no es solo el
+    envío: `pausa_inicial` 0.4 s + 0.03 s por bloque de 512 B (**32 bloques** =
+    0.96 s) + `pausa_final` 1.5 s + el drenado estimado `bytes / 16000` =
+    **0.996 s**. Total de pausas **≈3.86 s por boleto**, contra **1.95 s** si el
+    boleto no llevara logo.
+- **Por qué es residual:** no es defecto ni afirmación falsa de ningún
+  documento. Es el precio previsto de imprimir un logo, y por USB ni se nota.
+- **Riesgo si no se toca:** ninguno hoy. Importa el día que se caiga al
+  Bluetooth: los ≈3.86 s de pausas todavía caben en los
+  `espera_entre_jugadas_seg: 5.0`, pero con poco margen. Y si además se sube
+  `logo_ancho` a 576 (la decisión abierta de **F-212**, y la salida que propone
+  **F-217**), el raster pasa a **34 984 B**, el boleto a ~35 366 B y las pausas
+  del Bluetooth a **≈6.21 s**, que ya **no** caben en los 5 s entre jugadas.
+- **Propuesta:** ninguna. Es dato para dimensionar la espera entre jugadas si
+  alguna vez se imprime por Bluetooth, y una consecuencia más que pesar el día
+  que se decida el `logo_ancho`.
+- **Estado:** anotación (no se actúa).
+
+---
+
+## F-219 · `logo.png` no está declarado en `.gitattributes`, y aun así git lo trata como binario
+
+- **Fecha:** 2026-09-12
+- **Origen:** esceptico logo
+- **Dónde:** `.gitattributes` (cinco reglas: `*.sh`, `*.service`, `*.py`,
+  `*.json`, `*.md`, todas `text eol=lf`) y `logo.png`.
+- **Qué pasa:** no hay regla para `*.png`, ni un `* -text` de respaldo. No es
+  problema: git autodetecta binario buscando un byte NUL en los primeros 8 000,
+  y `logo.png` trae el **primer NUL en el offset 8** (**104** NUL en los
+  primeros 8 000 bytes, **244** en el archivo entero), así que nunca entra a la
+  normalización de finales de línea. Sobre el viaje de ida y vuelta: los lentes
+  ya comprobaron que `git show HEAD:logo.png` devuelve un PNG válido de 4 717
+  bytes —el logo de relleno anterior, ver **F-215**—; yo **no** lo recomprobé,
+  esta pasada tenía prohibido correr `git`. Lo que sí medí son los bytes del
+  archivo actual: **101 LF sueltos y un CRLF**, y ese CRLF está en el **offset
+  4**, dentro de la propia firma PNG (`89 50 4E 47 0D 0A 1A 0A`), que existe
+  justamente para delatar una transferencia hecha en modo texto.
+- **Por qué es residual:** la ausencia no rompe nada. La autodetección de git ya
+  cubre el caso y el archivo lleva así desde que entró.
+- **Riesgo si no se toca:** solo se materializa si alguien añade a
+  `.gitattributes` una regla `*.png text` o un `* text=auto` mal puesto: git
+  convertiría entonces esos 101 LF a CRLF al sacar el archivo en Windows y el
+  PNG quedaría corrupto. La falla sería silenciosa en el papel: `_cargar_logo`
+  (`ruleta/ticket.py:56`) atrapa cualquier excepción de Pillow y devuelve
+  `None`, así que el boleto saldría **sin logo** y sin avisar.
+- **Propuesta:** opcional, una línea: añadir `*.png binary` a `.gitattributes`
+  para dejarlo explícito en vez de depender de la autodetección. **No se hizo:**
+  `.gitattributes` no está en el alcance de escritura de esta pasada, que solo
+  podía tocar `logo.png` y `docs/fichas.md`.
+- **Estado:** anotación (no se actúa; la mejora necesita una pasada que pueda
+  tocar `.gitattributes`).
+
+---
