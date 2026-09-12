@@ -22,13 +22,16 @@ import logging
 import os
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 from datetime import datetime
+from importlib import metadata
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Callable
 
-from . import __version__, config as configmod, ticket
+from . import __version__, config as configmod, escpos, ticket
 from .app import Ruleta, crear_impresora
 from .config import Config, ErrorConfig
 from .escpos import ErrorImpresora, ImpresoraVista, soporte_bluetooth
@@ -294,6 +297,66 @@ def cmd_reiniciar(cfg: Config, args) -> int:
         inventario.desbloquear()
 
 
+# --------------------------------------------------------------------------- #
+# Revisiones del diagnóstico (funciones puras, para poder probarlas)
+# --------------------------------------------------------------------------- #
+
+def version_modulo(nombre: str, modulo=None,
+                   version_fn: Callable[[str], str] = metadata.version) -> str:
+    """Versión instalada de una librería, para el diagnóstico.
+
+    `gpiozero` y `lgpio` NO exponen `__version__` (salían en blanco), así que se
+    pregunta primero a los metadatos de la distribución —que sirven igual si la
+    instaló apt o pip— y solo después al módulo. Si no hay ni una cosa ni la
+    otra, se dice «instalado», que es lo único que se sabe con certeza.
+    """
+    try:
+        version = version_fn(nombre)
+    except Exception:       # PackageNotFoundError y cualquier rareza de los metadatos
+        version = ""
+    if not version:
+        version = str(getattr(modulo, "__version__", "") or "")
+    return version or "instalado"
+
+
+def revisar_ruta_impresora(ruta: str, stat_fn: Callable = os.stat,
+                           access_fn: Callable = os.access) -> tuple[bool, str]:
+    """Revisa la `ruta` de impresora.tipo='archivo': (¿todo bien?, línea del diagnóstico)."""
+    try:
+        modo = stat_fn(ruta).st_mode
+    except OSError as e:
+        return False, (f"  [!!] no existe la ruta de la impresora: {ruta} ({e.strerror}). "
+                       "Revisa el cable USB y que la impresora esté encendida; el nombre "
+                       "/dev/ruleta-impresora lo crea la regla udev que pone instalar.sh")
+    escribible = bool(access_fn(ruta, os.W_OK))
+    if stat.S_ISCHR(modo):
+        if escribible:
+            return True, f"  [ok] impresora conectada en {ruta} (dispositivo, se puede escribir)"
+        return False, (f"  [!!] sin permiso para escribir en {ruta}: falta la regla udev "
+                       "/etc/udev/rules.d/61-ruleta-impresora-usb.rules o el usuario no está en el "
+                       "grupo lp (sudo usermod -aG lp $USER y vuelve a entrar)")
+    if stat.S_ISREG(modo):
+        if escribible:
+            return True, (f"  [??] {ruta} es un archivo normal, no la impresora: sirve para pruebas, "
+                          "pero no va a salir papel")
+        return False, f"  [!!] no se puede escribir en el archivo {ruta}"
+    return False, f"  [!!] {ruta} no es un dispositivo ni un archivo normal: revisa impresora.ruta"
+
+
+def interpretar_estado_papel(papel: int | None, estado: int | None) -> tuple[bool, str]:
+    """Traduce la respuesta DLE EOT de la impresora a una línea del diagnóstico."""
+    if papel is None and estado is None:
+        return True, ("  [??] la impresora no contestó a la consulta de estado; se imprimirá igual "
+                      "(no todos los firmwares contestan)")
+    if papel is not None and papel & escpos.BITS_SIN_PAPEL:
+        return False, "  [!!] la impresora reporta SIN PAPEL: pon un rollo nuevo"
+    if estado is not None and estado & escpos.BIT_FUERA_DE_LINEA:
+        return False, "  [!!] la impresora está fuera de línea: tapa abierta, sin papel o con error"
+    if papel is not None and papel & escpos.BITS_POCO_PAPEL:
+        return True, "  [??] la impresora reporta poco papel: ten listo el rollo de repuesto"
+    return True, "  [ok] la impresora contesta: hay papel y está en línea"
+
+
 def cmd_diagnostico(cfg: Config, args) -> int:
     """Revisa dependencias, GPIO, Bluetooth y la impresora; sugiere correcciones."""
     ok = True
@@ -315,7 +378,7 @@ def cmd_diagnostico(cfg: Config, args) -> int:
     for modulo, paquete in (("PIL", "python3-pil"), ("gpiozero", "python3-gpiozero"), ("lgpio", "python3-lgpio")):
         try:
             m = __import__(modulo)
-            print(f"  [ok] {modulo} {getattr(m, '__version__', '')}")
+            print(f"  [ok] {modulo} {version_modulo(modulo, m)}")
         except ImportError:
             if modulo == "PIL" or en_linux:
                 ok = False
@@ -340,8 +403,34 @@ def cmd_diagnostico(cfg: Config, args) -> int:
         ok = False
         print(f"  [!!] no se pudo abrir el inventario: {e}")
 
+    if cfg.impresora.tipo == "archivo":
+        # Camino USB: la impresora es un dispositivo del sistema. Lo que puede
+        # fallar de verdad es que la ruta no exista (cable suelto, impresora
+        # apagada) o que no se pueda escribir (regla udev o grupo lp).
+        bien, linea = revisar_ruta_impresora(cfg.impresora.ruta)
+        print(linea)
+        ok = ok and bien
+        if bien and escpos.es_dispositivo_caracteres(cfg.impresora.ruta):
+            if not cfg.impresora.consultar_estado:
+                print("  [--] consultar_estado está en false: no se le pregunta a la impresora "
+                      "si tiene papel (ni aquí ni antes de cada boleto)")
+            elif servicio_activo():
+                print("  [--] el servicio 'ruleta' está corriendo; no se consulta el estado de la impresora "
+                      "para no interferir (deténlo con sudo systemctl stop ruleta si quieres consultarlo)")
+            else:
+                try:
+                    papel, estado = escpos.ImpresoraArchivo(cfg.impresora.ruta).consultar_papel()
+                except ErrorImpresora as e:
+                    bien, linea = False, f"  [!!] no se pudo consultar el estado de la impresora: {e}"
+                else:
+                    bien, linea = interpretar_estado_papel(papel, estado)
+                print(linea)
+                ok = ok and bien
+        return 0 if ok else 1
+
     if cfg.impresora.tipo != "bluetooth":
-        print(f"  [--] impresora tipo '{cfg.impresora.tipo}': no se prueba Bluetooth")
+        print(f"  [--] impresora tipo '{cfg.impresora.tipo}': los boletos salen por la consola, "
+              "no hay impresora que probar")
         return 0 if ok else 1
 
     if not soporte_bluetooth():

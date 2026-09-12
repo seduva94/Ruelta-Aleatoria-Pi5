@@ -198,6 +198,41 @@ class TestBoletos(unittest.TestCase):
         for _, papel, _ in vista:
             self.assertLessEqual(len(papel.rstrip()), 32, papel)
 
+    def bloque_de_acentos(self, datos, ancho):
+        """Las líneas que hay entre el título de los acentos y la de 'Configurado:'."""
+        lineas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, ancho)]
+        i = lineas.index("Acentos con cada tabla de caracteres:")
+        j = next(k for k, l in enumerate(lineas) if l.startswith("Configurado:"))
+        return lineas[i + 1:j]
+
+    def test_prueba_lineas_de_acentos_completas(self):
+        # Etiqueta corta en una línea y la muestra en la siguiente: juntas pasaban
+        # de 48 columnas y la impresora las partía a media palabra.
+        muestra = "ñ Ñ á é í ó ú Á É Í Ó Ú ü ¿ ¡ º"
+        datos = ticket.boleto_prueba(self.cfg, (0, 2, 16, 19))
+        self.assertEqual(self.bloque_de_acentos(datos, 48), [
+            "  ESC t 0 (cp437):", "ñ Ñ á é í ó ú A É I O U ü ¿ ¡ º",   # cp437 solo trae la É
+            "  ESC t 2 (cp850):", muestra,
+            "  ESC t 16 (cp1252):", muestra,
+            "  ESC t 19 (cp858):", muestra,
+        ])
+
+    def test_prueba_ninguna_linea_excede_el_ancho(self):
+        for ancho in (32, 42, 48):
+            cfg = config_base(impresora={"tipo": "vista", "chars_por_linea": ancho})
+            datos = ticket.boleto_prueba(cfg, (0, 2, 16, 19))
+            largas = [l for l in self.bloque_de_acentos(datos, ancho) if len(l) > ancho]
+            self.assertEqual(largas, [], f"ancho {ancho}")
+
+    def test_prueba_del_config_real_cabe_entero(self):
+        # Vector real: el config.json del repositorio, con su logo y sus 48 columnas.
+        cfg = configmod.cargar(Path(__file__).resolve().parent.parent / "config.json")
+        ancho = cfg.impresora.chars_por_linea
+        datos = ticket.boleto_prueba(cfg, (0, 2, 16, 19))
+        largas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, ancho)
+                  if len(papel.rstrip()) > ancho]
+        self.assertEqual(largas, [])
+
     def test_prueba_rechaza_tablas_fuera_de_rango(self):
         with self.assertRaises(ValueError):
             ticket.boleto_prueba(self.cfg, (0, 300))

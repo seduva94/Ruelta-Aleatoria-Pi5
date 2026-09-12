@@ -1,0 +1,418 @@
+"""Goldens de la instalación en la Pi: `instalar.sh`, `ruleta.service` y las
+revisiones del diagnóstico que comprueban justo eso (la ruta del dispositivo,
+los permisos y las versiones de las librerías).
+
+Estas pruebas LEEN los archivos del repositorio; no ejecutan nada ni tocan
+hardware. Comparan **cuerpos enteros por igualdad** (el bloque de la regla
+udev, la unidad de systemd completa, el conjunto de grupos que se agregan), no
+líneas sueltas: así una regla con un dígito cambiado, un paso mal renumerado o
+un `RestartPreventExitStatus` perdido salen en rojo.
+"""
+
+import io
+import json
+import logging
+import re
+import stat
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from importlib import metadata
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+import PIL
+
+from ruleta import __main__ as cli
+
+RAIZ = Path(__file__).resolve().parent.parent
+INSTALADOR = (RAIZ / "instalar.sh").read_text(encoding="utf-8")
+SERVICIO = (RAIZ / "ruleta.service").read_text(encoding="utf-8")
+
+# La línea exacta que se aplicó a mano en la Pi la noche del 2026-09-11 y que
+# el instalador tiene que dejar escrita (VID:PID medidos con lsusb: 0418:5011).
+REGLA_IMPRESORA = (
+    'SUBSYSTEM=="usbmisc", KERNEL=="lp[0-9]*", ATTRS{idVendor}=="0418", '
+    'ATTRS{idProduct}=="5011", MODE="0660", GROUP="lp", SYMLINK+="ruleta-impresora"\n'
+)
+REGLA_GPIO = 'SUBSYSTEM=="gpio", KERNEL=="gpiochip*", DRIVERS=="pinctrl-rp1", SYMLINK+="gpiochip4"\n'
+
+
+# --------------------------------------------------------------------------- #
+# Utilidades: derivar lo que hace el instalador y leer la unidad de systemd
+# --------------------------------------------------------------------------- #
+
+def cuerpo_heredoc(texto: str, archivo: str) -> str:
+    """Cuerpo escrito con  cat > <archivo> <<'EOF' ... EOF  (entero, con su salto final)."""
+    patron = re.compile(r"^cat > " + re.escape(archivo) + r" <<'EOF'\n(.*?)^EOF$\n", re.S | re.M)
+    encontrados = patron.findall(texto)
+    if len(encontrados) != 1:
+        raise AssertionError(f"se esperaba un solo bloque para {archivo}, hay {len(encontrados)}")
+    return encontrados[0]
+
+
+def archivos_de_reglas(texto: str) -> set[str]:
+    """Conjunto derivado de archivos de /etc/udev/rules.d que el instalador escribe."""
+    return set(re.findall(r"/etc/udev/rules\.d/[^\s]+", texto))
+
+
+def grupos_que_agrega(texto: str) -> set[str]:
+    """Conjunto derivado de los grupos de cada  usermod -aG <grupo>."""
+    return set(re.findall(r"usermod -aG (\S+)", texto))
+
+
+def pasos_del_instalador(texto: str) -> list[str]:
+    """Lista derivada de los encabezados  == n/N titulo  en el orden en que salen."""
+    return re.findall(r'^echo "== (\d+/\d+ .*)"$', texto, re.M)
+
+
+def ordenes_udevadm(texto: str) -> list[str]:
+    """Lista derivada de las llamadas a udevadm, sin la parte de redirección."""
+    return [linea.split(" 2>")[0].strip()
+            for linea in texto.splitlines() if linea.strip().startswith("udevadm ")]
+
+
+def paquetes_apt(texto: str) -> list[str]:
+    encontrados = re.findall(r"^apt-get install -y (.*)$", texto, re.M)
+    if len(encontrados) != 1:
+        raise AssertionError(f"se esperaba un solo apt-get install, hay {len(encontrados)}")
+    return encontrados[0].split()
+
+
+def leer_unidad(texto: str) -> dict[str, list[tuple[str, str]]]:
+    """Parsea el .service a {sección: [(llave, valor), ...]}.
+
+    Se guarda como lista de pares porque systemd admite llaves repetidas
+    (`Environment=`) y el orden importa para leerlo.
+    """
+    unidad: dict[str, list[tuple[str, str]]] = {}
+    seccion = None
+    for cruda in texto.splitlines():
+        linea = cruda.strip()
+        if not linea or linea.startswith("#"):
+            continue
+        if linea.startswith("[") and linea.endswith("]"):
+            seccion = linea[1:-1]
+            unidad[seccion] = []
+            continue
+        llave, sep, valor = linea.partition("=")
+        if not sep or seccion is None:
+            raise AssertionError(f"línea que no es 'llave=valor' en ruleta.service: {cruda!r}")
+        unidad[seccion].append((llave.strip(), valor.strip()))
+    return unidad
+
+
+UNIDAD = leer_unidad(SERVICIO)
+
+
+# --------------------------------------------------------------------------- #
+# instalar.sh
+# --------------------------------------------------------------------------- #
+
+class TestInstalador(unittest.TestCase):
+    def test_regla_udev_de_la_impresora_exacta(self):
+        # Cuerpo entero, no "contiene": un dígito distinto en el VID:PID, otro
+        # grupo o el SYMLINK borrado dejan la impresora sin permisos.
+        self.assertEqual(cuerpo_heredoc(INSTALADOR, "/etc/udev/rules.d/61-ruleta-impresora-usb.rules"),
+                         REGLA_IMPRESORA)
+
+    def test_regla_udev_del_gpio_intacta(self):
+        self.assertEqual(cuerpo_heredoc(INSTALADOR, "/etc/udev/rules.d/60-ruleta-rp1-gpiochip4.rules"),
+                         REGLA_GPIO)
+
+    def test_reglas_udev_declaradas(self):
+        self.assertEqual(archivos_de_reglas(INSTALADOR),
+                         {"/etc/udev/rules.d/60-ruleta-rp1-gpiochip4.rules",
+                          "/etc/udev/rules.d/61-ruleta-impresora-usb.rules"})
+
+    def test_grupos_que_agrega_el_instalador(self):
+        self.assertEqual(grupos_que_agrega(INSTALADOR), {"gpio", "bluetooth", "lp"})
+
+    def test_pasos_numerados_completos_y_en_orden(self):
+        self.assertEqual(pasos_del_instalador(INSTALADOR), [
+            "1/7 Paquetes del sistema",
+            "2/7 Grupos del usuario (gpio para los botones)",
+            "3/7 Bluetooth encendido y habilitado al arranque (impresora de respaldo)",
+            "4/7 Regla udev para el chip GPIO de la Pi 5",
+            "5/7 Impresora USB (permisos y nombre fijo del dispositivo)",
+            "6/7 Carpeta de datos y permisos",
+            "7/7 Servicio systemd",
+        ])
+
+    def test_udevadm_recarga_las_dos_reglas(self):
+        self.assertEqual(ordenes_udevadm(INSTALADOR), [
+            "udevadm control --reload",
+            "udevadm trigger --subsystem-match=gpio",
+            "udevadm control --reload-rules",
+            "udevadm trigger --subsystem-match=usbmisc",
+        ])
+
+    def test_sigue_instalando_los_mismos_paquetes(self):
+        self.assertEqual(paquetes_apt(INSTALADOR),
+                         ["python3", "python3-gpiozero", "python3-lgpio", "python3-pil",
+                          "bluez", "bluez-tools", "rfkill"])
+
+    def test_sigue_registrando_y_habilitando_el_servicio(self):
+        # El Bluetooth (respaldo) y el servicio no se tocaron al meter la impresora USB.
+        for orden in ("systemctl enable --now bluetooth",
+                      "systemctl daemon-reload",
+                      "systemctl enable ruleta.service"):
+            self.assertIn(orden, INSTALADOR)
+
+    def test_el_instalador_es_idempotente_en_lo_que_escribe(self):
+        # Todo lo que crea usa 'cat >' (sobrescribe) o '-aG' (agrega sin quitar):
+        # volver a correrlo no duplica reglas ni saca al usuario de un grupo.
+        self.assertEqual(re.findall(r"^cat >> ", INSTALADOR, re.M), [])
+        self.assertEqual(re.findall(r"usermod -G ", INSTALADOR), [])
+
+
+# --------------------------------------------------------------------------- #
+# ruleta.service
+# --------------------------------------------------------------------------- #
+
+class TestServicio(unittest.TestCase):
+    def test_unidad_completa(self):
+        self.assertEqual(UNIDAD, {
+            "Unit": [
+                ("Description", "Ruleta de premios Asadero 33 (boton -> boleto en impresora USB o Bluetooth)"),
+                ("After", "bluetooth.service network.target"),
+                ("Wants", "bluetooth.service"),
+                ("StartLimitIntervalSec", "0"),
+            ],
+            "Service": [
+                ("Type", "simple"),
+                ("User", "@USUARIO@"),
+                ("SupplementaryGroups", "gpio lp"),
+                ("WorkingDirectory", "@DIR@"),
+                ("Environment", "GPIOZERO_PIN_FACTORY=lgpio"),
+                ("Environment", "PYTHONUNBUFFERED=1"),
+                ("Environment", "PYTHONIOENCODING=utf-8"),
+                ("ExecStart", "/usr/bin/python3 -m ruleta"),
+                ("Restart", "always"),
+                ("RestartSec", "3"),
+                ("RestartPreventExitStatus", "2"),
+                ("KillSignal", "SIGTERM"),
+                ("TimeoutStopSec", "60"),
+            ],
+            "Install": [("WantedBy", "multi-user.target")],
+        })
+
+    def test_los_errores_de_configuracion_no_se_reintentan(self):
+        servicio = dict(UNIDAD["Service"])
+        self.assertEqual(servicio["Restart"], "always")
+        self.assertEqual(servicio["RestartPreventExitStatus"], "2")
+
+    def test_el_servicio_puede_escribir_en_la_impresora_usb(self):
+        self.assertEqual(dict(UNIDAD["Service"])["SupplementaryGroups"], "gpio lp")
+
+
+# --------------------------------------------------------------------------- #
+# Códigos de salida: son el contrato con RestartPreventExitStatus
+# --------------------------------------------------------------------------- #
+
+CODIGO_CONFIG = int(dict(UNIDAD["Service"])["RestartPreventExitStatus"])
+
+
+def escribir_config(carpeta: Path, impresora: dict, crudo_texto: str | None = None) -> str:
+    ruta = carpeta / "config.json"
+    if crudo_texto is not None:
+        ruta.write_text(crudo_texto, encoding="utf-8")
+    else:
+        ruta.write_text(json.dumps({
+            "negocio": {"nombre": "Asadero 33", "logo": None},
+            "impresora": impresora,
+            "premios": [{"id": "a", "nombre": "A", "peso": 1}],
+            "carpeta_datos": "datos",
+        }), encoding="utf-8")
+    return str(ruta)
+
+
+class TestCodigosDeSalida(unittest.TestCase):
+    """El servicio solo deja de reintentar con el código que dice la unidad."""
+
+    @staticmethod
+    def cerrar_log():
+        """`main` monta el log dentro de la carpeta temporal: hay que soltar el archivo."""
+        raiz = logging.getLogger()
+        for h in list(raiz.handlers):
+            raiz.removeHandler(h)
+            try:
+                h.close()
+            except (OSError, ValueError):
+                pass
+
+    def tearDown(self):
+        self.cerrar_log()
+
+    def correr(self, ruta_config: str):
+        try:
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                return cli.main(["--config", ruta_config])
+        finally:
+            self.cerrar_log()
+
+    def test_config_mal_formada_sale_con_el_codigo_de_configuracion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = escribir_config(Path(tmp), {}, crudo_texto='{"negocio": {"nombre": "X",}}')
+            with self.assertRaises(SystemExit) as ctx:
+                self.correr(ruta)
+        self.assertEqual(ctx.exception.code, CODIGO_CONFIG)
+
+    def test_llave_desconocida_sale_con_el_codigo_de_configuracion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = escribir_config(Path(tmp), {"tipo": "vista", "velocidad": 9})
+            with self.assertRaises(SystemExit) as ctx:
+                self.correr(ruta)
+        self.assertEqual(ctx.exception.code, CODIGO_CONFIG)
+
+    def test_mac_de_relleno_sale_con_el_codigo_de_configuracion(self):
+        # Es el caso medido en la Pi: 118 reinicios en bucle por esta MAC.
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = escribir_config(Path(tmp), {"tipo": "bluetooth", "mac": "00:00:00:00:00:00"})
+            with self.assertRaises(SystemExit) as ctx:
+                self.correr(ruta)
+        self.assertEqual(ctx.exception.code, CODIGO_CONFIG)
+
+    def test_inventario_ocupado_no_usa_el_codigo_de_configuracion(self):
+        # Ese sí es transitorio (el servicio ya corría): systemd debe reintentarlo.
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = escribir_config(Path(tmp), {"tipo": "vista"})
+            with mock.patch.object(cli.Inventario, "bloquear",
+                                   side_effect=cli.ErrorBloqueo("candado tomado")):
+                with self.assertRaises(SystemExit) as ctx:
+                    self.correr(ruta)
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertNotEqual(ctx.exception.code, CODIGO_CONFIG)
+
+    def test_fallo_de_gpio_no_usa_el_codigo_de_configuracion(self):
+        # Un error no controlado sale con 1 (lo que hace Python), no con 2.
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = escribir_config(Path(tmp), {"tipo": "vista"})
+            with mock.patch.object(cli.Inventario, "bloquear"), \
+                 mock.patch.object(cli, "EntradasGPIO", side_effect=OSError("no hay gpiochip")):
+                with self.assertRaises(OSError):
+                    self.correr(ruta)
+
+
+# --------------------------------------------------------------------------- #
+# Revisiones del diagnóstico (funciones puras)
+# --------------------------------------------------------------------------- #
+
+class StatFalso:
+    def __init__(self, modo):
+        self.st_mode = modo
+
+
+def stat_de(modo):
+    return lambda ruta: StatFalso(modo)
+
+
+def stat_que_no_existe(ruta):
+    raise FileNotFoundError(2, "No such file or directory")
+
+
+DISPOSITIVO = stat.S_IFCHR | 0o660
+ARCHIVO = stat.S_IFREG | 0o644
+CARPETA = stat.S_IFDIR | 0o755
+
+
+class TestRevisarRutaImpresora(unittest.TestCase):
+    def test_dispositivo_escribible(self):
+        self.assertEqual(
+            cli.revisar_ruta_impresora("/dev/ruleta-impresora", stat_fn=stat_de(DISPOSITIVO),
+                                       access_fn=lambda ruta, modo: True),
+            (True, "  [ok] impresora conectada en /dev/ruleta-impresora (dispositivo, se puede escribir)"))
+
+    def test_dispositivo_sin_permiso_menciona_la_regla_y_el_grupo(self):
+        bien, linea = cli.revisar_ruta_impresora("/dev/ruleta-impresora", stat_fn=stat_de(DISPOSITIVO),
+                                                 access_fn=lambda ruta, modo: False)
+        self.assertEqual(
+            (bien, linea),
+            (False, "  [!!] sin permiso para escribir en /dev/ruleta-impresora: falta la regla udev "
+                    "/etc/udev/rules.d/61-ruleta-impresora-usb.rules o el usuario no está en el "
+                    "grupo lp (sudo usermod -aG lp $USER y vuelve a entrar)"))
+        # Las dos salidas reales tienen que estar en el mensaje, no una sola.
+        self.assertIn("61-ruleta-impresora-usb.rules", linea)
+        self.assertIn("grupo lp", linea)
+
+    def test_la_ruta_no_existe(self):
+        self.assertEqual(
+            cli.revisar_ruta_impresora("/dev/ruleta-impresora", stat_fn=stat_que_no_existe,
+                                       access_fn=lambda ruta, modo: True),
+            (False, "  [!!] no existe la ruta de la impresora: /dev/ruleta-impresora "
+                    "(No such file or directory). Revisa el cable USB y que la impresora esté "
+                    "encendida; el nombre /dev/ruleta-impresora lo crea la regla udev que pone instalar.sh"))
+
+    def test_archivo_normal_avisa_pero_no_es_error(self):
+        self.assertEqual(
+            cli.revisar_ruta_impresora("salida_impresora.bin", stat_fn=stat_de(ARCHIVO),
+                                       access_fn=lambda ruta, modo: True),
+            (True, "  [??] salida_impresora.bin es un archivo normal, no la impresora: "
+                   "sirve para pruebas, pero no va a salir papel"))
+
+    def test_archivo_normal_sin_permiso_si_es_error(self):
+        self.assertEqual(
+            cli.revisar_ruta_impresora("salida_impresora.bin", stat_fn=stat_de(ARCHIVO),
+                                       access_fn=lambda ruta, modo: False),
+            (False, "  [!!] no se puede escribir en el archivo salida_impresora.bin"))
+
+    def test_una_carpeta_no_sirve(self):
+        self.assertEqual(
+            cli.revisar_ruta_impresora("/dev", stat_fn=stat_de(CARPETA), access_fn=lambda ruta, modo: True),
+            (False, "  [!!] /dev no es un dispositivo ni un archivo normal: revisa impresora.ruta"))
+
+
+class TestVersionModulo(unittest.TestCase):
+    @staticmethod
+    def sin_metadatos(nombre):
+        raise metadata.PackageNotFoundError(nombre)
+
+    def test_version_de_los_metadatos(self):
+        self.assertEqual(cli.version_modulo("gpiozero", None, version_fn=lambda n: "2.0.1"), "2.0.1")
+
+    def test_cae_al_dunder_version_del_modulo(self):
+        modulo = SimpleNamespace(__version__="11.1.0")
+        self.assertEqual(cli.version_modulo("PIL", modulo, version_fn=self.sin_metadatos), "11.1.0")
+
+    def test_metadatos_vacios_no_ganan_al_modulo(self):
+        modulo = SimpleNamespace(__version__="0.2.2.0")
+        self.assertEqual(cli.version_modulo("lgpio", modulo, version_fn=lambda n: ""), "0.2.2.0")
+
+    def test_sin_version_por_ningun_lado_dice_instalado(self):
+        # Es el caso medido de gpiozero y lgpio antes de este cambio: salían en blanco.
+        self.assertEqual(cli.version_modulo("lgpio", object(), version_fn=self.sin_metadatos), "instalado")
+
+    def test_pil_de_esta_maquina_trae_numero(self):
+        # Vector real: PIL no tiene distribución llamada 'PIL', así que solo pasa
+        # si el respaldo por __version__ sigue en su sitio.
+        self.assertEqual(cli.version_modulo("PIL", PIL), PIL.__version__)
+
+
+class TestInterpretarEstadoPapel(unittest.TestCase):
+    def test_con_papel_y_en_linea(self):
+        self.assertEqual(cli.interpretar_estado_papel(0x12, 0x12),
+                         (True, "  [ok] la impresora contesta: hay papel y está en línea"))
+
+    def test_sin_papel(self):
+        self.assertEqual(cli.interpretar_estado_papel(0x72, 0x12),
+                         (False, "  [!!] la impresora reporta SIN PAPEL: pon un rollo nuevo"))
+
+    def test_fuera_de_linea(self):
+        self.assertEqual(
+            cli.interpretar_estado_papel(0x12, 0x1a),
+            (False, "  [!!] la impresora está fuera de línea: tapa abierta, sin papel o con error"))
+
+    def test_poco_papel_avisa_sin_ser_error(self):
+        self.assertEqual(cli.interpretar_estado_papel(0x16, 0x12),
+                         (True, "  [??] la impresora reporta poco papel: ten listo el rollo de repuesto"))
+
+    def test_no_contesta_no_es_falla(self):
+        self.assertEqual(
+            cli.interpretar_estado_papel(None, None),
+            (True, "  [??] la impresora no contestó a la consulta de estado; se imprimirá igual "
+                   "(no todos los firmwares contestan)"))
+
+
+if __name__ == "__main__":
+    unittest.main()

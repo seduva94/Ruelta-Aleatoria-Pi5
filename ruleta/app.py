@@ -54,7 +54,9 @@ def crear_impresora(cfg: Config, tipo: str | None = None,
             pausa_inicial=imp.pausa_inicial_seg, pausa_final=imp.pausa_final_seg,
             bytes_por_segundo=imp.bytes_por_segundo, consultar_estado=imp.consultar_estado)
     if tipo == "archivo":
-        return escpos.ImpresoraArchivo(imp.ruta, anexar=True)
+        # consultar_estado solo actúa si la ruta es un dispositivo (la impresora
+        # por USB); con un archivo de pruebas no hay a quién preguntarle.
+        return escpos.ImpresoraArchivo(imp.ruta, anexar=True, consultar_estado=imp.consultar_estado)
     if tipo == "vista":
         return escpos.ImpresoraVista(codepage=imp.codepage, chars_por_linea=imp.chars_por_linea,
                                      salida=salida)

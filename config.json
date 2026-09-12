@@ -13,9 +13,10 @@
   },
 
   "impresora": {
-    "tipo": "bluetooth",
+    "tipo": "archivo",
     "mac": "00:00:00:00:00:00",
     "canal": 1,
+    "ruta": "/dev/ruleta-impresora",
     "ancho_puntos": 576,
     "chars_por_linea": 48,
     "codepage": "cp858",
@@ -24,7 +25,7 @@
     "cancelar_modo_chino": true,
     "corte": "auto",
     "lineas_antes_corte": null,
-    "beep": false,
+    "beep": true,
     "consultar_estado": true,
     "reintentos": 3,
     "espera_reintento_seg": 2.0,

@@ -2,9 +2,9 @@
 
 Un botón arcade conectado a una Raspberry Pi 5. El cliente lo presiona, el
 programa sortea un premio según las probabilidades e inventario configurados,
-y una impresora térmica Bluetooth imprime el boleto con el logo, el premio en
-letras grandes y el número de boleto. No hay pantalla: la retroalimentación es
-el boleto, un LED opcional y el log.
+y una impresora térmica conectada por cable USB imprime el boleto con el logo,
+el premio en letras grandes y el número de boleto. No hay pantalla: la
+retroalimentación es el boleto, un LED opcional y el log.
 
 ```
   mesero mantiene HABILITAR ──┐
@@ -22,11 +22,11 @@ Todo el texto (config, boletos, mensajes, comandos) está en español.
 |---|---|
 | Raspberry Pi 5 | con fuente oficial de 27 W y microSD de 16 GB o más |
 | Batería RTC (recomendada) | "RTC Battery for Raspberry Pi 5" (Panasonic ML-2020, conector J5 junto al USB-C). Sin ella, tras un corte de luz y sin internet la hora de los boletos saldrá mal |
-| Impresora | AOMU My-A1, 80 mm, Bluetooth, cortador automático. Rollos térmicos de 80 mm |
+| Impresora | AOMU My-A1 (familia POS-80), 80 mm, con cortador automático y zumbador. Va por **cable USB**; el Bluetooth queda de respaldo. Rollos térmicos de 80 mm |
 | Botón JUGAR | botón arcade (cualquier botón normalmente abierto sirve) |
 | Botón HABILITAR | pulsador para el mesero; se mantiene presionado mientras el cliente juega |
 | LED (opcional) | LED normal + resistencia de 330 Ω, o el LED del propio botón arcade (ver nota) |
-| Cables | dupont hembra para el header de la Pi y terminales para los botones |
+| Cables | el cable USB A-B de la impresora, dupont hembra para el header de la Pi y terminales para los botones |
 
 ---
 
@@ -73,26 +73,41 @@ oficial, sin escritorio (no hace falta pantalla) y trae Python 3.13, gpiozero y
 Bluetooth listos. Todo lo que el programa necesita se instala con `apt`; no se
 usa `pip`.
 
-En **Raspberry Pi Imager**: elige "Raspberry Pi OS Lite (64-bit)", y en las
-opciones avanzadas pon nombre de equipo (`ruleta`), usuario y contraseña, tu red
-Wi-Fi y **activa SSH**. Así entras desde tu computadora con `ssh usuario@ruleta.local`.
+En **Raspberry Pi Imager** elige "Raspberry Pi OS Lite (64-bit)" y, en las
+opciones avanzadas:
+
+- **Nombre de equipo:** `ruleta` (así responde como `ruleta.local`).
+- **Usuario:** `asadero`, con su contraseña.
+- **Wi-Fi:** el del negocio, con su nombre y su contraseña exactos.
+- **Zona horaria:** `America/Hermosillo`.
+- **SSH activado con "Allow public-key authentication only"**: se pega ahí la
+  llave pública de tu PC (`~/.ssh/id_ruleta.pub`). No se entra con contraseña.
+
+Desde tu PC entras con `ssh asadero@ruleta.local` (o `ssh ruleta` si guardaste
+el alias en `~/.ssh/config`).
+
+**El SSH y el Wi-Fi son solo para instalar y probar.** En el evento la Pi va
+**sin red**, así que la **batería RTC es necesaria**: sin ella, tras un apagón
+los boletos salen con la fecha y la hora equivocadas.
+
+**Si te llevas la Pi fuera del negocio** no encontrará su Wi-Fi y no responderá.
+La salida, sin regrabar nada: en tu PC, **Configuración → Red e Internet → Punto
+de acceso móvil**, con **el mismo nombre y la misma contraseña** del Wi-Fi del
+asadero y banda 2.4 GHz. La Pi se conecta sola (queda en `192.168.137.x`) y
+`ruleta.local` vuelve a responder. **Apágalo al volver al restaurante**: si no,
+habría dos redes con el mismo nombre y la Pi podría engancharse a la PC.
 
 ---
 
 ## 4. Instalación paso a paso
 
-**Paso 1 · Copiar el programa a la Pi** (desde tu PC, en la carpeta que contiene
-"Ruleta Asadero"). La primera vez:
+**Paso 1 · Traer el programa a la Pi** (en la Pi, por SSH):
 ```bash
-scp -r "Ruleta Asadero" usuario@ruleta.local:~/ruleta
+git clone https://github.com/seduva94/Ruelta-Aleatoria-Pi5.git ~/ruleta
 ```
-Para **actualizar** archivos después (si ya existe `~/ruleta`, la línea anterior
-crearía una carpeta anidada), copia el *contenido*:
-```bash
-scp -r "Ruleta Asadero/." usuario@ruleta.local:~/ruleta/
-```
-No copies una carpeta `datos/` de pruebas hechas en la PC: el paso 7 deja el
-inventario en cero de todos modos.
+Para actualizarlo después: `cd ~/ruleta && git pull`. Si editaste `config.json`
+en la Pi, guárdalo antes fuera del repositorio (`cp ~/ruleta/config.json ~/`) o
+`git pull` se quejará.
 
 **Paso 2 · Instalar** (en la Pi, por SSH):
 ```bash
@@ -100,37 +115,50 @@ cd ~/ruleta
 chmod +x instalar.sh herramientas/*.sh
 sudo ./instalar.sh
 ```
-Instala dependencias, habilita el Bluetooth y registra el servicio que arranca
-solo al encender. Se puede volver a correr cuando quieras.
+Instala dependencias, deja los permisos de la impresora USB (regla `udev` y
+grupo `lp`), habilita el Bluetooth de respaldo y registra el servicio que
+arranca solo al encender. Se puede volver a correr cuando quieras.
 
-**Paso 3 · Emparejar la impresora** (enciéndela primero):
+**Paso 3 · Conectar la impresora por USB.** Enchufa su cable USB a la Pi,
+enciéndela con papel dentro y comprueba que el sistema la ve:
 ```bash
-./herramientas/emparejar.sh
+python3 -m ruleta diagnostico
 ```
-Si la impresora no aparece, imprímele su **página de autoprueba**: apágala,
-mantén presionado el botón FEED, enciéndela y suelta a los 3-5 segundos. Ahí vienen
-su nombre Bluetooth, la MAC, el PIN (normalmente `0000` o `1234`) y los puntos por
-línea. El script prueba ambos PIN solo y guarda la MAC en `config.json`.
+Tiene que decir `[ok] impresora conectada en /dev/ruleta-impresora`. Ese nombre
+lo crea la regla `udev` del instalador; el nodo real es `/dev/usb/lp0` y su
+número puede cambiar, el nombre fijo no. En `config.json` ya viene puesto:
+```json
+"impresora": { "tipo": "archivo", "ruta": "/dev/ruleta-impresora", ... }
+```
+Si dice **sin permiso**, tu usuario aún no está en el grupo `lp`: sal y vuelve a
+entrar por SSH (el instalador ya lo agregó). Si dice **no existe la ruta**,
+revisa el cable y que la impresora esté encendida. El camino por Bluetooth
+está más abajo, en "Respaldo".
 
 **Paso 4 · Boleto de diagnóstico:**
 ```bash
 python3 -m ruleta probar-impresora
 ```
 Revisa en el papel:
-- **Acentos**: hay cuatro líneas `ESC t 0 / 2 / 16 / 19`. La que muestre bien
-  `ñ Ñ á é í ó ú Á É Í Ó Ú ü ¿ ¡` es la tabla correcta. Si no es la 19, pon en
-  `config.json` → `impresora.codepage_n` ese número y en `codepage` su códec
-  (`0`→`cp437`, `2`→`cp850`, `16`→`cp1252`, `19`→`cp858`).
+- **Acentos**: sale una etiqueta por tabla (`ESC t 0 / 2 / 16 / 19`) con su
+  muestra debajo. Aquella cuya muestra se lea bien —`ñ Ñ á é í ó ú Á É Í Ó Ú ü
+  ¿ ¡`— es la tabla correcta. En esta impresora está medido: la **19**
+  (`cp858`), que es la que ya trae `config.json`; la 16 imprime basura. Si en la
+  tuya fuera otra, pon ese número en `impresora.codepage_n` y su códec en
+  `codepage` (`0`→`cp437`, `2`→`cp850`, `16`→`cp1252`, `19`→`cp858`).
+- **Pitido**: al terminar cada boleto la impresora da un pitido corto
+  (`"beep": true`). Si molesta, ponlo en `false`.
 - **Regla de ancho** `0123456789...`: debe llenar exactamente la línea. Si se
   corta, la impresora está en 42 columnas (interruptor DIP 5): pon
   `chars_por_linea: 42` o cambia el DIP.
-- **Corte**: si no cortó solo, prueba `"corte": "parcial"` (y revisa el DIP 1 del cortador).
+- **Corte**: si no cortó solo, prueba `"corte": "parcial"` (y revisa el DIP 1
+  del cortador). Que quede una pestaña sin cortar es normal en esta familia.
 
 **Paso 5 · Tu logo.** Prepara un PNG o JPG de 8 bits, entre 384 y 576 píxeles de
 ancho, fondo blanco o transparente (el programa lo reduce si es más ancho, pero
 nunca lo agranda). Desde la PC:
 ```bash
-scp logo.png usuario@ruleta.local:~/ruleta/
+scp logo.png asadero@ruleta.local:~/ruleta/
 ```
 El logo se lee en cada boleto, así que no hay que reiniciar nada. Vuelve a
 correr `python3 -m ruleta probar-impresora` y comprueba que sale nítido y
@@ -138,7 +166,7 @@ centrado. Si es una foto, pon `"logo_tramado": true`. Si el archivo falta o
 está dañado, el boleto sale sin logo (lo avisa `python3 -m ruleta diagnostico`).
 
 **Paso 6 · Premios y textos.** Edita `config.json` en la Pi (`nano config.json`)
-o en la PC y cópialo con `scp config.json usuario@ruleta.local:~/ruleta/`.
+o en la PC y cópialo con `scp config.json asadero@ruleta.local:~/ruleta/`.
 Cambia los `test1`…`test7` por tus premios reales (ver §7). Comprueba cómo se
 verán los boletos sin gastar papel:
 ```bash
@@ -147,10 +175,11 @@ python3 -m ruleta vista-previa --todos
 **Cada vez que cambies `config.json` con el servicio corriendo:**
 `sudo systemctl restart ruleta`.
 
-**Paso 7 · Hora e inventario en cero.** Si la Pi no tendrá internet, pon la hora
-(e instala la batería RTC):
+**Paso 7 · Hora e inventario en cero.** En el evento la Pi va sin internet, así
+que **instala la batería RTC** y deja la hora fija (mientras haya internet
+puedes dejar `set-ntp true` y se sincroniza sola):
 ```bash
-sudo timedatectl set-timezone America/Mexico_City
+sudo timedatectl set-timezone America/Hermosillo
 sudo timedatectl set-ntp false
 sudo timedatectl set-time "2026-09-15 18:30:00"
 ```
@@ -164,6 +193,22 @@ python3 -m ruleta reiniciar --si
 sudo systemctl start ruleta
 journalctl -u ruleta -f      # log en vivo; Ctrl+C para salir
 ```
+
+### Respaldo: la impresora por Bluetooth
+
+Solo si el USB no fuera posible (cable roto, puerto muerto). Enciende la
+impresora y empareja:
+```bash
+./herramientas/emparejar.sh                        # o pásale la MAC: ...sh AA:BB:CC:DD:EE:FF
+```
+El script empareja, prueba los PIN `0000` y `1234`, guarda la MAC y deja
+`"tipo": "bluetooth"` en `config.json` (reescribe el archivo entero, así que
+revísalo después). Para volver al cable, pon otra vez `"tipo": "archivo"`.
+
+Si la impresora no aparece en la búsqueda, imprímele su **página de
+autoprueba**: apágala, mantén presionado el botón FEED, enciéndela y suelta a
+los 3-5 segundos. Ahí vienen su nombre Bluetooth, la MAC, el PIN y los puntos
+por línea.
 
 ---
 
@@ -185,10 +230,11 @@ journalctl -u ruleta -f      # log en vivo; Ctrl+C para salir
 5. Si **no queda ningún premio disponible** se imprime un boleto de
    "SIGUE PARTICIPANDO" (texto configurable). El folio también avanza.
 6. **No salió boleto y el LED parpadea rápido.** Antes de imprimir, el programa
-   pregunta a la impresora si tiene papel y está en línea; si reporta que no, o
-   si no logra conectarse, **el premio regresa al inventario** y el folio se
-   anota como `error_conexion`. Revisa impresora y papel y vuelve a jugar.
-7. **Se cortó a medio boleto** (Bluetooth se cayó mientras imprimía): el folio
+   le pregunta a la impresora si tiene papel y está en línea (por USB y por
+   Bluetooth); si contesta que no, o si no logra abrirla, **el premio regresa al
+   inventario** y el folio se anota como `error_conexion`. Revisa impresora y
+   papel y vuelve a jugar.
+7. **Se cortó a medio boleto** (se perdió la conexión mientras imprimía): el folio
    queda como `incierto` y el premio **sigue contado como entregado** para no
    regalarlo dos veces. Aparece en el inventario bajo "REVISAR". Si compruebas
    que el boleto no salió, devuelve el premio (con el servicio detenido):
@@ -199,11 +245,12 @@ journalctl -u ruleta -f      # log en vivo; Ctrl+C para salir
    sudo systemctl start ruleta
    ```
 8. **Se acabó el papel.** No apagues la impresora: pon el rollo nuevo y lo que
-   estuviera en su memoria sale solo. Luego coteja los últimos folios de
-   `datos/boletos.csv` (o del inventario impreso) con los boletos físicos; si
-   alguno no salió, libéralo como en el punto 7. Con la consulta de estado
-   activa (`consultar_estado: true`) la impresora avisa que no hay papel y el
-   programa no descuenta el premio.
+   estuviera en su memoria sale solo. Con `consultar_estado: true` el programa
+   pregunta antes de cada boleto y, **si la impresora contesta** que no hay
+   papel, no descuenta el premio. No todos los firmwares contestan: si el rollo
+   se acabó, coteja igual los últimos folios de `datos/boletos.csv` (o del
+   inventario impreso) con los boletos físicos y libera con el punto 7 los que
+   no hayan salido.
 
 **Archivos que genera** (carpeta `datos/`):
 
@@ -221,8 +268,10 @@ python3 -m ruleta reiniciar            # evento nuevo: folio y contadores a cero
 
 **Detén el servicio** (`sudo systemctl stop ruleta`) antes de `reiniciar`,
 `liberar`, `reporte --imprimir` o `probar-impresora`: el servicio guarda el
-inventario en memoria y la impresora acepta una sola conexión Bluetooth. Los
-comandos lo detectan y te lo recuerdan. Al terminar: `sudo systemctl start ruleta`.
+inventario en memoria y no conviene que dos programas escriban a la vez en la
+impresora. `reiniciar`, `liberar` y `reporte --imprimir` lo detectan y te lo
+recuerdan; **`probar-impresora` no avisa**, ahí tienes que acordarte tú. Al
+terminar: `sudo systemctl start ruleta`.
 
 **El "día"** empieza a las 6:00 (`juego.hora_inicio_dia`): una jugada a la 1:00
 de la madrugada cuenta para el día anterior, como en la operación real del negocio.
@@ -249,10 +298,10 @@ cambios se aplican al reiniciar el servicio: `sudo systemctl restart ruleta`.
 ### `impresora`
 | Llave | Defecto | Qué es |
 |---|---|---|
-| `tipo` | `"bluetooth"` | `bluetooth`, `archivo` (escribe a `ruta`) o `vista` (consola) |
+| `tipo` | `"bluetooth"` | `archivo` = por cable USB (**lo que trae este `config.json`**), `bluetooth` = respaldo, `vista` = consola |
 | `mac` | — | dirección Bluetooth; la escribe `emparejar.sh` |
 | `canal` | `1` | canal RFCOMM; `diagnostico` lo detecta si no es 1 |
-| `ruta` | `"salida_impresora.bin"` | solo con `tipo: archivo`; p. ej. `/dev/usb/lp0` si algún día va por USB |
+| `ruta` | `"salida_impresora.bin"` | con `tipo: archivo`, el dispositivo de la impresora: `/dev/ruleta-impresora` (el nodo real es `/dev/usb/lp0`) |
 | `ancho_puntos` | `576` | puntos por línea (80 mm = 576; 58 mm = 384) |
 | `chars_por_linea` | `48` | columnas en fuente normal (42 si el DIP 5 está activo; mínimo 32) |
 | `codepage` / `codepage_n` | `cp858` / `19` | tabla de caracteres para acentos (ver paso 4) |
@@ -260,14 +309,21 @@ cambios se aplican al reiniciar el servicio: `sudo systemctl restart ruleta`.
 | `cancelar_modo_chino` | `true` | manda `FS .` tras inicializar; sin esto los acentos salen como ideogramas |
 | `corte` | `"auto"` | `auto` (avanza hasta la cuchilla y corta), `parcial`, `completo`, `ninguno` |
 | `lineas_antes_corte` | `null` | líneas en blanco antes de cortar; `null` = 1 con `auto`, 5 con los demás |
-| `beep` | `false` | pitido al terminar el boleto (solo si la impresora tiene zumbador y su DIP 2 activo) |
-| `consultar_estado` | `true` | antes de cada boleto pregunta si hay papel y está en línea; si no responde, imprime igual |
+| `beep` | `false` | pitido al terminar el boleto (este `config.json` lo trae en `true`: un pitido corto por boleto) |
+| `consultar_estado` | `true` | antes de cada boleto pregunta si hay papel y está en línea, por USB y por Bluetooth; si no responde, imprime igual |
 | `reintentos` / `espera_reintento_seg` | `3` / `2.0` | intentos de conexión por boleto |
 | `timeout_seg` | `10.0` | tiempo máximo para conectar (mayor que 0). Si subes esto o `reintentos`, sube `TimeoutStopSec` en `ruleta.service` |
 | `tamano_bloque` / `pausa_bloque_seg` | `512` / `0.03` | ritmo de envío; si el logo sale con basura usa `256` / `0.04` |
 | `pausa_inicial_seg` | `0.4` | espera tras conectar (los módulos Bluetooth baratos pierden los primeros bytes) |
 | `pausa_final_seg` / `bytes_por_segundo` | `1.5` / `16000` | espera antes de cerrar para que la impresora reciba todo |
 | `banda_imagen` | `64` | filas de imagen por comando; baja a 32 si el logo sale desplazado |
+
+**Solo valen con `tipo: bluetooth`:** `mac`, `canal`, `reintentos`,
+`timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`,
+`pausa_final_seg` y `bytes_por_segundo`. Por cable no hacen nada: no hay enlace
+que se caiga ni ritmo que controlar. `espera_reintento_seg` **sí** cuenta con
+cualquier tipo, USB incluido: es la espera (por dos) entre los intentos del
+inventario de arranque (`juego.intentos_inventario_arranque`).
 
 ### `gpio`
 | Llave | Defecto | Qué es |
@@ -365,11 +421,24 @@ journalctl -u ruleta -f
 
 ## 9. Solución de problemas
 
-**No imprime nada y el LED parpadea rápido.** La impresora está apagada, sin
-papel, fuera de alcance o con un celular conectado. Corre
-`python3 -m ruleta diagnostico`: te dice si está emparejada, si responde y en
-qué canal. Si dice "rechazó la conexión", prueba desconectar otros
-dispositivos, o vuelve a emparejar:
+**No imprime nada y el LED parpadea rápido.** Corre
+`python3 -m ruleta diagnostico`; con la impresora por USB te dice cuál de las
+tres cosas pasa:
+
+- `[!!] no existe la ruta de la impresora`: está apagada o el cable está suelto.
+  Enchúfalo, enciéndela y vuelve a correr el diagnóstico.
+- `[!!] sin permiso para escribir`: falta la regla `udev` o el grupo `lp`. Se
+  arregla volviendo a correr `sudo ./instalar.sh` y saliendo y entrando por SSH.
+- `[!!] la impresora reporta SIN PAPEL` o `fuera de línea`: pon papel y cierra
+  bien la tapa. **Esta tercera revisión solo se hace con el servicio detenido.**
+  Con el servicio corriendo el diagnóstico no le pregunta nada a la impresora,
+  para no interferir, y lo avisa con `[--] el servicio 'ruleta' está corriendo`.
+  Si necesitas esta revisión: `sudo systemctl stop ruleta`, repite el
+  diagnóstico y vuelve a arrancarlo con `sudo systemctl start ruleta`.
+
+Por Bluetooth el diagnóstico dice además si está emparejada y en qué canal
+responde; si dice "rechazó la conexión", desconecta otros dispositivos (un
+celular le roba la impresora) o vuelve a emparejar:
 ```bash
 bluetoothctl remove AA:BB:CC:DD:EE:FF
 ./herramientas/emparejar.sh
@@ -386,10 +455,11 @@ La impresora está en 42 columnas (DIP 5). Pon `chars_por_linea: 42`.
 **No corta el papel.** Revisa el DIP 1 del cortador. Cambia `corte` a
 `"parcial"`. Si corta a mitad del texto, sube `lineas_antes_corte`.
 
-**El logo sale con basura, bandas movidas o incompleto.** Baja el ritmo:
-`tamano_bloque: 256`, `pausa_bloque_seg: 0.04`, `banda_imagen: 32`. Reduce el
-logo (`logo_ancho: 320`). Si sale como bloque negro o en blanco, guárdalo de
-nuevo como PNG de 8 bits con fondo blanco.
+**El logo sale con basura, bandas movidas o incompleto.** Prueba
+`banda_imagen: 32` y reduce el logo (`logo_ancho: 320`). Si sale como bloque
+negro o en blanco, guárdalo de nuevo como PNG de 8 bits con fondo blanco. Por
+Bluetooth, además, baja el ritmo: `tamano_bloque: 256`, `pausa_bloque_seg: 0.04`
+(por cable esas dos no hacen nada).
 
 **El botón no responde.** Verifica que el cable vaya a GND y al GPIO correcto
 (numeración BCM, no el número de pin físico; `pinout` en la terminal muestra el
@@ -401,9 +471,21 @@ para probar sin él pon `"modo_habilitar": "siempre"`.
 segundos sin que el cliente jugara. Sube `pulsacion_larga_seg` o ponlo en
 `null` (entonces el inventario solo sale al encender o con `reporte --imprimir`).
 
-**El servicio se reinicia en bucle** (`systemctl status ruleta` dice
-"activating"): casi siempre es un error en `config.json`. Corre
-`python3 -m ruleta diagnostico`; el mensaje dice qué llave corregir.
+**El servicio no arranca y `systemctl status ruleta` dice "failed".** Casi
+siempre es un error en `config.json`: el programa sale con código 2 y systemd
+**no lo reintenta** a propósito (un error de configuración no se arregla solo).
+Mira el motivo, corrígelo y vuelve a arrancarlo:
+```bash
+systemctl status ruleta
+journalctl -u ruleta -n 20 --no-pager    # dice qué llave está mal
+nano config.json
+sudo systemctl restart ruleta
+```
+Si en cambio se reinicia una y otra vez (`activating`), el fallo sí es
+transitorio: permisos del GPIO o carpeta de datos que no se puede escribir. Un
+fallo de la impresora **no** reinicia el servicio (el boleto no sale, el LED
+parpadea rápido y el programa sigue esperando). `python3 -m ruleta
+diagnostico` lo señala.
 
 **Hora o fecha incorrectas en los boletos.** Instala la batería RTC, fija la
 hora con `timedatectl` (paso 7) y activa su recarga agregando
@@ -424,9 +506,17 @@ python3 -m ruleta --simular --impresora vista
 Teclas: `h` alterna HABILITAR, `j` pulsa JUGAR, `i` simula el gesto de
 inventario, `q` sale.
 
-**La impresora resulta ser solo BLE** (el diagnóstico no ve "Serial Port" y
-nunca conecta): usa el cable USB de la impresora y pon
-`"tipo": "archivo", "ruta": "/dev/usb/lp0"` (agrega tu usuario al grupo `lp`).
+**El nombre `/dev/ruleta-impresora` no aparece.** Lo crea la regla
+`/etc/udev/rules.d/61-ruleta-impresora-usb.rules` que escribe `instalar.sh`, y
+solo cuando el sistema reconoce la impresora. Comprueba en este orden:
+```bash
+lsusb                                  # debe aparecer la impresora (0418:5011)
+ls -l /dev/usb/lp0 /dev/ruleta-impresora
+id -nG | grep -w lp                    # tu usuario debe estar en el grupo lp
+sudo ./instalar.sh                     # vuelve a poner la regla y el grupo
+```
+Mientras tanto puedes apuntar `"ruta": "/dev/usb/lp0"`, que es el nodo real.
+Y si el USB no fuera viable, queda el respaldo por Bluetooth (§4).
 
 ---
 
@@ -439,10 +529,11 @@ ruleta/               código
   config.py           carga y validación de config.json
   inventario.py       premios, sorteo ponderado, estado.json, boletos.csv, liberar
   ticket.py           diseño de los boletos
-  escpos.py           comandos ESC/POS, estado de papel y transporte Bluetooth
+  escpos.py           comandos ESC/POS, estado del papel y transportes (USB y Bluetooth)
   hardware.py         botones/LED con gpiozero y simulación por teclado
 tests/                pruebas automáticas (unittest)
-herramientas/         emparejar.sh
+herramientas/         emparejar.sh (respaldo Bluetooth)
+docs/                 planes, actas y fichas de cada fase del proyecto
 config.json           configuración
 logo.png              logo provisional (reemplázalo por el real)
 instalar.sh           instalador para Raspberry Pi OS

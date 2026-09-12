@@ -9,7 +9,8 @@ Transportes:
   ImpresoraBluetooth  - RFCOMM (Bluetooth clásico, perfil SPP) con el módulo
                         socket de Python; conecta por trabajo y reintenta.
   ImpresoraArchivo    - escribe los bytes a un archivo o dispositivo
-                        (/dev/usb/lp0 si algún día se conecta por USB).
+                        (/dev/ruleta-impresora, el nodo usblp de la impresora
+                        conectada por cable USB; también un archivo de pruebas).
   ImpresoraVista      - decodifica el flujo y lo muestra como texto en la
                         consola: para ver el boleto sin tener la impresora.
   ImpresoraMemoria    - guarda los trabajos en una lista (pruebas).
@@ -19,7 +20,10 @@ from __future__ import annotations
 
 import errno
 import logging
+import os
+import select
 import socket
+import stat
 import time
 import unicodedata
 from typing import Callable, Iterable
@@ -55,6 +59,12 @@ CMD_ESTADO_IMPRESORA = b"\x10\x04\x01"   # bit 3 = fuera de línea
 CMD_ESTADO_PAPEL = b"\x10\x04\x04"       # bits 2-3 = poco papel, bits 5-6 = sin papel
 _MASCARA_FIJA_ESTADO = 0x93
 _VALOR_FIJO_ESTADO = 0x12
+# Bits con significado dentro de esa respuesta. Están aquí una sola vez: los
+# usan los dos transportes (Bluetooth y USB) y el diagnóstico.
+BITS_SIN_PAPEL = 0x60
+BITS_POCO_PAPEL = 0x0C
+BIT_FUERA_DE_LINEA = 0x08
+_MAX_BYTES_BASURA = 4                    # bytes sueltos que se descartan buscando un estado válido
 
 # Errores de conexión en los que reintentar no sirve de nada.
 _ERRNO_SIN_REINTENTO = {errno.EBUSY, errno.EACCES, errno.EPERM}
@@ -83,6 +93,64 @@ class ErrorEnvio(ErrorImpresora):
     def __init__(self, mensaje: str, bytes_enviados: int):
         super().__init__(mensaje)
         self.bytes_enviados = bytes_enviados
+
+
+# --------------------------------------------------------------------------- #
+# Estado en tiempo real (DLE EOT), común a todos los transportes
+# --------------------------------------------------------------------------- #
+
+def es_estado_valido(byte: int) -> bool:
+    """True si el byte cumple los bits fijos de una respuesta DLE EOT."""
+    return (byte & _MASCARA_FIJA_ESTADO) == _VALOR_FIJO_ESTADO
+
+
+def verificar_estado(leer: Callable[[bytes], int | None], quien: str) -> None:
+    """Pregunta por el papel y por la línea; aborta si la impresora dice que no puede.
+
+    `leer(comando)` manda un DLE EOT y devuelve el byte de estado, o None si la
+    impresora no contesta. La política es la misma por Bluetooth y por USB, y no
+    se cambia: si **no contesta** se imprime igual (no responder no es prueba de
+    falla) y solo se lanza ErrorConexion —antes de mandar un solo byte del
+    boleto— cuando contesta y dice «sin papel» o «fuera de línea». El papel se
+    evalúa antes de mandar la segunda pregunta: sin papel ya no hay nada más que
+    preguntar.
+    """
+    papel = leer(CMD_ESTADO_PAPEL)
+    if papel is not None:
+        if papel & BITS_SIN_PAPEL:
+            raise ErrorConexion(f"la impresora {quien} no tiene papel")
+        if papel & BITS_POCO_PAPEL:
+            log.warning("La impresora %s reporta poco papel: cambia el rollo pronto", quien)
+    estado = leer(CMD_ESTADO_IMPRESORA)
+    if estado is not None and estado & BIT_FUERA_DE_LINEA:
+        raise ErrorConexion(f"la impresora {quien} está fuera de línea (tapa abierta, sin papel o error)")
+    if papel is None and estado is None:
+        log.debug("La impresora %s no responde al estado en tiempo real; se imprime sin verificar", quien)
+
+
+def es_dispositivo_caracteres(ruta: str, stat_fn: Callable = os.stat) -> bool:
+    """True si la ruta es un dispositivo de caracteres (/dev/ruleta-impresora, /dev/usb/lp0).
+
+    Con un archivo normal (o si la ruta no existe) devuelve False, y entonces
+    nadie intenta preguntarle nada: un archivo no contesta.
+    """
+    try:
+        return stat.S_ISCHR(stat_fn(ruta).st_mode)
+    except OSError:
+        return False
+
+
+def _hay_algo_que_leer(f, timeout: float) -> bool:
+    """Espera hasta `timeout` segundos a que el dispositivo tenga respuesta.
+
+    Sin este límite, una lectura sobre `usblp` puede colgar el servicio para
+    siempre, que sería mucho peor que la falla que se intenta detectar.
+    """
+    try:
+        listos, _, _ = select.select([f], [], [], timeout)
+    except (OSError, ValueError):   # descriptor cerrado, o un sistema sin select de archivos
+        return False
+    return bool(listos)
 
 
 # --------------------------------------------------------------------------- #
@@ -390,13 +458,12 @@ class ImpresoraBluetooth(Impresora):
         try:
             sock.sendall(comando)
             sock.settimeout(self.timeout_estado)
-            for _ in range(4):   # descarta bytes sueltos que no sean un estado válido
+            for _ in range(_MAX_BYTES_BASURA):   # descarta bytes sueltos que no sean un estado válido
                 dato = sock.recv(1)
                 if not dato:
                     return None
-                b = dato[0]
-                if (b & _MASCARA_FIJA_ESTADO) == _VALOR_FIJO_ESTADO:
-                    return b
+                if es_estado_valido(dato[0]):
+                    return dato[0]
             return None
         except (socket.timeout, TimeoutError):
             return None
@@ -409,20 +476,10 @@ class ImpresoraBluetooth(Impresora):
     def _verificar_lista(self, sock) -> None:
         """Lanza ErrorConexion si la impresora reporta sin papel o fuera de línea.
 
-        Si la impresora no contesta (firmware sin estado en tiempo real) se
-        imprime igual: no responder no es prueba de falla.
+        La interpretación de los bits vive en `verificar_estado`, compartida con
+        el transporte de archivo/USB: los números están escritos una sola vez.
         """
-        papel = self._leer_estado(sock, CMD_ESTADO_PAPEL)
-        if papel is not None:
-            if papel & 0x60:
-                raise ErrorConexion(f"la impresora {self.mac} no tiene papel")
-            if papel & 0x0C:
-                log.warning("La impresora %s reporta poco papel: cambia el rollo pronto", self.mac)
-        estado = self._leer_estado(sock, CMD_ESTADO_IMPRESORA)
-        if estado is not None and estado & 0x08:
-            raise ErrorConexion(f"la impresora {self.mac} está fuera de línea (tapa abierta, sin papel o error)")
-        if papel is None and estado is None:
-            log.debug("La impresora %s no responde al estado en tiempo real; se imprime sin verificar", self.mac)
+        verificar_estado(lambda comando: self._leer_estado(sock, comando), self.mac)
 
     @staticmethod
     def _cerrar(sock) -> None:
@@ -544,7 +601,14 @@ def _explicar_error_bt(e: BaseException | None, mac: str) -> str:
 
 
 class ImpresoraArchivo(Impresora):
-    """Escribe el trabajo a un archivo o dispositivo (p. ej. /dev/usb/lp0).
+    """Escribe el trabajo a un archivo o dispositivo (p. ej. /dev/ruleta-impresora).
+
+    Con `consultar_estado=True` y una ruta que sea un **dispositivo de
+    caracteres** (el nodo `usblp` de una impresora USB bidireccional) pregunta
+    por el papel antes de mandar el boleto, exactamente igual que el transporte
+    Bluetooth. Con un archivo normal (`salida_impresora.bin`, las pruebas) no
+    pregunta nada y el comportamiento es el de siempre, `anexar` incluido: un
+    archivo no puede contestar.
 
     Solo un fallo al ABRIR es ErrorConexion (nada se envió). Un fallo a medio
     escribir es ErrorEnvio: el dispositivo pudo imprimir parte del boleto.
@@ -552,19 +616,68 @@ class ImpresoraArchivo(Impresora):
 
     nombre = "archivo"
 
-    def __init__(self, ruta: str, anexar: bool = False, abrir: Callable = open):
+    def __init__(self, ruta: str, anexar: bool = False, abrir: Callable = open,
+                 consultar_estado: bool = False, timeout_estado: float = 1.0,
+                 es_dispositivo: Callable[[str], bool] | None = None,
+                 esperar_lectura: Callable[..., bool] | None = None):
         self.ruta = ruta
         self.anexar = anexar
         self._abrir = abrir
+        self.consultar_estado = consultar_estado   # DLE EOT antes del boleto: papel / fuera de línea
+        self.timeout_estado = timeout_estado
+        self._es_dispositivo = es_dispositivo or es_dispositivo_caracteres
+        self._esperar = esperar_lectura or _hay_algo_que_leer
+
+    def _leer_estado(self, f, comando: bytes) -> int | None:
+        """Manda DLE EOT n y devuelve el byte de estado, o None si no contesta."""
+        pendiente = memoryview(comando)
+        while pendiente:
+            n = f.write(pendiente)
+            if not n:
+                raise OSError(errno.EIO, f"{self.ruta} no aceptó la consulta de estado")
+            pendiente = pendiente[n:]
+        for _ in range(_MAX_BYTES_BASURA):   # descarta bytes sueltos que no sean un estado válido
+            if not self._esperar(f, self.timeout_estado):
+                return None
+            dato = f.read(1)
+            if not dato:
+                return None
+            if es_estado_valido(dato[0]):
+                return dato[0]
+        return None
+
+    def consultar_papel(self) -> tuple[int | None, int | None]:
+        """Devuelve (byte de papel, byte de estado); None en el que no conteste.
+
+        No interpreta nada ni imprime: es lo que usa el diagnóstico para decir
+        si la impresora contesta y qué contesta.
+        """
+        try:
+            f = self._abrir(self.ruta, "r+b", buffering=0)
+        except OSError as e:
+            raise ErrorConexion(f"no se pudo abrir {self.ruta}: {e}") from e
+        try:
+            with f:
+                return (self._leer_estado(f, CMD_ESTADO_PAPEL),
+                        self._leer_estado(f, CMD_ESTADO_IMPRESORA))
+        except OSError as e:
+            raise ErrorConexion(f"falló la consulta de estado de {self.ruta}: {e}") from e
 
     def imprimir(self, datos: bytes) -> None:
+        preguntar = self.consultar_estado and self._es_dispositivo(self.ruta)
+        # "r+b" hace falta para poder LEER la respuesta ("ab" es solo de escritura)
+        # y, de paso, no crea el archivo si la ruta no existe. Para todo lo demás
+        # se conserva el modo de siempre.
+        modo = "r+b" if preguntar else ("ab" if self.anexar else "wb")
         try:
-            f = self._abrir(self.ruta, "ab" if self.anexar else "wb", buffering=0)
+            f = self._abrir(self.ruta, modo, buffering=0)
         except OSError as e:
             raise ErrorConexion(f"no se pudo abrir {self.ruta}: {e}") from e
         enviados = 0
         try:
             with f:
+                if preguntar:
+                    verificar_estado(lambda comando: self._leer_estado(f, comando), self.ruta)
                 vista = memoryview(datos)
                 while enviados < len(datos):
                     n = f.write(vista[enviados:])

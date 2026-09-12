@@ -142,6 +142,20 @@ class TestCargar(unittest.TestCase):
         self.assertEqual(len(cfg.premios), 7)
         self.assertEqual(cfg.premios[2].stock, 1)
 
+    def test_config_json_del_proyecto_apunta_a_la_impresora_usb(self):
+        """Lo medido en la Pi el 2026-09-11: USB por /dev/ruleta-impresora, con pitido.
+
+        La Pi se actualiza con `git pull`, así que este archivo es el que va a
+        quedar allá: si alguien lo devuelve a Bluetooth, el kiosco arranca
+        buscando una MAC de relleno y no imprime.
+        """
+        imp = configmod.cargar(Path(__file__).resolve().parent.parent / "config.json").impresora
+        self.assertEqual(
+            (imp.tipo, imp.ruta, imp.beep, imp.consultar_estado, imp.mac, imp.canal,
+             imp.codepage, imp.codepage_n, imp.chars_por_linea, imp.ancho_puntos, imp.corte),
+            ("archivo", "/dev/ruleta-impresora", True, True, "00:00:00:00:00:00", 1,
+             "cp858", 19, 48, 576, "auto"))
+
 
 if __name__ == "__main__":
     unittest.main()

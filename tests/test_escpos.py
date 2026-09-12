@@ -2,8 +2,10 @@ import errno
 import io
 import os
 import socket
+import stat
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from PIL import Image
@@ -412,6 +414,177 @@ class ArchivoFalso:
 
     def __exit__(self, *a):
         return False
+
+
+class DispositivoFalso:
+    """Doble del nodo usblp: anota lo escrito y contesta a las consultas de estado.
+
+    `respuestas` son los bytes que la impresora va soltando (uno por lectura);
+    `acepta` limita cuántos bytes toma por escritura y `limite` simula que el
+    dispositivo se atraganta tras N bytes en total.
+    """
+
+    def __init__(self, respuestas=b"", acepta=None, limite=None):
+        self.pendiente = bytearray(respuestas)
+        self.escrito = bytearray()
+        self.acepta = acepta
+        self.limite = limite
+        self.lecturas = 0
+        self.esperas = []
+        self.cerrado = False
+
+    def write(self, datos):
+        if self.limite is not None and len(self.escrito) >= self.limite:
+            raise OSError(errno.EIO, "Input/output error")
+        trozo = bytes(datos if self.acepta is None else datos[: self.acepta])
+        self.escrito += trozo
+        return len(trozo)
+
+    def read(self, n):
+        self.lecturas += 1
+        dato = bytes(self.pendiente[:n])
+        del self.pendiente[:n]
+        return dato
+
+    def hay_datos(self, f, timeout):
+        self.esperas.append(timeout)
+        return bool(self.pendiente)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.cerrado = True
+        return False
+
+
+class TestImpresoraArchivoUSB(unittest.TestCase):
+    """Consulta de papel por USB (DLE EOT) en ImpresoraArchivo, sin hardware."""
+
+    def setUp(self):
+        self.aperturas = []
+
+    def impresora(self, disp, consultar_estado=True, dispositivo=True, anexar=True):
+        def abrir(ruta, modo, buffering=0):
+            self.aperturas.append((ruta, modo, buffering))
+            return disp
+        return ImpresoraArchivo("/dev/ruleta-impresora", anexar=anexar, abrir=abrir,
+                                consultar_estado=consultar_estado, timeout_estado=1.0,
+                                es_dispositivo=lambda ruta: dispositivo,
+                                esperar_lectura=disp.hay_datos)
+
+    def test_sin_papel_no_envia_el_boleto(self):
+        disp = DispositivoFalso(b"\x72")                      # 0x12 | 0x60 = sin papel
+        with self.assertRaises(ErrorConexion) as ctx:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertIn("no tiene papel", str(ctx.exception))
+        self.assertEqual(bytes(disp.escrito), escpos.CMD_ESTADO_PAPEL)   # solo la pregunta
+        self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "r+b", 0)])
+        self.assertTrue(disp.cerrado)
+
+    def test_con_papel_escribe_todo(self):
+        disp = DispositivoFalso(b"\x12\x12")
+        self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito),
+                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
+        self.assertEqual(disp.lecturas, 2)
+
+    def test_fuera_de_linea_no_envia_el_boleto(self):
+        disp = DispositivoFalso(b"\x12\x1a")                  # 0x12 | 0x08 = fuera de línea
+        with self.assertRaises(ErrorConexion) as ctx:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertIn("fuera de línea", str(ctx.exception))
+        self.assertEqual(bytes(disp.escrito),
+                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA)
+
+    def test_poco_papel_solo_avisa(self):
+        disp = DispositivoFalso(b"\x16\x12")                  # 0x12 | 0x04 = poco papel
+        self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito),
+                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
+
+    def test_sin_respuesta_imprime_igual(self):
+        disp = DispositivoFalso(b"")                          # firmware que no contesta
+        self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito),
+                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
+        self.assertEqual(disp.lecturas, 0)
+
+    def test_cada_lectura_tiene_limite_de_tiempo(self):
+        # Sin límite, una lectura sobre usblp cuelga el servicio para siempre.
+        disp = DispositivoFalso(b"")
+        self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(disp.esperas, [1.0, 1.0])
+
+    def test_bytes_invalidos_se_descartan_e_imprime(self):
+        disp = DispositivoFalso(b"\x00\x00\x00\x00")          # ninguno cumple los bits fijos
+        self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito),
+                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
+        self.assertEqual(disp.lecturas, 4)
+
+    def test_consultar_estado_false_no_pregunta(self):
+        disp = DispositivoFalso(b"\x72")                      # diría que no hay papel...
+        self.impresora(disp, consultar_estado=False).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito), b"boleto")      # ...pero no se le pregunta
+        self.assertEqual(disp.lecturas, 0)
+        self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "ab", 0)])
+
+    def test_archivo_normal_no_pregunta_aunque_este_activado(self):
+        disp = DispositivoFalso(b"\x72")
+        self.impresora(disp, dispositivo=False).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito), b"boleto")
+        self.assertEqual(disp.lecturas, 0)
+        self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "ab", 0)])
+
+    def test_fallo_a_mitad_no_cuenta_la_consulta(self):
+        disp = DispositivoFalso(b"\x12\x12", acepta=4, limite=10)   # 6 de consulta + 4 de boleto
+        with self.assertRaises(ErrorEnvio) as ctx:
+            self.impresora(disp).imprimir(b"0123456789")
+        self.assertEqual(ctx.exception.bytes_enviados, 4)
+
+    def test_consultar_papel_devuelve_los_dos_bytes(self):
+        disp = DispositivoFalso(b"\x12\x1e")
+        self.assertEqual(self.impresora(disp).consultar_papel(), (0x12, 0x1e))
+        self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "r+b", 0)])
+
+    def test_consultar_papel_sin_respuesta(self):
+        self.assertEqual(self.impresora(DispositivoFalso(b"")).consultar_papel(), (None, None))
+
+    def test_consultar_papel_no_se_puede_abrir(self):
+        def abrir(*a, **k):
+            raise PermissionError(13, "Permission denied")
+        with self.assertRaises(ErrorConexion):
+            ImpresoraArchivo("/dev/ruleta-impresora", abrir=abrir).consultar_papel()
+
+    def test_archivo_de_verdad_con_consulta_activada_se_comporta_igual(self):
+        # Vector real: salida_impresora.bin con consultar_estado=True no cambia nada.
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = os.path.join(tmp, "salida.bin")
+            ImpresoraArchivo(ruta, anexar=True, consultar_estado=True).imprimir(b"uno")
+            ImpresoraArchivo(ruta, anexar=True, consultar_estado=True).imprimir(b"dos")
+            with open(ruta, "rb") as f:
+                self.assertEqual(f.read(), b"unodos")
+
+    def test_solo_un_dispositivo_de_caracteres_es_dispositivo(self):
+        # El caso POSITIVO no se puede tener de verdad en esta PC, y sin él la
+        # prueba pasaría igual con un es_dispositivo_caracteres que devolviera
+        # siempre False: la consulta de papel por USB quedaría muerta en la Pi
+        # con la suite en verde. Se compara el censo entero por igualdad.
+        modos = {"/dev/ruleta-impresora": stat.S_IFCHR | 0o660,
+                 "salida_impresora.bin": stat.S_IFREG | 0o644,
+                 "/dev/mmcblk0": stat.S_IFBLK | 0o660,
+                 "/dev": stat.S_IFDIR | 0o755}
+        stat_fn = lambda ruta: SimpleNamespace(st_mode=modos[ruta])
+        self.assertEqual({r: escpos.es_dispositivo_caracteres(r, stat_fn=stat_fn) for r in modos},
+                         {"/dev/ruleta-impresora": True, "salida_impresora.bin": False,
+                          "/dev/mmcblk0": False, "/dev": False})
+        self.assertFalse(escpos.es_dispositivo_caracteres("/ruta/que/no/existe/lp0"))
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = os.path.join(tmp, "salida.bin")
+            with open(ruta, "wb"):
+                pass
+            self.assertFalse(escpos.es_dispositivo_caracteres(ruta))
 
 
 class TestImpresoraArchivo(unittest.TestCase):

@@ -228,7 +228,9 @@ def boleto_prueba(cfg: Config, tablas: tuple[int, ...] = (0, 2, 16, 19)) -> byte
             raise ValueError(f"tabla de caracteres fuera de rango (0-255): {n}")
         codec = CODECS_TABLA.get(n, cfg.impresora.codepage)
         doc.crudo(b"\x1bt" + bytes([n]))
-        doc.crudo(f"  ESC t {n:<3}({codec}): ".encode("ascii"))
+        # La etiqueta va en su propia línea y la muestra en la siguiente: juntas
+        # pasaban de 48 columnas y la impresora las partía a media palabra.
+        doc.linea(f"  ESC t {n} ({codec}):")
         original, doc.codepage = doc.codepage, codec
         doc.linea(muestra)
         doc.codepage = original

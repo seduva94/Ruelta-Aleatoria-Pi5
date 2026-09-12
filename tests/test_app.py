@@ -381,6 +381,17 @@ class TestCrearImpresora(unittest.TestCase):
         self.assertEqual(crear_impresora(cfg, "vista").nombre, "vista")
         self.assertEqual(crear_impresora(cfg, "archivo").nombre, "archivo")
 
+    def test_archivo_recibe_la_consulta_de_estado(self):
+        """Por USB también hay que preguntar si hay papel (solo si está activada)."""
+        cfg = config_prueba(impresora={"tipo": "archivo", "ruta": "/dev/ruleta-impresora",
+                                       "consultar_estado": True})
+        imp = crear_impresora(cfg)
+        self.assertEqual((imp.nombre, imp.ruta, imp.anexar, imp.consultar_estado),
+                         ("archivo", "/dev/ruleta-impresora", True, True))
+        apagada = config_prueba(impresora={"tipo": "archivo", "ruta": "salida_impresora.bin",
+                                           "consultar_estado": False})
+        self.assertFalse(crear_impresora(apagada).consultar_estado)
+
 
 if __name__ == "__main__":
     unittest.main()
