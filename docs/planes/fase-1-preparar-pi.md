@@ -1,6 +1,17 @@
 # Fase 1 · Preparar la Raspberry Pi
 
-Plan prescriptivo. Redactado el 2026-09-11. Estado global: **NO INICIADA**.
+Plan prescriptivo. Redactado el 2026-09-11. Estado global: **COMPLETADA Y
+VERIFICADA el 2026-09-11** en los pasos 1 a 11 y 14. **Faltan el Paso 12 y el
+Paso 13:** el 13 (idioma del sistema) sí es opcional, pero el **Paso 12, la
+batería RTC, dejó de ser opcional** el 2026-09-11, cuando el usuario decidió que
+en producción la Pi va **sin red** (§0-bis D9): es el **principal riesgo
+abierto** de esta fase.
+
+Acta de la ejecución, con la evidencia cruda:
+`docs/actas/2026-09-11-fase-1.md`. Lo que se hizo distinto de lo escrito aquí
+está en la **§0-bis**, y ahí se explica por qué. **Quien lea este plan para
+ejecutar la Fase 2 lee primero la §0-bis**: varias afirmaciones del texto
+original resultaron falsas al medirlas y ya están corregidas en su sitio.
 
 Este documento se escribió para **dos lectores**:
 
@@ -15,7 +26,13 @@ Cada paso tiene siempre las mismas cuatro partes: **QUIÉN**, **QUÉ hacer**,
 (diagnóstico y salida). Nada se da por hecho hasta que su criterio se cumple.
 
 Convención de comandos: los que empiezan con `ssh ruleta ...` se corren **desde
-la PC Windows, en Git Bash**, y usan el alias que se crea en el Paso 3. Un
+la PC Windows, en Git Bash**, y usan el alias que se crea en el Paso 3. **Un
+agente no invoca el `ssh` de Git Bash: escribe siempre la ruta completa del
+cliente nativo de Windows, `/c/Windows/System32/OpenSSH/ssh.exe`, en lugar de
+`ssh`** (medido el 2026-09-11: Git Bash monta `C:` con `noacl`, su `ssh` ve la
+llave privada como `644` y puede rechazarla con `UNPROTECTED PRIVATE KEY FILE`;
+ver §0-bis D8 y §5 trampa 17). En todos los ejemplos de este plan `ssh` se
+escribe corto por legibilidad; el agente lo sustituye por esa ruta completa. Un
 agente añade siempre `-o BatchMode=yes -o ConnectTimeout=10` para que, si algo
 pidiera una contraseña, el comando **falle en vez de quedarse colgado**:
 
@@ -26,39 +43,280 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 ruleta 'hostname'
 En los ejemplos se omiten esas dos opciones para que se lean mejor; el agente
 las agrega siempre. El usuario, cuando corra algo él mismo, **no** las usa.
 
-**Tiempo límite de los comandos largos.** Dos comandos de este plan pasan de dos
-minutos: `sudo ./instalar.sh` (Paso 9, de 3 a 10 minutos) y
-`python3 -m ruleta diagnostico` (Pasos 9 y 10 y los goldens de la §7, hasta un
-par de minutos probando canales RFCOMM contra una MAC que no existe). La
-herramienta de terminal del ejecutor corta a los **2 minutos** por defecto, así
-que esos dos comandos **se lanzan con un límite explícito de 10 minutos**
-(`timeout: 600000` en la herramienta Bash). Sin eso, el corte no es un aviso:
-deja `apt` a medias (ver §5, trampa 9) o invalida el golden del diagnóstico.
+**Tiempo límite de los comandos largos.** Un comando de este plan pasa de dos
+minutos: `sudo ./instalar.sh` (Paso 9, de 3 a 10 minutos). La herramienta de
+terminal del ejecutor corta a los **2 minutos** por defecto, así que ese comando
+**se lanza con un límite explícito de 10 minutos** (`timeout: 600000` en la
+herramienta Bash). Sin eso, el corte no es un aviso: deja `apt` a medias (ver
+§5, trampa 9).
+
+*(Corregido con lo medido el 2026-09-11: la redacción original decía que
+`python3 -m ruleta diagnostico` también tardaba «hasta un par de minutos
+probando canales RFCOMM contra una MAC que no existe». **Es falso.** Con la MAC
+de relleno `00:00:00:00:00:00` el programa ni siquiera intenta conectarse: la
+rechaza antes, en `crear_impresora` (`ruleta/app.py`), y el diagnóstico termina
+en segundos. Ver §5, trampa 12, y §0-bis D13. Dejar el límite de 10 minutos en
+`instalar.sh` sigue siendo correcto: ese sí tardó.)*
 
 ---
 
 ## 0. Bitácora
 
-Todas las casillas empiezan vacías. Se marcan `[x]` solo cuando el criterio de
-aceptación del paso se cumplió, con la fecha y la evidencia real (salida de
-comando pegada en el acta, o foto).
+Se marcan `[x]` solo cuando el criterio de aceptación del paso se cumplió, con
+la fecha y la evidencia real (salida de comando, nunca de memoria). **Marcadas
+el 2026-09-11 desde el archivo de hechos medidos de la sesión**; la salida
+cruda completa está en el anexo del acta `docs/actas/2026-09-11-fase-1.md`.
+
+La columna «Quién» dice quién lo hizo **de verdad**, no quién lo iba a hacer.
+Cuando dice «verificador», un segundo agente de solo lectura, distinto del que
+ejecutó, volvió a medir lo mismo y coincidió.
 
 | Nº | Paso | Quién | Estado | Fecha | Evidencia |
 |---|---|---|---|---|---|
-| 1 | Instalar Raspberry Pi Imager en la PC | usuario | [ ] | | Foto de Imager abierto; salida de `ls -l /c/Program\ Files*/Raspberry*Pi*Imager*/rpi-imager.exe` |
-| 2 | Generar el par de llaves SSH en la PC | agente | [ ] | | Salida de `ssh-keygen -l -f ~/.ssh/id_ruleta.pub` |
-| 3 | Crear el alias `ruleta` en `~/.ssh/config` | agente | [ ] | | Salida de `ssh -G ruleta \| grep -E "^(hostname\|user\|identityfile) "` |
-| 4 | Grabar la microSD con Imager (hostname, usuario, Wi-Fi, llave pública) | usuario | [ ] | | Foto de "Write Successful" / "Escritura correcta" |
-| 5 | Primer arranque de la Pi | usuario | [ ] | | Foto de la Pi encendida + `ping -n 1 ruleta.local` responde |
-| 6 | Entrar por SSH desde la PC | agente | [ ] | | `ssh ruleta 'hostname'` imprime `ruleta` |
-| 7 | Comprobaciones del sistema en la Pi | agente | [ ] | | Salidas de `uname -m`, `VERSION_CODENAME`, `python3 --version`, `sudo -n true`, `rfkill`, `bluetoothctl show`, `id -nG` |
-| 8 | Clonar el repositorio en `~/ruleta` y dar permiso de ejecución | agente | [ ] | | `ls ~/ruleta` + `test -x` de los `.sh` |
-| 9 | Correr `sudo ./instalar.sh` | agente (o usuario si sudo pide contraseña) | [ ] | | Últimas 30 líneas del instalador + `systemctl is-enabled ruleta` |
-| 10 | Verificar el programa (diagnóstico, pruebas, servicio) | agente | [ ] | | Salidas de `diagnostico`, `unittest`, `is-enabled`, `is-active` |
-| 11 | Hora, zona horaria y NTP | agente | [ ] | | `timedatectl show -p Timezone -p NTPSynchronized --value` |
-| 12 | Batería RTC (opcional, requiere visto bueno para tocar `config.txt`) | usuario + agente | [ ] | | Foto de la batería en J5 + `grep rtc_bbat_vchg /boot/firmware/config.txt` |
-| 13 | Idioma del sistema `es_MX.UTF-8` (opcional) | agente | [ ] | | `localectl status` |
-| 14 | Cierre de fase: acta, fichas y memoria | agente | [ ] | | `docs/actas/<AAAA-MM-DD>-fase-1-preparar-pi.md` escrito desde el archivo de hechos medidos |
+| 1 | Instalar Raspberry Pi Imager en la PC | usuario | [x] | 2026-09-11 | Registro de Windows (medido por el orquestador): `Raspberry Pi Imager v2.0.11.1`. No se usó el `ls` del criterio ni hay foto; la prueba de que quedó bien instalado es que el Paso 4 grabó la tarjeta |
+| 2 | Generar el par de llaves SSH en la PC | agente ejecutor + verificador | [x] | 2026-09-11 | `ssh-keygen -l -f ~/.ssh/id_ruleta.pub` → `256 SHA256:sOmEM5P6LNzx7c5SOyy33NnxWOj+Qt4/RpPjwCcDSQw ruleta-asadero (ED25519)`. `~/.ssh` **no existía**: se creó desde cero, no se sobrescribió nada |
+| 3 | Crear el alias `ruleta` en `~/.ssh/config` | agente ejecutor + verificador | [x] | 2026-09-11 | `ssh -G ruleta` → `hostname ruleta.local`, `user asadero`, `identityfile ~/.ssh/id_ruleta`, `identitiesonly yes`, `connecttimeout 10`, `serveraliveinterval 30`. Exactamente **1** línea `Host ruleta`, **sin** `StrictHostKeyChecking` (ver §0-bis D5) |
+| 4 | Grabar la microSD con Imager (hostname, usuario, Wi-Fi, llave pública) | usuario | [x] | 2026-09-11 | Sin foto de "Write Successful" en el archivo de hechos; la evidencia es el resultado: la Pi arrancó como `ruleta`, con el usuario `asadero`, en el Wi-Fi y aceptando la llave. Zona horaria elegida por el usuario: **America/Hermosillo** (no `America/Mexico_City`, ver §0-bis D4). La microSD (unidad `D:`, `bootfs`, Disk 1 `Generic Mass-Storage` USB de 28.9 GB) **traía un Raspberry Pi OS previo**; Imager la borró por completo |
+| 5 | Primer arranque de la Pi | usuario | [x] | 2026-09-11 | `ping ruleta.local` → `Reply from fe80::2ecf:67ff:fe17:10d%20: time=1ms`. Sin foto en el archivo de hechos |
+| 6 | Entrar por SSH desde la PC | agente ejecutor + verificador | [x] | 2026-09-11 | `/c/Windows/System32/OpenSSH/ssh.exe -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 ruleta hostname` → `Warning: Permanently added 'ruleta.local' (ED25519) to the list of known hosts.` + `ruleta`, `EXIT_CODE=0`. **Al primer intento**, sin variantes, sin contraseña. IP resuelta: `192.168.50.178`. El verificador repitió 7 conexiones separadas, todas sin contraseña |
+| 7 | Comprobaciones del sistema en la Pi | agente ejecutor + verificador | [x] | 2026-09-11 | `uname -m`→`aarch64`; `VERSION_CODENAME`→`trixie`; `python3 --version`→`Python 3.13.5`; `whoami`→`asadero`; `id -nG` incluye `sudo gpio i2c spi dialout video input`; `sudo -n true`→**`SUDO_PIDE_CONTRASENA`** (bloqueante, ver fila 7-bis); `rfkill list bluetooth`→`command not found` y `/usr/sbin/rfkill list bluetooth`→`Soft blocked: no` / `Hard blocked: no` (ver §5, trampa 16); `bluetoothctl show`→`Powered: yes`; `df -h /`→`23G` libres de 28G; `throttled=0x0`; temperatura 44.6 °C |
+| 7-bis | **Autorizar `sudo` sin contraseña** (paso NO previsto en este plan) | usuario | [x] | 2026-09-11 | `sudo -n true; echo EXIT=$?`→`EXIT=0`; `sudo -n cat /etc/sudoers.d/010_asadero-nopasswd`→`asadero ALL=(ALL) NOPASSWD: ALL`; `sudo -n visudo -c`→`/etc/sudoers.d/010_asadero-nopasswd: parsed OK`; `stat -c "%a %U"`→`440 root`. Lo creó **el usuario**, no un agente (ver §0-bis D2) |
+| 8 | Clonar el repositorio en `~/ruleta` y dar permiso de ejecución | agente ejecutor + verificador | [x] | 2026-09-11 | `command -v git`→`GIT_NO_ENCONTRADO`: **git no venía en la imagen** (§0-bis D3), se instaló con `apt-get install -y git python3-pil bluez-tools`→`EXIT=0`; `git clone https://github.com/seduva94/Ruelta-Aleatoria-Pi5.git ~/ruleta`→`EXIT=0`, HEAD `2052e4700c53f274a2b2f28ff0d7df62d519ffa8`, rama `main`; tras el `chmod +x`, `instalar.sh` y `herramientas/emparejar.sh` quedan `-rwxrwxr-x` y el verificador confirma `test -x` en los dos |
+| 9 | Correr `sudo ./instalar.sh` | agente ejecutor (ya con `sudo` sin contraseña) | [x] | 2026-09-11 | `instalador_exit=0`; log completo en la Pi: `/home/asadero/instalar.log`, con `== 1/6` … `== 6/6`, `Created symlink /etc/systemd/system/multi-user.target.wants/ruleta.service -> /etc/systemd/system/ruleta.service` y el mensaje literal `Servicio 'ruleta' habilitado (arranca solo al encender). Aun NO se inicio.`; `systemctl is-enabled ruleta`→`enabled`; `systemctl is-active ruleta`→`inactive` |
+| 10 | Verificar el programa (diagnóstico, pruebas, servicio) | agente ejecutor + verificador | [x] | 2026-09-11 | `python3 -m unittest discover -s tests -t .`→`Ran 141 tests in 0.238s` + `OK`; `python3 -m ruleta diagnostico`→**6** `[ok]` y **un solo** `[!!]` (el de la MAC de la impresora), `EXIT=1`; unidad con `User=asadero` y `WorkingDirectory=/home/asadero/ruleta`; `/etc/udev/rules.d/60-ruleta-rp1-gpiochip4.rules` presente y `/dev/gpiochip4 -> gpiochip0`; `~/ruleta/datos` con `estado.json` y `ruleta.log`, dueño `asadero:asadero`. **La vista previa NO se corrió** (§0-bis D14) |
+| 11 | Hora, zona horaria y NTP | agente ejecutor | [x] | 2026-09-11 | `timedatectl`→`Local time: Fri 2026-09-11 16:03:34 MST`, `Time zone: America/Hermosillo (MST, -0700)`, `System clock synchronized: yes`. **No** se corrieron `timedatectl show -p NTP --value` ni `-p LocalRTC --value`: quedan sin medir (§0-bis D12) |
+| 12 | Batería RTC — **ya no es opcional** (requiere visto bueno para tocar `config.txt`) | usuario + agente | [ ] | | **NO REALIZADO.** No hay batería instalada ni línea `rtc_bbat_vchg` en `config.txt`. Deja de ser opcional porque en producción la Pi va **sin red** (§0-bis D9). **Riesgo abierto de la Fase 1** |
+| 13 | Idioma del sistema `es_MX.UTF-8` (opcional) | agente | [ ] | | **NO REALIZADO.** La locale no se tocó; el sistema quedó como lo dejó la imagen. No afecta al programa: el servicio ya fuerza `PYTHONIOENCODING=utf-8` y los textos están en español dentro del código (§0-bis D6) |
+| 14 | Cierre de fase: acta, fichas y memoria | agente ejecutor + agente de commit | [x] | 2026-09-11 | Acta `docs/actas/2026-09-11-fase-1.md` escrita desde el archivo de hechos medidos; fichas nuevas F-051 a F-054 en `docs/fichas.md`; esta bitácora marcada. El commit y el push los hace el agente de commit, no el ejecutor (§8, prohibición 12) |
+
+---
+
+## 0-bis. Desviaciones y hechos descubiertos en la ejecución
+
+Escrito el **2026-09-11**, al cerrar la fase, desde el archivo de hechos medidos
+de la sesión. Cada punto dice **qué decía el plan**, **qué pasó de verdad** y
+**qué consecuencia tiene para las fases siguientes**. Nada de aquí viene de
+memoria: lo que no se midió, se dice que no se midió.
+
+**D1 · La fase se ejecutó antes de que el plan estuviera commiteado.**
+El plan se escribió y se ejecutó **el mismo día, en paralelo**, porque el
+usuario estaba frente al hardware en vivo. El orden que manda `CLAUDE.md`
+(plan → revisión → commit → ejecución) se rompió a propósito. **Es una
+desviación consciente del orquestador, no un descuido**, y la asumió él. Efecto
+práctico: cuando el Paso 8 clonó el repositorio, lo que bajó a la Pi fue el
+commit `2052e4700c53f274a2b2f28ff0d7df62d519ffa8`, **anterior** al commit
+`0464f5aad3e94be158f8eeee9b4c8a232267da14`, que es el que publicó
+`docs/planes/fase-1-preparar-pi.md` y `docs/fichas.md`. O sea: la Pi tiene el
+programa completo, pero **no** tiene este plan ni las fichas. No es un problema
+(el programa no los necesita), pero explica por qué el clon de la Pi se ve "sin
+docs" y por qué la lista esperada de `ls ~/ruleta` del Paso 8 no los menciona.
+Para la Fase 2: **primero se commitea, después se ejecuta**.
+
+**D2 · La imagen NO traía `sudo` sin contraseña. La regla la creó el usuario.**
+El Paso 7 midió `sudo -n true` → `SUDO_PIDE_CONTRASENA`, y `/etc/sudoers.d/`
+solo tenía `010_at-export`, `010_dpkg-threads`, `010_global-tty`, `010_proxy` y
+`README`: **falta el `010_pi-nopasswd` típico de Raspberry Pi OS**. Eso bloqueaba
+todo el Paso 9 (apt, systemctl, `/etc`, udev). **El usuario decidió y tecleó él
+mismo** la creación de `/etc/sudoers.d/010_asadero-nopasswd` con
+`asadero ALL=(ALL) NOPASSWD: ALL`, modo `440 root`. Ningún agente tecleó su
+contraseña; la §8 prohibición 1 se respetó. Verificado con cuatro comprobaciones
+(`sudo -n true` → `EXIT=0`, contenido exacto, `visudo -c` → `parsed OK`,
+`stat` → `440 root`). **Consecuencia para las fases siguientes:** los agentes ya
+pueden correr `sudo` por SSH sin pedir nada; la rama «requiere al usuario» de
+los Pasos 9, 11, 12 y 13 **ya no aplica** mientras ese archivo exista. Si algún
+día se reinstala la Pi, vuelve a aplicar.
+
+**D3 · `git` NO viene preinstalado en Raspberry Pi OS Lite Trixie.**
+Era una duda declarada al escribir el plan. Ya está resuelta y medida:
+`command -v git` → `GIT_NO_ENCONTRADO`, `dpkg-query` → `git unknown ok
+not-installed`. Se instaló junto con lo que faltaba:
+`sudo apt-get install -y git python3-pil bluez-tools` → `EXIT=0`
+(`git 1:2.47.3-0+deb13u1`, `python3-pil 11.1.0-5+deb13u4`,
+`bluez-tools 2.0~20170911.0.7cb788c-4+b2`; además actualizó 14 paquetes de
+`util-linux`). **Sí venían** `bluez`, `python3-gpiozero`, `python3-lgpio` y
+`rfkill`. **Consecuencia:** en una reinstalación, el `apt-get install` del Paso 8
+**no es opcional**, y como necesita `sudo`, depende de D2.
+
+**D4 · La zona horaria real es `America/Hermosillo`, no `America/Mexico_City`.**
+La decisión cerrada 5 y los goldens decían `America/Mexico_City`. **El usuario
+eligió `America/Hermosillo` en Imager**, que es la correcta para Sonora, y así
+quedó: `Time zone: America/Hermosillo (MST, -0700)`. Sonora **no** cambia de
+horario. **Este plan ya está corregido** en la decisión 5, en el Paso 4, en el
+Paso 11 y en el golden de la §7. **Consecuencia:** la hora impresa en los
+boletos y el corte del "día" de las 6:00 usan `MST (-0700)`; cualquier ejemplo
+con `America/Mexico_City` (incluido el `README.md` §4 paso 7) está mal para este
+restaurante — queda como ficha **F-053**, pendiente de visto bueno para tocar el
+README.
+
+**D5 · `~/.ssh` no existía, y la colisión de `known_hosts` que el Paso 3
+anunciaba nunca ocurrió.**
+El Paso 2 no "verificó" una llave previa: **la creó desde cero** (no había
+`~/.ssh`, ni `id_ruleta`, ni `config`). El bloque `Host ruleta` se escribió
+nuevo, con `IdentitiesOnly yes` y `ConnectTimeout 10`, y **sin**
+`StrictHostKeyChecking`: por eso `ssh -G ruleta` contesta
+`stricthostkeychecking ask`, tal como el plan predijo. La rama manual del Paso 3
+**no se usó**: en su lugar, cada conexión llevó la opción en la línea de
+comandos (`-o StrictHostKeyChecking=accept-new`), que consigue lo mismo sin
+editar el archivo. Y la alarma del Paso 3 sobre "tres huellas ya grabadas para
+`ruleta.local`" **no se materializó**: la primera conexión imprimió
+`Warning: Permanently added 'ruleta.local' (ED25519) to the list of known
+hosts.`, es decir la trató como **nueva**, y funcionó al primer intento. El
+archivo de hechos **no registra** que se haya corrido `ssh-keygen -R
+ruleta.local`, así que **por qué no chocó queda sin explicar**: ver la duda en el
+acta. La advertencia se deja escrita porque volverá a valer si alguna vez se
+regraba la microSD (§5, trampa 15).
+
+**D6 · La locale NO se cambió (Paso 13 no hecho).**
+El sistema quedó con la locale que trae la imagen. No se corrió
+`raspi-config nonint do_change_locale es_MX.UTF-8` ni el camino manual, y
+`localectl status` **no se consultó**. No afecta al programa: el servicio ya
+fuerza `PYTHONIOENCODING=utf-8` y todos los textos de los boletos están en
+español dentro del código. **Consecuencia buena:** como el sistema sigue en
+inglés, la trampa 11 de la §5 (comandos traducidos) **no muerde hoy**. Si
+alguien hace el Paso 13 después, vuelve a valer.
+
+**D7 · El PATH de una sesión SSH no interactiva NO incluye `/usr/sbin`.**
+Medido: `PATH=/usr/local/bin:/usr/bin:/bin:/usr/games`. Por eso
+`ssh ruleta 'rfkill list bluetooth'` contestó `rfkill: command not found`
+**aunque el paquete `rfkill` sí está instalado**; con
+`/usr/sbin/rfkill list bluetooth` funcionó perfecto. **Consecuencia:** cualquier
+comando por SSH que llame a `rfkill`, `shutdown`, `reboot`, `iw`, `visudo`,
+`usermod`… necesita **ruta absoluta** o exportar el PATH. Ya está recogido como
+trampa 16 de la §5, y el golden de `rfkill` de la §7 quedó corregido. `sudo` no
+tiene ese problema porque resetea el PATH él mismo.
+
+**D8 · Los agentes usan el `ssh` NATIVO de Windows, no el de Git Bash.**
+En esta PC hay dos clientes: `C:/Windows/System32/OpenSSH/ssh.exe`
+(OpenSSH_for_Windows 9.5p2) y el de Git Bash (OpenSSH 10.3p1). **Git Bash monta
+`C:` con la opción `noacl`**, así que `chmod` es un no-op y la capa POSIX
+reporta `id_ruleta` como `644`: el `ssh` de Git Bash **puede rechazar la llave**
+con `UNPROTECTED PRIVATE KEY FILE`. A nivel Windows los permisos sí son
+correctos (`icacls` muestra solo SYSTEM, Administradores y `DUVA_LAP\seduv`, sin
+`Users` ni `Everyone`), y el cliente nativo lee esas ACL. **Regla para todas las
+fases:** los comandos SSH de los agentes se lanzan con
+`/c/Windows/System32/OpenSSH/ssh.exe`. No se tocó `/etc/fstab` de Git for
+Windows: eso es configuración global del entorno y necesita visto bueno del
+usuario. Recogido como trampa 17 de la §5.
+
+**D9 · En producción la Pi va SIN red. La batería RTC deja de ser opcional.**
+Decisión del usuario, tomada hoy: el SSH con llave y el Wi-Fi son **solo para
+instalar y probar**; durante el evento la Pi trabaja aislada. Dos consecuencias
+duras:
+
+1. **La batería RTC ML-2020 (Paso 12) pasa de "opcional, recomendado" a
+   NECESARIA.** Sin red no hay NTP: tras un corte de luz la Pi arranca con una
+   hora inventada y **los boletos salen con fecha equivocada**. El Paso 12 está
+   **sin hacer**: es el principal riesgo abierto de esta fase.
+2. **Cualquier actualización futura exige volver a conectar la Pi al Wi-Fi.**
+   El `git pull` de la decisión 7, un `apt install` o un cambio de premios por
+   SSH no funcionan con la Pi aislada. El camino es: reconectar al Wi-Fi →
+   actualizar → verificar → volver a aislar. Planearlo **antes** del evento, no
+   a media semana.
+
+**D10 · La Pi tomó IP DHCP `192.168.50.178` y `ruleta.local` SÍ resuelve.**
+`wlan0`, `/24`, `brd 192.168.50.255`, `dynamic`. mDNS funcionó desde Windows 11
+sin ayuda. **Pero la IP es dinámica**: si el router la reasigna, el alias
+`ruleta` sigue sirviendo mientras mDNS funcione, y si mDNS falla hay que editar
+el `HostName` del bloque `Host ruleta`. Para una semana de evento conviene
+**reservar la IP en el router**. Riesgo abierto, menor mientras la Pi esté
+aislada (sin red no hay SSH que romper).
+
+**D11 · La microSD ya traía un Raspberry Pi OS previo.**
+Medido antes de grabar: unidad `D:`, FAT32, 0.5 GB, etiqueta `bootfs`, sobre
+Disk 1 `Generic Mass-Storage` USB de 28.9 GB. Imager la borró por completo, que
+es lo que se quería. Se anota porque **no era una tarjeta virgen**: si alguien
+esperaba encontrar datos ahí, ya no están.
+
+**D12 · El Paso 11 se midió con `timedatectl` a secas, no con los cuatro
+`show -p ... --value`.**
+Lo que hay medido es el bloque completo: `Local time: Fri 2026-09-11 16:03:34
+MST`, `Time zone: America/Hermosillo (MST, -0700)`, `System clock synchronized:
+yes`. **No se midieron** `NTP` ni `LocalRTC`. El criterio del paso se da por
+cumplido en lo esencial (zona horaria correcta y reloj sincronizado), y los dos
+valores que faltan se anotan como **no verificados**, no como cumplidos. Si la
+Fase 2 necesita certeza sobre ellos, se vuelven a correr.
+
+**D13 · El diagnóstico da UN solo `[!!]` y termina en segundos.**
+El plan afirmaba que la MAC de relleno `00:00:00:00:00:00` "tiene formato válido,
+así que el programa la acepta y de verdad intenta conectarse", con "dos o tres
+líneas `[!!]`" y "hasta un par de minutos probando canales RFCOMM". **Medido:
+es falso.** `crear_impresora` (`ruleta/app.py`) rechaza la MAC toda a ceros
+**antes** de abrir ningún socket y lanza `ErrorConfig`, así que la salida real es
+exactamente seis `[ok]`, **un** `[!!]`
+(`Falta la direccion Bluetooth de la impresora: pon la MAC real en
+impresora.mac de config.json`) y `EXIT=1`, en segundos. **Ya está corregido** en
+el encabezado, en el Paso 9, en el Paso 10, en la trampa 12 de la §5 y en el
+golden de la §7, que contaba una frase (`no está emparejada`) que **no aparece**.
+Ficha **F-054**.
+
+**D14 · La vista previa del Paso 10 no se corrió.**
+`python3 -m ruleta vista-previa --premio test1` **no** aparece en el archivo de
+hechos: no se ejecutó y no hay salida que pegar. El resto del Paso 10 (pruebas,
+diagnóstico, servicio, udev, `datos/`) sí se midió. La vista previa es la
+comprobación de acentos y de formato de boleto, así que **se corre al principio
+de la Fase 2**, que es donde de verdad hace falta antes de gastar papel. Se
+marca aquí para que nadie la dé por hecha.
+
+**D15 · En la Pi, `git status` muestra 2 cambios de modo.**
+El verificador midió `git status --porcelain | wc -l` → `2`, no `0`. **No son
+cambios de contenido**: son los `chmod 644 → 755` que el Paso 8 aplica a
+`instalar.sh` y `herramientas/emparejar.sh` para poder ejecutarlos, contra un
+índice que los tiene como `100644` (§5, trampa 1). El hash local
+`2052e4700c53f274a2b2f28ff0d7df62d519ffa8` coincide con `origin/main`.
+**Cómo se resuelve:** commiteando el bit de ejecución en el repositorio (modo
+`100755`), cosa que hace el **agente de commit en este mismo cierre**. Cuando
+eso esté publicado, un `git pull` en la Pi dejará el árbol limpio y el
+`chmod +x` del Paso 8 pasará a ser una red de seguridad en vez de un requisito.
+**Hasta entonces, el `chmod +x` sigue siendo obligatorio.**
+
+**D16 · El usuario prefiere conectar la impresora por USB. La Fase 2 se
+replantea.**
+Decisión del usuario tomada hoy: probará primero el **cable USB** de la impresora
+AOMU My-A1, no el Bluetooth. Hoy no se pudo probar porque **no trajo el cable de
+corriente de la impresora**; queda para mañana. La §9 de este plan ya está
+reescrita con ese orden (USB primero, Bluetooth de respaldo) y el plan detallado
+se escribirá en `docs/planes/fase-2-impresora.md`, archivo que **todavía no
+existe** en el repositorio. Dos cosas medidas que la Fase 2 va a necesitar: el
+usuario `asadero` **no** pertenece al grupo `lp` (sí a `lpadmin`), y el
+`README.md` §9 dice que para `/dev/usb/lp0` hay que estar en `lp` — ficha
+**F-052**.
+
+**D17 · El acta se llama `2026-09-11-fase-1.md`, no
+`2026-09-11-fase-1-preparar-pi.md`.**
+El Paso 14 y la fila 14 de la bitácora pedían
+`docs/actas/<AAAA-MM-DD>-fase-1-preparar-pi.md`; la convención de `CLAUDE.md` es
+`docs/actas/<AAAA-MM-DD>-<fase>.md`. Se siguió la convención de `CLAUDE.md`.
+Este plan ya está corregido para que apunte al archivo que de verdad existe.
+
+### Correcciones aplicadas al texto de este plan
+
+Un ejecutor que hubiera guardado una copia vieja debe saber qué cambió. Estas
+son **todas** las correcciones de contenido (lo demás son notas añadidas):
+
+| Dónde | Antes (falso) | Ahora (medido) | Por qué |
+|---|---|---|---|
+| Encabezado, tiempos | `diagnostico` tarda "un par de minutos" | solo `instalar.sh` necesita el límite de 10 min | D13 |
+| §2, decisión 5 | Zona horaria `America/Mexico_City` | `America/Hermosillo` | D4 |
+| §3, material | Batería RTC "(Opcional, recomendado)" | **necesaria**, pendiente de comprar | D9 |
+| Paso 4, punto 7 | Time zone `America/Mexico_City` | `America/Hermosillo` | D4 |
+| Paso 7, comando y tabla | `rfkill list bluetooth` | `LC_ALL=C /usr/sbin/rfkill list bluetooth` | D7 |
+| Paso 9, "cosas normales" | "dirá que la impresora no está emparejada… par de minutos" | un solo `[!!]` de MAC faltante, en segundos | D13 |
+| Paso 10, criterio 1 | `[!!] la impresora 00:00:00:00:00:00 no está emparejada…` | `[!!] Falta la direccion Bluetooth de la impresora…` | D13 |
+| Paso 11 | `set-timezone America/Mexico_City`, `date` con `CST` | `America/Hermosillo`, `date` con `MST` | D4 |
+| Paso 12 | "(opcional)" | necesaria: la Pi va sin red | D9 |
+| Paso 14 | acta `…-fase-1-preparar-pi.md` | acta `2026-09-11-fase-1.md` | D17 |
+| §5, trampa 12 | la MAC de relleno "se acepta y se intenta conectar" | se rechaza antes, en `crear_impresora` | D13 |
+| §7, golden `rfkill` | `rfkill list bluetooth` | `/usr/sbin/rfkill list bluetooth` | D7 |
+| §7, golden diagnóstico | `grep -c "no está emparejada"` → 1 | `grep -c "\[!!\]"` → 1 y `grep -c "impresora.mac"` → 1 | D13 |
+| §7, golden `Timezone` | `America/Mexico_City` | `America/Hermosillo` | D4 |
+| §9, Fase 2 | Bluetooth primero | USB primero, Bluetooth de respaldo | D16 |
+
+**No se tocó nada más**, pero ojo: **no todos los demás goldens de la §7 se
+midieron.** `systemctl show -p SubState --value ruleta` **no se corrió** y queda
+anotado como **no verificado**, no como cumplido (§7 y acta §3); y el de la
+versión de Python se comprobó con `python3 --version` (`Python 3.13.5`), no con
+el `python3 -c` que está escrito. Los goldens restantes sí se midieron y
+salieron exactamente como estaban escritos: se dejan tal cual.
 
 ---
 
@@ -127,11 +385,16 @@ ejecutor que crea que alguna está mal se detiene y pregunta; no improvisa.
    escriban igual aunque cambie la IP.
 
 5. **Wi-Fi: SSID y contraseña los teclea el usuario en Imager. País MX. Zona
-   horaria America/Mexico_City. Teclado `latam` (o `es`). Locale
+   horaria `America/Hermosillo`. Teclado `latam` (o `es`). Locale
    `es_MX.UTF-8`.**
    *Por qué:* el país es obligatorio, si no el Wi-Fi queda bloqueado por
    regulación; la zona horaria decide la fecha que sale impresa en los boletos y
    el corte del "día" de las 6:00.
+   *(Corregido con lo medido el 2026-09-11: esta decisión decía
+   `America/Mexico_City`. **El usuario eligió `America/Hermosillo` en Imager** y
+   esa es la correcta: Sonora va en `MST (-0700)` y no cambia de horario. Ver
+   §0-bis D4. La locale `es_MX.UTF-8` **no se aplicó**: el Paso 13 quedó sin
+   hacer y no afecta al programa, §0-bis D6.)*
 
 6. **Instalación del programa: `git clone` del repositorio público en
    `~/ruleta`** (no `scp`), luego `chmod +x` de los `.sh` y `sudo ./instalar.sh`
@@ -161,6 +424,10 @@ ejecutor que crea que alguna está mal se detiene y pregunta; no improvisa.
    NOPASSWD), el paso se marca **"requiere al usuario"** y lo corre él.
    *Por qué:* separa lo que una máquina puede repetir sin error de lo que exige
    manos y ojos, y mantiene las credenciales fuera del alcance de los agentes.
+   *(Así ocurrió el 2026-09-11: `sudo` pedía contraseña, el paso se marcó
+   "requiere al usuario" y **el usuario tecleó y creó él mismo**
+   `/etc/sudoers.d/010_asadero-nopasswd`. Desde entonces los agentes ya corren
+   `sudo` por SSH sin pedir nada. Ver §0-bis D2.)*
 
 ---
 
@@ -177,9 +444,12 @@ ejecutor que crea que alguna está mal se detiene y pregunta; no improvisa.
       funciona sin él.
 - [ ] *(Opcional)* **Cable Ethernet**: si el Wi-Fi da problemas, conectar la Pi
       al módem por cable resuelve la Fase 1 sin tocar nada más.
-- [ ] *(Opcional, recomendado)* **Batería RTC ML-2020** ("RTC Battery for
-      Raspberry Pi 5", conector J5 junto al USB-C): mantiene la hora tras un
-      corte de luz cuando no hay internet.
+- [ ] **Batería RTC ML-2020** ("RTC Battery for Raspberry Pi 5", conector J5
+      junto al USB-C): mantiene la hora tras un corte de luz cuando no hay
+      internet. **Ya NO es opcional**: el 2026-09-11 el usuario decidió que en
+      producción la Pi va **sin red**, así que sin esta batería los boletos
+      saldrían con la fecha equivocada después de cualquier apagón. **Pendiente
+      de comprar e instalar** (§0-bis D9, Paso 12).
 
 **No hace falta monitor ni teclado.** Todo se hace desde la PC.
 
@@ -190,7 +460,10 @@ ejecutor que crea que alguna está mal se detiene y pregunta; no improvisa.
 ### Paso 1 · Instalar Raspberry Pi Imager en la PC
 
 **QUIÉN:** usuario.
-*(Medido el 2026-09-11: Imager NO está instalado en esta PC.)*
+*(Medido el 2026-09-11 antes de empezar: Imager NO estaba instalado en esta PC.
+**Hecho el mismo día:** el usuario lo instaló y el registro de Windows reporta
+`Raspberry Pi Imager v2.0.11.1`. Ese fue el criterio que se usó; el `ls` de
+abajo no se corrió.)*
 
 **QUÉ HACER**
 
@@ -234,7 +507,7 @@ ejecutor que crea que alguna está mal se detiene y pregunta; no improvisa.
 ### Paso 2 · Generar el par de llaves SSH en la PC
 
 **QUIÉN:** agente (desde Git Bash).
-*(Medido el 2026-09-11 a las 15:39 en esta PC: `~/.ssh` **ya existe** y **ya contiene** el par `id_ruleta` / `id_ruleta.pub` (ED25519, comentario `ruleta-asadero`). Por eso este paso es de **verificación**, no de generación: el `test -f ... ||` de abajo no vuelve a crear nada. NO regenerar la llave: la pública que se pegue en Imager tiene que ser exactamente esta.)*
+*(Corregido con lo medido el 2026-09-11: aquí decía que `~/.ssh` «ya existe» con el par `id_ruleta` y que por eso este paso era «de verificación, no de generación». **Es falso.** El archivo de hechos medidos de la sesión dice lo contrario: **no existía `~/.ssh`, ni `id_ruleta`, ni `~/.ssh/config`**, y el agente del Paso 2 **generó la llave desde cero**, sin sobrescribir nada (ver §0-bis D5 y la fila 2 de la §0). Lo que sí sigue valiendo: el `test -f ... ||` impide regenerarla, y **no se regenera** — la pública que se pegó en Imager es la de huella `256 SHA256:sOmEM5P6LNzx7c5SOyy33NnxWOj+Qt4/RpPjwCcDSQw ruleta-asadero`.)*
 
 **QUÉ HACER**
 
@@ -367,6 +640,19 @@ ssh-keygen -R ruleta.local
 (nunca borrar `known_hosts` entero: §8 prohibición 11). Se anota en el acta que
 la huella previa existía y que se eliminó.
 
+> **QUÉ PASÓ DE VERDAD el 2026-09-11 (no borrar este aviso, volverá a valer).**
+> Nada de esas dos consecuencias ocurrió. El Paso 6 funcionó **al primer
+> intento** y la primera conexión imprimió
+> `Warning: Permanently added 'ruleta.local' (ED25519) to the list of known
+> hosts.`, es decir, trató la huella como **nueva**, no como cambiada. **El
+> archivo de hechos no registra que se haya corrido `ssh-keygen -R
+> ruleta.local`**, así que por qué no hubo choque **queda sin explicar** (ver la
+> duda en `docs/actas/2026-09-11-fase-1.md`). Tampoco hizo falta la rama manual
+> de `stricthostkeychecking ask`: cada conexión llevó
+> `-o StrictHostKeyChecking=accept-new` en la línea de comandos. El aviso se
+> queda escrito porque **sí** valdrá el día que se regrabe la microSD (§5,
+> trampa 15). Ver §0-bis D5.
+
 **SI FALLA**
 
 - `Bad configuration option`: una línea mal escrita; revisar que la indentación
@@ -419,8 +705,11 @@ discos.)*
      el usuario elija (**la teclea él; ningún agente la ve**)
    - ✔ **"Configure wireless LAN"** → SSID y Password del Wi-Fi ·
      **"Wireless LAN country"** → **MX**
-   - ✔ **"Set locale settings"** → **"Time zone"**: `America/Mexico_City` ·
+   - ✔ **"Set locale settings"** → **"Time zone"**: `America/Hermosillo` ·
      **"Keyboard layout"**: `latam` (si no aparece, `es`)
+     *(Corregido con lo medido el 2026-09-11: aquí decía `America/Mexico_City`.
+     El usuario eligió `America/Hermosillo`, que es la correcta para Sonora.
+     Ver §0-bis D4.)*
 8. Pestaña **SERVICES** (*Servicios*):
    - ✔ **"Enable SSH"**
    - Elegir **"Allow public-key authentication only"** (*Permitir solo
@@ -579,10 +868,15 @@ ssh ruleta '. /etc/os-release; echo $VERSION_CODENAME'
 ssh ruleta 'python3 --version'
 ssh ruleta 'whoami; id -nG'
 ssh ruleta 'sudo -n true && echo SUDO_SIN_CONTRASENA || echo SUDO_PIDE_CONTRASENA'
-ssh ruleta 'rfkill list bluetooth'
+ssh ruleta 'LC_ALL=C /usr/sbin/rfkill list bluetooth'
 ssh ruleta 'bluetoothctl show | head -n 6'
 ssh ruleta 'df -h /; free -h'
 ```
+
+*(Corregido con lo medido el 2026-09-11: aquí decía `rfkill list bluetooth` a
+secas y contestó `rfkill: command not found`, **aunque el paquete sí está
+instalado**. El PATH de una sesión SSH no interactiva no incluye `/usr/sbin`
+(§5, trampa 16; §0-bis D7). Con la ruta absoluta funciona.)*
 
 **CRITERIO DE ACEPTACIÓN**
 
@@ -594,7 +888,7 @@ ssh ruleta 'df -h /; free -h'
 | `whoami` | `asadero` |
 | `id -nG` | incluye `gpio` y `sudo` |
 | `sudo -n true` | imprime `SUDO_SIN_CONTRASENA` |
-| `rfkill list bluetooth` | `Soft blocked: no` y `Hard blocked: no` |
+| `LC_ALL=C /usr/sbin/rfkill list bluetooth` | `Soft blocked: no` y `Hard blocked: no` |
 | `bluetoothctl show` | contiene `Powered: yes` |
 | `df -h /` | espacio libre de sobra (más de 10 GB) |
 
@@ -602,6 +896,10 @@ ssh ruleta 'df -h /; free -h'
 
 1. Si `sudo -n true` imprime **`SUDO_PIDE_CONTRASENA`**, el Paso 9 se marca
    **"requiere al usuario"** y lo corre él. Ningún agente teclea contraseñas.
+   *(Eso pasó el 2026-09-11: la imagen **no** traía el `010_pi-nopasswd` típico
+   de Raspberry Pi OS. El usuario resolvió creando él mismo
+   `/etc/sudoers.d/010_asadero-nopasswd`; a partir de ahí el Paso 9 lo pudo
+   correr un agente. Ver §0-bis D2.)*
 2. Si `id -nG` **no** incluye `gpio`, no es un problema: el Paso 9 lo agrega. Lo
    que sí hay que recordar es que el cambio **solo se ve al abrir una sesión SSH
    nueva** (ver §5, trampa 5).
@@ -640,6 +938,13 @@ Si dijo `FALTA_GIT` (y `sudo` no pide contraseña):
 ```bash
 ssh ruleta 'sudo apt-get update && sudo apt-get install -y git'
 ```
+
+*(Medido el 2026-09-11, y ya no es una duda: **Raspberry Pi OS Lite Trixie NO
+trae `git`**. El comando contestó `GIT_NO_ENCONTRADO` y `dpkg-query` dijo
+`git unknown ok not-installed`. En la misma pasada faltaban también
+`python3-pil` y `bluez-tools`, así que se instalaron los tres de una vez con
+`sudo apt-get install -y git python3-pil bluez-tools` → `EXIT=0`. Sí venían
+`bluez`, `python3-gpiozero`, `python3-lgpio` y `rfkill`. Ver §0-bis D3.)*
 
 Clonar. **La URL va tal cual, con "Ruelta": así se llama el repositorio, no es
 un error de dedo de este documento.**
@@ -713,11 +1018,18 @@ Qué hace el instalador, en orden (para poder leer su salida sin sorpresas):
 **Cosas normales que NO son errores:**
 
 - Tarda de **3 a 10 minutos** la primera vez (`apt update` + paquetes).
-- Al final, el diagnóstico dirá que la impresora `00:00:00:00:00:00`
-  **no está emparejada** y que la conexión Bluetooth falló. **Es exactamente lo
-  esperado en la Fase 1**: la impresora es la Fase 2.
-- Esa parte del diagnóstico puede tardar hasta un par de minutos probando
-  canales RFCOMM contra una MAC que no existe. Dejarlo terminar.
+- Al final, el diagnóstico dirá, en **una sola línea**:
+  `[!!] Falta la direccion Bluetooth de la impresora: pon la MAC real en
+  impresora.mac de config.json (la obtienes con herramientas/emparejar.sh)`.
+  **Es exactamente lo esperado en la Fase 1**: la impresora es la Fase 2.
+- Esa parte **no tarda**: termina en segundos.
+
+*(Corregido con lo medido el 2026-09-11: aquí decía que el diagnóstico avisaría
+de que la impresora "no está emparejada" y que podía tardar "un par de minutos
+probando canales RFCOMM". **Las dos cosas son falsas.** Con la MAC toda a ceros,
+`crear_impresora` (`ruleta/app.py`) la rechaza antes de abrir ningún socket. Ver
+§0-bis D13 y §5, trampa 12. Medido: `instalador_exit=0`, y el diagnóstico final
+del instalador terminó con ese único `[!!]`.)*
 
 **CRITERIO DE ACEPTACIÓN**
 
@@ -784,25 +1096,32 @@ ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta vista-previa
 
    ```
      [ok] la carpeta de datos se puede escribir
-     [ok] PIL <versión>
-     [ok] gpiozero <versión>
-     [ok] lgpio <versión>
+     [ok] PIL 11.1.0
+     [ok] gpiozero
+     [ok] lgpio
      [ok] logo: /home/asadero/ruleta/logo.png
      [ok] inventario: folio 00000
    ```
 
-   Y **solo** debe haber `[!!]` relacionados con la impresora:
+   Y **un solo** `[!!]`, el de la impresora:
 
    ```
-     [!!] la impresora 00:00:00:00:00:00 no está emparejada: corre herramientas/emparejar.sh
+     [!!] Falta la direccion Bluetooth de la impresora: pon la MAC real en impresora.mac de config.json (la obtienes con herramientas/emparejar.sh)
    ```
-
-   más el fallo de conexión RFCOMM y su búsqueda de canal.
 
    **`codigo=1` es la salida esperada en esta fase**, porque el diagnóstico
-   marca error mientras la impresora no esté emparejada. No es un fallo: es la
-   Fase 2 pendiente. Cualquier `[!!]` que **no** hable de la impresora sí es un
-   fallo.
+   marca error mientras la impresora no tenga MAC. No es un fallo: es la Fase 2
+   pendiente. Cualquier `[!!]` que **no** hable de la impresora sí es un fallo.
+
+   *(Corregido y completado con lo medido el 2026-09-11, salida real pegada en
+   `docs/actas/2026-09-11-fase-1.md`. Dos correcciones: (a) el `[!!]` que sale
+   **no** es el de "no está emparejada" ni hay fallo RFCOMM — la MAC toda a
+   ceros se rechaza antes (§0-bis D13); (b) **`gpiozero` y `lgpio` salen sin
+   número de versión**, y eso es normal: el código imprime
+   `getattr(m, '__version__', '')` y esos dos módulos no exponen `__version__`.
+   Las versiones reales, consultadas con `importlib.metadata`, son
+   `gpiozero 2.0.1` y `lgpio 0.2.2.0`. Es cosmético, no un fallo de instalación:
+   ficha **F-051**.)*
 
 2. **Pruebas automáticas.** Las últimas líneas deben ser:
 
@@ -812,7 +1131,9 @@ ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta vista-previa
    OK
    ```
 
-3. **Vista previa.** Salen **tres** bloques, siempre en este orden:
+3. **Vista previa.** *(NO se corrió el 2026-09-11: no hay salida que pegar. Se
+   corre al principio de la Fase 2, antes de gastar papel. Ver §0-bis D14.)*
+   Salen **tres** bloques, siempre en este orden:
    `=== Boleto de premio: test1 ===`, `=== Boleto de consuelo (sin premios
    disponibles) ===` y `=== Reporte de inventario ===`. `vista-previa --premio
    ID` imprime los tres aunque se pida un solo premio (verificado contra
@@ -861,8 +1182,13 @@ esa forma imprime valores que no se traducen aunque el sistema quede en español
 Si la zona horaria no es la correcta:
 
 ```bash
-ssh ruleta 'sudo timedatectl set-timezone America/Mexico_City'
+ssh ruleta 'sudo timedatectl set-timezone America/Hermosillo'
 ```
+
+*(Corregido con lo medido el 2026-09-11: aquí decía `America/Mexico_City`. La
+zona correcta para este restaurante es **`America/Hermosillo`** (Sonora, `MST`
+`-0700`, sin cambio de horario), y es la que el usuario eligió en Imager, así
+que **este comando no hizo falta correrlo**. Ver §0-bis D4.)*
 
 Si `NTPSynchronized` es `no`:
 
@@ -877,12 +1203,19 @@ y volver a consultar después de un minuto.
 Cada comando imprime **un solo valor**, así el criterio no depende del orden en
 que `timedatectl` liste las propiedades:
 
-- `Timezone` → `America/Mexico_City`
+- `Timezone` → `America/Hermosillo`
 - `NTP` → `yes` (el servicio de hora está activo)
 - `NTPSynchronized` → `yes` (ya sincronizó)
 - `LocalRTC` → `no` (el reloj de hardware va en UTC, que es lo correcto)
 
-Además, `date` muestra la hora real del restaurante, con `CST`.
+Además, `date` muestra la hora real del restaurante, con `MST`.
+
+*(Medido el 2026-09-11, con el `timedatectl` completo y no con los cuatro
+`show -p ... --value`: `Local time: Fri 2026-09-11 16:03:34 MST`,
+`Time zone: America/Hermosillo (MST, -0700)`, `System clock synchronized: yes`.
+`Timezone` y `NTPSynchronized` quedan **verificados**; `NTP` y `LocalRTC`
+quedan **sin medir** y así se anotaron en el acta, no como cumplidos. Ver
+§0-bis D12 y D4.)*
 
 **SI FALLA**
 
@@ -895,15 +1228,25 @@ Además, `date` muestra la hora real del restaurante, con `CST`.
 
 ---
 
-### Paso 12 · Batería RTC (opcional)
+### Paso 12 · Batería RTC — **NECESARIA** (antes decía "opcional")
 
 **QUIÉN:** usuario (la parte física) + agente (la línea de configuración,
 **solo con visto bueno explícito del usuario**, porque toca
 `/boot/firmware/config.txt`).
 
-Saltarse este paso completo es válido si no se compró la batería. Sin batería y
-sin internet, después de un corte de luz los boletos saldrían con fecha
-equivocada.
+**ESTADO: NO REALIZADO el 2026-09-11. Es el principal riesgo abierto de la
+Fase 1.**
+
+> **Por qué dejó de ser opcional.** El 2026-09-11 el usuario decidió que
+> **durante el evento la Pi trabajará SIN red** (el Wi-Fi y el SSH son solo para
+> instalar y probar). Sin red no hay NTP, y sin NTP **la única forma de que la
+> Pi sepa la hora después de un corte de luz es esta batería**. Sin ella, los
+> boletos salen con fecha y hora equivocadas y el corte del "día" de las 6:00 se
+> descuadra. Ya no es un "estaría bien": **hay que comprarla e instalarla antes
+> del evento**, o aceptar por escrito el riesgo. Ver §0-bis D9.
+
+Sin batería y sin internet, después de un corte de luz los boletos saldrían con
+fecha equivocada.
 
 **QUÉ HACER**
 
@@ -967,6 +1310,11 @@ ssh ruleta 'cat /sys/class/rtc/rtc0/name'
 
 **QUIÉN:** agente.
 
+**ESTADO: NO REALIZADO el 2026-09-11**, y no pasa nada: el sistema quedó como lo
+dejó la imagen. No se corrió ningún comando de este paso y `localectl status`
+**no** se consultó. Efecto secundario bueno: como el sistema sigue en inglés, la
+trampa 11 de la §5 (comandos traducidos) no muerde hoy. Ver §0-bis D6.
+
 Imager configura zona horaria y teclado, pero **no** el idioma completo del
 sistema. Este paso lo ajusta. **No es indispensable** para que la ruleta
 funcione: el servicio ya fuerza `PYTHONIOENCODING=utf-8` y todos los textos del
@@ -1010,10 +1358,13 @@ Muestra `System Locale: LANG=es_MX.UTF-8`.
 
 **QUÉ HACER**
 
-1. **Escribir el acta** en
-   `docs/actas/<AAAA-MM-DD>-fase-1-preparar-pi.md`, **desde el archivo de hechos
-   medidos de la sesión (el del scratchpad), nunca de memoria**. Debe contener,
-   como mínimo:
+1. **Escribir el acta** en `docs/actas/<AAAA-MM-DD>-<fase>.md` —para esta fase,
+   **`docs/actas/2026-09-11-fase-1.md`**, que es el archivo que de verdad se
+   escribió—, **desde el archivo de hechos medidos de la sesión (el del
+   scratchpad), nunca de memoria**. *(Este paso decía
+   `<AAAA-MM-DD>-fase-1-preparar-pi.md`; se siguió la convención de `CLAUDE.md`,
+   que es `<AAAA-MM-DD>-<fase>.md`. Ver §0-bis D17. La carpeta `docs/actas/` no
+   existía: hay que crearla.)* Debe contener, como mínimo:
    - la salida real, pegada, de cada golden de la §7;
    - la IP que tomó la Pi y si `ruleta.local` resolvió o hubo que usar IP;
    - si `sudo` pide contraseña o no;
@@ -1028,8 +1379,13 @@ Muestra `System Locale: LANG=es_MX.UTF-8`.
 
 **CRITERIO DE ACEPTACIÓN**
 
-- El acta existe y cada golden de la §7 aparece con su salida real.
+- El acta existe y cada golden de la §7 aparece con su salida real, o con la
+  marca de **no medido** si no se corrió (nunca inventado).
 - Todas las casillas obligatorias de la §0 (pasos 1 a 11 y 14) están marcadas.
+
+*(Cumplido el 2026-09-11: acta en `docs/actas/2026-09-11-fase-1.md`, fichas
+nuevas F-051 a F-054, bitácora de la §0 marcada y §0-bis escrita. Los pasos 12 y
+13, opcionales, quedaron sin hacer y así están anotados.)*
 
 **SI FALLA**
 
@@ -1055,6 +1411,14 @@ tipo de instalaciones antes:
    ejecución y el `chmod +x instalar.sh herramientas/*.sh` del Paso 8 es
    **obligatorio**, no una precaución barata. Si se salta, `sudo ./instalar.sh`
    falla con `Permission denied`.
+   *(Medido el 2026-09-11: confirmado, y con una consecuencia que no estaba
+   escrita. Después del `chmod +x`, en la Pi `git status --porcelain | wc -l`
+   da **2**: son esos dos cambios de modo `644 → 755`, sin un solo cambio de
+   contenido. Un ejecutor que espere un clon "limpio" al 100 % se asusta sin
+   motivo. **Se resuelve commiteando el bit de ejecución en el repositorio**
+   (modo `100755`), cosa que hace el agente de commit en el cierre de esta
+   fase; después de eso, un `git pull` deja el árbol limpio. **Mientras no esté
+   publicado, el `chmod +x` sigue siendo obligatorio.** Ver §0-bis D15.)*
 
 2. **`instalar.sh` decide la carpeta del servicio a partir de dónde está él
    mismo.** El archivo `/etc/systemd/system/ruleta.service` queda apuntando a esa
@@ -1110,12 +1474,19 @@ tipo de instalaciones antes:
     `timedatectl show -p ... --value` y `systemctl show -p ... --value`, que no
     se traducen.
 
-12. **`config.json` viene con `"mac": "00:00:00:00:00:00"`.** Es una MAC con
-    formato válido, así que el programa la acepta y de verdad intenta
-    conectarse. Consecuencia: en la Fase 1 `diagnostico` **siempre** termina con
-    código 1 y con dos o tres líneas `[!!]` de impresora, y puede tardar un par
-    de minutos buscando canales RFCOMM. Es lo esperado. Se arregla solo cuando
-    la Fase 2 escriba la MAC real.
+12. **`config.json` viene con `"mac": "00:00:00:00:00:00"`.** *(Reescrita el
+    2026-09-11 con lo medido; lo que decía antes era falso.)* El programa
+    **rechaza** esa MAC toda a ceros **antes de abrir ningún socket**:
+    `crear_impresora`, en `ruleta/app.py`, comprueba
+    `imp.mac.replace(":", "").strip("0") == ""` y lanza `ErrorConfig`.
+    Consecuencia real: en la Fase 1 `diagnostico` termina con código 1 y con
+    **una sola** línea `[!!]`
+    (`Falta la direccion Bluetooth de la impresora: pon la MAC real en
+    impresora.mac de config.json`), **en segundos**. **No** dice "no está
+    emparejada", **no** intenta conectarse y **no** busca canales RFCOMM: ese
+    camino del código solo se recorre con una MAC de verdad. Es lo esperado. Se
+    arregla solo cuando la Fase 2 escriba la MAC real. Ver §0-bis D13 y ficha
+    F-054.
 
 13. **La contraseña del Wi-Fi, la contraseña de `asadero` y la llave privada
     `~/.ssh/id_ruleta` NUNCA van al repositorio, ni a un chat, ni a un acta.**
@@ -1130,6 +1501,33 @@ tipo de instalaciones antes:
     intento de conexión falla con `REMOTE HOST IDENTIFICATION HAS CHANGED`. Se
     resuelve con `ssh-keygen -R ruleta.local` (y con la IP), nunca borrando el
     `known_hosts` entero.
+
+16. **El PATH de una sesión SSH no interactiva NO incluye `/usr/sbin` ni
+    `/sbin`.** *(Trampa nueva, medida el 2026-09-11.)* Una sesión
+    `ssh ruleta '<comando>'` trae
+    `PATH=/usr/local/bin:/usr/bin:/bin:/usr/games`. Por eso
+    `ssh ruleta 'rfkill list bluetooth'` contestó `rfkill: command not found`
+    **aunque el paquete `rfkill` está instalado**. **No es una falla de la Pi ni
+    hay nada que arreglar**: se llama al binario por **ruta absoluta**
+    (`/usr/sbin/rfkill`, `/usr/sbin/shutdown`, `/usr/sbin/reboot`,
+    `/usr/sbin/iw`…) o se exporta el PATH al principio del comando. `sudo` no
+    sufre esto porque arma su propio PATH. Un ejecutor que lea "command not
+    found" como "falta el paquete" va a instalar cosas que ya están y a dar por
+    rota una fase que está bien. Ver §0-bis D7.
+
+17. **En esta PC hay DOS clientes `ssh`, y solo uno sirve para los agentes.**
+    *(Trampa nueva, medida el 2026-09-11.)* Git Bash monta `C:` con la opción
+    `noacl` (ver su `/etc/fstab`), así que `chmod` es un **no-op** y la capa
+    POSIX siempre reporta `~/.ssh/id_ruleta` como `644`. El `ssh` de Git Bash
+    (OpenSSH 10.3p1) hace la comprobación estricta de permisos y **puede
+    rechazar la llave** con `UNPROTECTED PRIVATE KEY FILE ... are too open`. El
+    cliente **nativo de Windows**, `C:/Windows/System32/OpenSSH/ssh.exe`
+    (OpenSSH_for_Windows 9.5p2), usa las ACL de NTFS, que sí están bien
+    (`icacls` muestra solo SYSTEM, Administradores y el usuario de la PC; ni
+    `Users` ni `Everyone`). **Regla:** todos los comandos SSH de los agentes se
+    lanzan con `/c/Windows/System32/OpenSSH/ssh.exe`. **Prohibido** "arreglarlo"
+    agregando `acl` al `/etc/fstab` de Git for Windows: es configuración global
+    del entorno y necesita visto bueno explícito del usuario. Ver §0-bis D8.
 
 ---
 
@@ -1151,6 +1549,9 @@ viejo.
 | Convenciones de `CLAUDE.md` | `grep -n "^## Convenciones de este repo" -A 12 CLAUDE.md` | Define `docs/planes/`, `docs/actas/<AAAA-MM-DD>-<fase>.md` y `docs/fichas.md`: las rutas que usa este plan. |
 | Plantilla del servicio | `grep -n "@USUARIO@\|@DIR@\|SupplementaryGroups" ruleta.service` | De ahí salen los goldens `User=asadero` y `WorkingDirectory=/home/asadero/ruleta`, y la razón por la que el servicio no necesita re-login para el grupo `gpio`. |
 | Líneas `[ok]` del diagnóstico | `grep -n "\[ok\]" ruleta/__main__.py` | El golden "6 líneas `[ok]`" se deriva de ahí. Si alguien agrega o quita una comprobación, ese número cambia. |
+| Rechazo de la MAC toda a ceros | `grep -n 'strip("0")' ruleta/app.py` | *(Ancla nueva, 2026-09-11.)* De esa línea de `crear_impresora` sale el golden de **un solo** `[!!]` y el hecho de que el diagnóstico termine en segundos (§5 trampa 12, §0-bis D13). Si alguien la quita, el diagnóstico volvería a intentar la conexión RFCOMM y el golden cambiaría. |
+| `README.md` §9, impresora por USB | `grep -n "/dev/usb/lp0" README.md` | *(Ancla nueva, 2026-09-11.)* Dice `"tipo": "archivo", "ruta": "/dev/usb/lp0"` y "agrega tu usuario al grupo `lp`". De ahí arranca la Fase 2 por USB (§9). **Medido: `asadero` NO está en `lp`** (sí en `lpadmin`): ficha F-052. |
+| Versiones de `gpiozero` y `lgpio` en el diagnóstico | `grep -n "__version__" ruleta/__main__.py` | *(Ancla nueva, 2026-09-11.)* `getattr(m, '__version__', '')` es la razón de que esas dos líneas `[ok]` salgan sin número. Ficha F-051. |
 
 ---
 
@@ -1159,6 +1560,13 @@ viejo.
 La fase está cerrada cuando **todos** estos comandos, corridos desde la PC en
 Git Bash, devuelven **exactamente** la salida indicada (comparación por
 igualdad, no "parecido"). Se pegan todos, con su salida real, en el acta.
+
+> **Estado el 2026-09-11: cumplidos.** Tres de estos goldens estaban **mal
+> escritos** y se corrigieron con lo medido (`rfkill` sin ruta absoluta, la
+> frase del diagnóstico y la zona horaria); van marcados abajo. Uno,
+> `SubState`, **no se midió** y así está anotado en el acta: no se da por
+> cumplido. La tabla golden por golden, con la evidencia de cada uno, está en
+> `docs/actas/2026-09-11-fase-1.md`.
 
 ```bash
 ssh ruleta 'hostname'
@@ -1194,8 +1602,11 @@ ssh ruleta 'systemctl is-active bluetooth'
 ssh ruleta 'bluetoothctl show | grep -c "Powered: yes"'
 # 1
 
-ssh ruleta 'LC_ALL=C rfkill list bluetooth | grep -c "blocked: no"'
+ssh ruleta 'LC_ALL=C /usr/sbin/rfkill list bluetooth | grep -c "blocked: no"'
 # 2
+# (CORREGIDO 2026-09-11: sin la ruta absoluta da 'rfkill: command not found'
+#  y este golden salía 0. El PATH de ssh no interactivo no trae /usr/sbin:
+#  ver §5 trampa 16 y §0-bis D7.)
 
 ssh ruleta 'systemctl is-enabled ruleta'
 # enabled
@@ -1218,11 +1629,23 @@ ssh ruleta 'cd ~/ruleta && python3 -m unittest discover -s tests -t . 2>&1 | tai
 ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "\[ok\]"'
 # 6
 
-ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "no está emparejada"'
+ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "\[!!\]"'
 # 1
 
+ssh ruleta 'cd ~/ruleta && PYTHONIOENCODING=utf-8 python3 -m ruleta diagnostico 2>&1 | grep -c "impresora.mac"'
+# 1
+# (CORREGIDO 2026-09-11: estos dos reemplazan a
+#  grep -c "no está emparejada" -> 1, que era FALSO: esa frase NO aparece.
+#  Con la MAC toda a ceros el programa la rechaza antes de conectarse y saca
+#  un solo [!!]: 'Falta la direccion Bluetooth de la impresora: pon la MAC
+#  real en impresora.mac de config.json'. Se cuenta por '[!!]' y por
+#  'impresora.mac' a propósito: las dos cadenas son SIN acentos, así que el
+#  golden no se rompe si la salida llega transliterada. Ver §0-bis D13.)
+
 ssh ruleta 'timedatectl show -p Timezone --value'
-# America/Mexico_City
+# America/Hermosillo
+# (CORREGIDO 2026-09-11: decía America/Mexico_City. La real es
+#  America/Hermosillo, elegida por el usuario en Imager. Ver §0-bis D4.)
 
 ssh ruleta 'timedatectl show -p NTPSynchronized --value'
 # yes
@@ -1230,15 +1653,24 @@ ssh ruleta 'timedatectl show -p NTPSynchronized --value'
 
 **Notas sobre estos goldens, para no leerlos mal:**
 
-- El de `diagnostico` **tarda**: prueba la conexión Bluetooth contra una MAC que
-  no existe. Puede tardar un par de minutos. No interrumpirlo.
+- El de `diagnostico` **NO tarda**: termina en segundos. *(Aquí decía que podía
+  tardar "un par de minutos probando la conexión Bluetooth contra una MAC que no
+  existe". Es falso: con la MAC toda a ceros no llega a intentar conectarse.
+  Ver §0-bis D13.)*
 - `python3 -m ruleta diagnostico` termina con **código de salida 1** en esta
   fase. Eso **no** invalida el golden: lo que se compara es el conteo de líneas
   `[ok]`, que debe ser 6.
+- Las líneas `[ok] gpiozero` y `[ok] lgpio` salen **sin número de versión**, y
+  está bien: esos módulos no exponen `__version__`. El golden es un conteo, así
+  que no se ve afectado. Ficha F-051.
 - El golden de `timedatectl show -p NTPSynchronized --value` es el único que
   puede quedar en `no` legítimamente: si la red del restaurante bloquea NTP, se
   anota en el acta como desviación aceptada y se resuelve con la batería RTC.
   Cualquier otro golden que no dé exactamente su valor **bloquea la fase**.
+- **Ojo con la red en producción:** a partir de la decisión del usuario del
+  2026-09-11 (la Pi trabaja **sin red**, §0-bis D9), estos goldens solo se
+  pueden volver a correr **reconectando la Pi al Wi-Fi**. No son verificables
+  con la Pi aislada.
 - Si alguien agrega o quita una comprobación en `cmd_diagnostico`
   (`ruleta/__main__.py`), el `6` deja de valer: ver la §6, última fila.
 
@@ -1276,14 +1708,42 @@ tienta saltárselas.
 
 ## 9. Siguientes fases
 
-**Fase 2 · Impresora.** Con la Pi ya lista, se enciende la impresora AOMU My-A1,
-se corre `./herramientas/emparejar.sh` (que la busca, prueba los PIN `0000` y
-`1234`, la marca como confiable y escribe su MAC en `config.json`) y luego
-`python3 -m ruleta probar-impresora`. Sobre el papel impreso se decide la tabla
-de acentos (`codepage_n`, entre 0, 2, 16 y 19), si el ancho es de 48 o 42
-columnas y si el corte automático funciona o hay que pasar a `parcial`. Al final
-de esa fase, `python3 -m ruleta diagnostico` debe salir **sin ningún `[!!]`** y
-con código 0.
+**Fase 2 · Impresora: USB primero, Bluetooth como respaldo.** Su plan detallado
+**está por escribirse** en `docs/planes/fase-2-impresora.md`; ese archivo **aún
+no existe** en el repositorio (comprobar con `ls docs/planes/`), así que por
+ahora lo que sigue es todo lo que hay: el resumen de hacia dónde va.
+
+*(Reescrito el 2026-09-11: este párrafo decía que la Fase 2 empezaba por el
+emparejamiento Bluetooth. **El usuario decidió probar primero el cable USB.**
+Ver §0-bis D16.)*
+
+- **Camino principal, USB.** Se conecta la AOMU My-A1 a la Pi con su cable USB y
+  se configura `"tipo": "archivo"` con `"ruta": "/dev/usb/lp0"` en
+  `config.json`. Es más simple y más estable que el Bluetooth: sin
+  emparejamiento, sin PIN, sin canal RFCOMM, sin que un celular le robe la
+  conexión. **Lo que hay que verificar antes de darlo por bueno:** que aparezca
+  `/dev/usb/lp0` al conectar la impresora, y **los permisos**: el `README.md` §9
+  dice que hay que estar en el grupo `lp`, y el 2026-09-11 se midió que el
+  usuario `asadero` **no** está en `lp` (sí en `lpadmin`, que no es lo mismo).
+  Ficha **F-052**.
+- **Camino de respaldo, Bluetooth.** Si el USB no funciona, se enciende la
+  impresora y se corre `./herramientas/emparejar.sh` (que la busca, prueba los
+  PIN `0000` y `1234`, la marca como confiable y escribe su MAC en
+  `config.json`), y se vuelve a `"tipo": "bluetooth"`. Todo lo que la Fase 1
+  dejó listo para esto sigue en pie: `bluez`, `bluez-tools`, el adaptador `hci0`
+  sin bloqueos y el servicio `bluetooth` activo y habilitado.
+- **En los dos casos**, después: `python3 -m ruleta probar-impresora` y, sobre el
+  papel impreso, se decide la tabla de acentos (`codepage_n`, entre 0, 2, 16 y
+  19), si el ancho es de 48 o 42 columnas y si el corte automático funciona o hay
+  que pasar a `parcial`. También se corre ahí la **vista previa** que la Fase 1
+  dejó pendiente (§0-bis D14).
+- **Cierre de la Fase 2:** `python3 -m ruleta diagnostico` debe salir **sin
+  ningún `[!!]`** y con código 0. Con `"tipo": "archivo"` el diagnóstico ni
+  siquiera prueba Bluetooth: imprime `[--] impresora tipo 'archivo': no se
+  prueba Bluetooth` y devuelve 0 si lo demás está bien.
+- **Pendiente físico:** el 2026-09-11 no se pudo probar nada porque el usuario
+  **no trajo el cable de corriente de la impresora**. Queda para el día
+  siguiente.
 
 **Fase 3 · Botones y LED.** Se cablea el botón JUGAR a GPIO 17, el botón
 HABILITAR del mesero a GPIO 27 y el LED opcional a GPIO 22, todos contra GND.
