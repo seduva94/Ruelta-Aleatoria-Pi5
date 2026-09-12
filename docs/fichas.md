@@ -1049,3 +1049,605 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Comprobado en esta ronda:** `grep -n "/dev/usb/lp0" README.md` → líneas **255** y **429**.
 - **Propuesta:** anotar las dos ubicaciones en **F-052** (que hoy apunta solo al §9) y corregirlas juntas, en el mismo cambio y con el mismo visto bueno. Emparentada con **F-077** (la llave `ruta` hay que **añadirla**, no cambiarla).
 - **Estado:** abierta.
+
+---
+
+## F-089 · El `README.md` §5 dice que los comandos avisan si el servicio está corriendo, y `probar-impresora` no lo hace
+
+- **Fecha:** 2026-09-11
+- **Origen:** Fase 2 · redacción de `docs/planes/fase-2-impresora.md` (lectura
+  del código, no del papel)
+- **Dónde:** `README.md` §5, líneas 222-225
+  (`grep -n "Los comandos lo detectan" README.md`) y
+  `ruleta/__main__.py` (`grep -n "servicio_activo" ruleta/__main__.py`).
+- **Qué pasa:** el README dice, literalmente: «**Detén el servicio**
+  (`sudo systemctl stop ruleta`) antes de `reiniciar`, `liberar`,
+  `reporte --imprimir` o `probar-impresora` […] **Los comandos lo detectan y te
+  lo recuerdan.**» Medido en el código: `servicio_activo()` se define en la
+  línea 87 y se llama **cuatro** veces —`cmd_reporte` (211, solo bajo
+  `--imprimir`), `cmd_liberar` (227), `cmd_reiniciar` (266) y `cmd_diagnostico`
+  (375)—. **`cmd_probar_impresora` no la llama nunca.** Es decir: de los cuatro
+  comandos que el README nombra, **tres avisan y uno no**, y justamente el que
+  no avisa es el que se usa a cada rato mientras se ajusta la impresora.
+- **Por qué es residual:** no rompe nada por sí solo y el propio README manda
+  detener el servicio; lo que falla es la promesa de que el programa te va a
+  proteger si se te olvida.
+- **Riesgo si no se toca:** alguien corre `probar-impresora` con el servicio
+  arriba confiando en el aviso. Por Bluetooth eso da un error de conexión
+  confuso (la impresora acepta una sola conexión); por USB los dos procesos
+  escriben al mismo dispositivo y **puede salir un boleto mezclado con otro**.
+- **Dos propuestas, y conviene hacer las dos:**
+  1. **Código:** llamar a `servicio_activo()` también en `cmd_probar_impresora`,
+     con el mismo mensaje que ya usa `cmd_reporte`. Es de tres líneas y tiene
+     golden fácil.
+  2. **Documentación:** corregir la frase del README. **Requiere visto bueno del
+     usuario**, igual que F-001 a F-003, F-052, F-053 y F-088; va en la misma
+     pasada, dentro del punto (d) de la sub-fase 2b.
+- **Mientras tanto:** el plan de la Fase 2 lo cubre a mano — su Paso 7 obliga a
+  comprobar `systemctl is-active ruleta` antes de imprimir, y su §5 trampa 2 lo
+  explica.
+- **Estado:** abierta.
+
+---
+
+## F-090 · `ImpresoraArchivo` abre con `O_CREAT`: con `sudo` puede crear un archivo donde debería estar el dispositivo
+
+- **Fecha:** 2026-09-11
+- **Origen:** Fase 2 · redacción del plan (lectura del código)
+- **Dónde:** `ruleta/escpos.py`, `ImpresoraArchivo.imprimir`
+  (`grep -n "class ImpresoraArchivo" -A 25 ruleta/escpos.py`, hoy línea 546; la
+  apertura está en la 560).
+- **Qué pasa:** el transporte abre con
+  `self._abrir(self.ruta, "ab" if self.anexar else "wb", buffering=0)`, y
+  `crear_impresora` lo construye siempre con `anexar=True` (`ruleta/app.py`,
+  línea 56). Los modos `"ab"` y `"wb"` incluyen `O_CREAT`: **si la ruta no
+  existe, se crea**. Con el camino USB eso significa que, si `/dev/usb/lp0` no
+  está (impresora apagada, cable suelto, `usblp` sin cargar) y alguien corre el
+  programa **con `sudo`**, se crea un **archivo normal** llamado
+  `/dev/usb/lp0` que **se traga los boletos sin dar ningún error** —código de
+  salida 0, mensaje «Listo», y ni un centímetro de papel— y que además **impide
+  que el nodo real aparezca** cuando la impresora vuelva.
+- **Lo que hoy nos salva:** como usuario `asadero` no se puede escribir en
+  `/dev` ni en `/dev/usb` (son de root), así que el intento falla con
+  `Permission denied`, que es justo el error que se quiere ver. **El riesgo
+  aparece solo si alguien usa `sudo`**, cosa que además rompe los permisos de
+  `datos/`.
+- **Por qué es residual:** el comportamiento actual es correcto para el uso
+  previsto (escribir a un archivo de pruebas), y el camino peligroso exige un
+  `sudo` que el plan prohíbe explícitamente.
+- **Riesgo si no se toca:** una tarde de prisas, alguien escribe `sudo` por
+  costumbre y deja el kiosco «funcionando» sin imprimir nada, con el diagnóstico
+  en verde. Es de los fallos más difíciles de encontrar mirando la pantalla.
+- **Propuesta:** en la sub-fase 2b, cuando se toque `ImpresoraArchivo` para la
+  consulta de papel (cambio (b)), abrir con `os.open` sin `O_CREAT` cuando la
+  ruta **empiece por `/dev/`**, o comprobar con `stat` que la ruta existe y es
+  un dispositivo antes de abrirla, devolviendo `ErrorConexion` con un mensaje
+  claro si no. Golden fácil: con una ruta inexistente bajo `/dev`, `imprimir`
+  lanza `ErrorConexion` y **no crea el archivo**.
+- **Mientras tanto:** el plan de la Fase 2 lo cubre en su §5 trampa 4, en su §8
+  prohibición 3 y en el «SI FALLA» del Paso 7 (`test -c`).
+- **Estado:** abierta.
+
+---
+
+## F-091 · Por USB se ignoran `consultar_estado`, `reintentos` y todas las llaves de ritmo
+
+- **Fecha:** 2026-09-11
+- **Origen:** Fase 2 · redacción del plan (lectura del código)
+- **Dónde:** `ruleta/app.py`, `crear_impresora` (`grep -n 'tipo == "archivo"' -A
+  2 ruleta/app.py`, hoy línea 56) y `ruleta/escpos.py`, `ImpresoraArchivo`
+  (546).
+- **Qué pasa:** con `"tipo": "archivo"`, el transporte se construye con
+  `escpos.ImpresoraArchivo(imp.ruta, anexar=True)` **y nada más**. Todas estas
+  llaves de la sección `impresora` de `config.json` **no tienen ningún efecto**
+  por USB: `consultar_estado`, `reintentos`, `espera_reintento_seg`,
+  `timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`,
+  `pausa_final_seg` y `bytes_por_segundo`. Solo las usa
+  `ImpresoraBluetooth`. Dos consecuencias concretas: **(1)** por USB el programa
+  **no pregunta si hay papel** —si el rollo se acaba, el premio se descuenta y
+  el boleto no sale—, y **(2)** por USB **no hay reintentos**: un fallo puntual
+  al abrir el dispositivo pierde ese boleto (el premio **sí** vuelve al
+  inventario, porque `ErrorConexion` lo devuelve, así que no se regala nada; lo
+  que se pierde es la impresión).
+- **Por qué es residual:** por cable, la falta de reintentos y de control de
+  ritmo es razonable: no hay un enlace de radio que se caiga a media frase. Lo
+  que sí importa de verdad es la consulta de papel.
+- **Riesgo si no se toca:** **(a)** el evento corre una semana sin aviso de
+  «sin papel»; **(b)** alguien intenta arreglar un problema de impresión por
+  cable subiendo `reintentos` o bajando `tamano_bloque`, y no pasa nada, porque
+  esas llaves no se leen. Se pierde una tarde buscando donde no hay.
+- **Propuesta:** el cambio (b) de la sub-fase 2b (consulta `DLE EOT` en
+  `ImpresoraArchivo`, respetando `consultar_estado`), **solo si la interfaz USB
+  resulta ser bidireccional** (`bInterfaceProtocol = 02`, se mide en el Paso 3
+  del plan de la Fase 2). Y, en cualquier caso, decir en la tabla del `README`
+  §6 qué llaves valen para cada `tipo`: hoy la tabla las presenta como si
+  valieran siempre.
+- **Nota:** el PPD del driver del fabricante confirma que la impresora entiende
+  `DLE EOT 1`, así que la consulta tiene sentido técnico
+  (`docs/actas/2026-09-11-hechos-medidos.md`, sección del driver).
+- **Estado:** abierta.
+
+---
+
+## F-092 · El plan de la Fase 2 dice que incorpora mediciones del 2026-09-12 y todas son del 2026-09-11
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md` encabezado, §0-bis, §3 (material) y Paso 2.
+- **Qué pasa (texto del lente, tal cual):** Fechas incoherentes: el encabezado dice «Redactado el 2026-09-11 … incorporando los hechos que el orquestador midió el 2026-09-12», y la §0-bis, la §3 (material) y el Paso 2 repiten «medido el 2026-09-12». Un documento escrito el 11 no puede incorporar mediciones del 12, y la fecha de hoy en esta sesión es 2026-09-11. Alinear las fechas al escribir el acta.
+- **Estado tras la ronda correctiva 1:** los cuatro sitios que nombra el lente (encabezado, §0-bis, §3 y Paso 2) **ya quedaron en 2026-09-11**. Siguen escritas dos menciones al 2026-09-12 que **no** son error de fecha del plan: el nombre real del respaldo de la Pi (`config.json.bak-2026-09-12`) y el ejemplo de nombre de acta del Paso 14 (ver **F-111**).
+- **Estado:** abierta (solo para revisarlo al escribir el acta).
+
+---
+
+## F-093 · El `sudo rm -f /dev/usb/lp0` del Paso 7 va sin guarda y se puede pegar por error sobre el dispositivo real
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 7, SI FALLA, punto 2.
+- **Qué pasa (texto del lente, tal cual):** Paso 7, SI FALLA, punto 2: `ssh ruleta 'sudo rm -f /dev/usb/lp0'` va sin guarda. La rama está bien explicada (solo si la primera letra de `ls -l` es `-`), pero el comando se puede pegar por error sobre el dispositivo real. Sería a prueba de pegado: `ssh ruleta 'test -c /dev/usb/lp0 && echo ES_DISPOSITIVO_NO_BORRAR || sudo rm -f /dev/usb/lp0'`.
+- **Relacionada con:** **F-090** (el `O_CREAT` de `ImpresoraArchivo`, que es lo que crea ese archivo falso).
+- **Estado:** abierta.
+
+---
+
+## F-094 · El plan deshabilita CUPS y ModemManager de forma permanente sin decir cómo revertirlo
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 3 rama B2 y Paso 10 punto 2.
+- **Qué pasa (texto del lente, tal cual):** Paso 3 rama B2 y Paso 10 punto 2 deshabilitan servicios del sistema de forma permanente (`sudo systemctl disable --now cups cups-browsed`, `sudo systemctl disable --now ModemManager`) sin decir cómo revertirlo ni pedir que quede anotado en el acta como cambio de sistema.
+- **Estado:** abierta.
+
+---
+
+## F-095 · Anclas del plan con desfase de una línea (lista del primer lente)
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, decisión D7, §5 trampas 1, 4 y 17, §0-bis H5 y §6 (mapa de anclas).
+- **Qué pasa (texto del lente, tal cual):** Anclas con desfase de una línea (no rompen nada, pero el mapa de anclas manda re-grep): el `[--] … no se prueba Bluetooth` está en `ruleta/__main__.py:344` (D7 y §5 trampa 1 dicen 343; el mapa de anclas sí dice 344); `ImpresoraArchivo` abre el archivo en `escpos.py:562` (trampa 4 dice 560); `crear_impresora` construye `ImpresoraArchivo` en `app.py:57` (H5 dice 56, que es el `if`); el valor por defecto `cancelar_modo_chino=True` está en `escpos.py:131` (trampa 17 cita la 34, que es `CMD_CANCELAR_KANJI`).
+- **Relacionada con:** **F-108** y **F-109**, que traen la misma familia de desfases medidos por el otro lente y **no coinciden en un número** (aquí `escpos.py:562` para la apertura del archivo; en F-108, la 561 para el modo `"ab"`). Antes de tocar cualquiera de esas líneas hay que volver a medir, que es justo lo que ordena la §6 del plan.
+- **Estado:** abierta.
+
+---
+
+## F-096 · D7 y la trampa 1 dicen que `cmd_diagnostico` «devuelve 0 sin abrir la ruta», y puede devolver 1 por otras causas
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, decisión D7 y §5 trampa 1; `ruleta/__main__.py`, `cmd_diagnostico`.
+- **Qué pasa (texto del lente, tal cual):** D7 y §5 trampa 1 dicen que `cmd_diagnostico` «devuelve 0 sin abrir la ruta»; el código hace `return 0 if ok else 1`, así que puede devolver 1 por otras causas (datos, PIL, logo, inventario). El acta de la Fase 1 lo redacta mejor: «devuelve 0 en cuanto pasan los demás [ok]».
+- **Estado:** abierta.
+
+---
+
+## F-097 · El Paso 1 corre las pruebas con `tail -n 3` y su tabla de criterios las cita con `tail -n 1`
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 1 punto 5 y tabla de CRITERIO DE ACEPTACIÓN del Paso 1.
+- **Qué pasa (texto del lente, tal cual):** Paso 1 punto 5 corre las pruebas con `tail -n 3` y la tabla de criterios cita `unittest … | tail -n 1`. Conviene usar el mismo comando en los dos sitios.
+- **Estado:** abierta.
+
+---
+
+## F-098 · La tabla del Paso 1 exige el commit `601c4c2` sin la rama «si no hubo internet se queda en 2052e47»
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 1, tabla de CRITERIO DE ACEPTACIÓN (fila `git rev-parse HEAD`) frente a su SI FALLA.
+- **Qué pasa (texto del lente, tal cual):** Paso 1, tabla de criterios: `git rev-parse HEAD` → `601c4c2…` no lleva la rama «si no hubo internet se queda en 2052e47», que sí está en SI FALLA. La tabla sola se lee como un criterio que va a fallar. (Verificado: `origin/main` = `601c4c2b64fc93e2a76b539f2b79fee9e1f91843`, así que el `pull` sí puede llegar ahí.)
+- **Estado:** abierta.
+
+---
+
+## F-099 · D3 y el Paso 0 exigen 2.4 GHz y la PC comparte la radio que ya está asociada en 5 GHz
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, decisión D3 y Paso 0.
+- **Qué pasa (texto del lente, tal cual):** D3 y Paso 0 exigen banda 2.4 GHz en el punto de acceso, pero la PC comparte la misma radio (Intel AX211) que está asociada a `FDA806_5G` en 5 GHz; algunos controladores no dejan fijar una banda distinta a la de la conexión. Falta la rama «si Windows no deja elegir 2.4 GHz, dejar Cualquiera disponible» (la Pi 5 es de doble banda).
+- **Estado:** abierta.
+
+---
+
+## F-100 · El `ipconfig | grep` del Paso 0 puede no casar por la página de códigos OEM de la consola
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 0, SI FALLA.
+- **Qué pasa (texto del lente, tal cual):** Paso 0, SI FALLA: `ipconfig | grep -A 5 -i "punto de acceso\|Local Area Connection"` puede no casar por la página de códigos OEM de la consola en Git Bash (los acentos y la ñ). El `arp -a | grep 192.168.137` de la línea siguiente es el que realmente sirve.
+- **Estado:** abierta.
+
+---
+
+## F-101 · El punto de acceso con el mismo nombre y contraseña atraerá a los celulares que conozcan el Wi-Fi del asadero
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 0 y §5 trampa 19.
+- **Qué pasa (texto del lente, tal cual):** Paso 0 no avisa de un efecto lateral del punto de acceso con el mismo nombre y contraseña: cualquier equipo que conozca el Wi-Fi del asadero (el celular del usuario, el del personal) se conectará solo a la PC y saldrá a internet por ella. Vale una línea junto a la trampa 19.
+- **Estado:** abierta.
+
+---
+
+## F-102 · El golden `stat` de la §7.3 no distingue si la regla `udev` del Paso 4 funcionó
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §7.3 (goldens del dispositivo USB).
+- **Qué pasa (texto del lente, tal cual):** §7.3: el golden `stat -c "%a %U %G" /dev/usb/lp0` → `660 root lp` no distingue si la regla del Paso 4 funcionó, porque ese es también el valor por defecto esperado. El que sí lo distingue es `test -c /dev/impresora-ruleta` → `ENLACE_OK`; conviene decirlo.
+- **Estado:** abierta.
+
+---
+
+## F-103 · Los tres respaldos que el plan deja en el `$HOME` de la Pi no tienen destino al cerrar la fase
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Pasos 5, 8 y 10 (los `cp` de respaldo) y Paso 14 (cierre).
+- **Qué pasa (texto del lente, tal cual):** El plan crea tres respaldos en el `$HOME` de la Pi (`~/config.json.antes-de-fase2`, `~/config.json.medido-fase2`, `~/config.json.antes-de-bluetooth`) y nunca dice qué hacer con ellos al cerrar la fase (dejarlos, listarlos en el acta o borrarlos tras verificar el hash).
+- **Estado:** abierta.
+
+---
+
+## F-104 · F-013 sigue vigente y afecta al Paso 11: el plan no nombra las rutas de `docs/` que hay que commitear
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 11 («la lista de rutas acordada por adelantado»).
+- **Qué pasa (texto del lente, tal cual):** Sigue vigente F-013 y afecta al Paso 11: hoy `docs/planes/fase-2-impresora.md`, `docs/actas/2026-09-11-hechos-medidos.md` y `docs/PAUSA-2026-09-11.md` salen como `??` en `git status`, y `docs/fichas.md` como ` M`. El Paso 11 habla de «la lista de rutas acordada por adelantado» pero no nombra estas rutas, y sin ellas el propio plan no llega a la Pi con el `git pull`.
+- **Relacionada con:** **F-013** (la carpeta `docs/` todavía no está versionada) y **F-115**, que dice lo mismo desde el lado del archivo de hechos medidos.
+- **Estado:** abierta.
+
+---
+
+## F-105 · F-055 y F-056 siguen aplicando: el plan y su acta se publican en un repositorio público
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md` (Paso 0, §0-bis) y el acta que cerrará esta fase.
+- **Qué pasa (texto del lente, tal cual):** F-055/F-056 siguen aplicando a esta fase: el plan y su acta se publican en un repositorio público y ya contienen hostname, rango de red del punto de acceso y la existencia de `sudo` sin contraseña. El plan hace bien en excluir la contraseña del Wi-Fi; conviene que el acta repita esa exclusión explícitamente.
+- **Relacionada con:** **F-055** y **F-056**.
+- **Estado:** abierta.
+
+---
+
+## F-106 · El Paso 6 cita `Configuracion:` sin tilde y el código imprime `Configuración:`
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 6 (bloque de salida esperada del diagnóstico); `ruleta/__main__.py`.
+- **Qué pasa (texto del lente, tal cual):** Paso 6, bloque de salida esperada del diagnóstico: dice `Configuracion: /home/asadero/ruleta/config.json` y el código imprime `Configuración:` con tilde (`ruleta/__main__.py`, `print(f"Configuración: {args.config}")`). El archivo de hechos también lo trae sin tilde porque está escrito entero sin acentos. No es golden (los de la §7.5 cuentan con `grep -c`), así que no bloquea.
+- **Relacionada con:** **F-084** y **F-107** (misma familia: mensajes del programa citados sin acentos).
+- **Estado:** abierta.
+
+---
+
+## F-107 · El Paso 1 cita el mensaje del log sin tilde (`Falta la direccion Bluetooth…`)
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 1 punto 1; `ruleta/app.py`.
+- **Qué pasa (texto del lente, tal cual):** Paso 1, punto 1: cita el log como `ERROR de configuración: Falta la direccion Bluetooth de la impresora...`; el mensaje real de `ruleta/app.py` es `Falta la dirección Bluetooth de la impresora: pon la MAC real en impresora.mac de config.json (la obtienes con herramientas/emparejar.sh)`, con tilde en «dirección». Mismo tema que la ficha F-084.
+- **Relacionada con:** **F-084** y **F-106**.
+- **Estado:** abierta.
+
+---
+
+## F-108 · Anclas del plan con desfase de una línea (lista del segundo lente)
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §0-bis H5, §5 trampas 1, 4 y 17, y §6 (mapa de anclas).
+- **Qué pasa (texto del lente, tal cual):** Anclas con desfase de una línea (el `grep` de la §6 las encuentra igual): §0-bis H5 y §5 trampa 1 dicen `ruleta/app.py` línea 56, y la construcción `ImpresoraArchivo(imp.ruta, anexar=True)` está en la 57 (la 56 es el `if tipo == "archivo":`); §5 trampa 4 dice `escpos.py` línea 560 y el modo `"ab"` está en la 561; §5 trampa 17 dice `escpos.py` línea 34 y `CMD_CANCELAR_KANJI` está en la 33 (la llave `cancelar_modo_chino`, en la 131); el mapa de anclas dice `CMD_ESTADO_*` en 54-57 y son 54-57 contando `_VALOR_FIJO_ESTADO` (57), correcto.
+- **Relacionada con:** **F-095** (misma familia; discrepan en un número: allí la apertura de `ImpresoraArchivo` se sitúa en la 562 y aquí el modo `"ab"` en la 561). **Re-grep antes de tocar nada.**
+- **Estado:** abierta.
+
+---
+
+## F-109 · La §6 dice «hoy 344» y la trampa 1 y D7 dicen «línea 343» para la misma salida del diagnóstico
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §6 fila «Salida temprana del diagnóstico», §5 trampa 1 y decisión D7.
+- **Qué pasa (texto del lente, tal cual):** §6, fila «Salida temprana del diagnóstico»: dice «hoy 344» y la §5 trampa 1 y la decisión D7 dicen «línea 343»; la línea real del `print` es la 344 y el `if` que lo gobierna la 343. Es la misma incoherencia interna de una línea.
+- **Relacionada con:** **F-095** y **F-108**.
+- **Estado:** abierta.
+
+---
+
+## F-110 · El Paso 1 dice «los tres goldens» y lista seis comandos
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 1 punto 3.
+- **Qué pasa (texto del lente, tal cual):** Paso 1, punto 3: dice «los tres goldens que la Fase 1 dejó sin medir» y lista seis comandos (`SubState`, `Timezone`, `NTP`, `NTPSynchronized`, `LocalRTC`, `date`). El número no cuadra con la lista, aunque los goldens no medidos de la Fase 1 sí son tres.
+- **Estado:** abierta.
+
+---
+
+## F-111 · Menciones sueltas al «2026-09-12» que no son criterio ni comando y no se corrigieron
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §0-bis H9 y Paso 1 (nombre del respaldo) y Paso 14 (ejemplo de nombre de acta).
+- **Qué pasa (texto del lente, tal cual):** Quedan otras menciones sueltas a «2026-09-12» que no corrijo aquí por no ser criterio ni comando: el respaldo real de la Pi se llama `config.json.bak-2026-09-12` (nombre con la fecha equivocada, así lo anota el archivo de hechos) y el Paso 14 ejemplifica el acta como `docs/actas/2026-09-12-fase-2.md`; si la fase se cierra el 2026-09-11 el acta se llamará `docs/actas/2026-09-11-fase-2.md` y chocará con `2026-09-11-fase-1.md` solo en la fecha, no en el nombre.
+- **Relacionada con:** **F-092**.
+- **Estado:** abierta.
+
+---
+
+## F-112 · El Paso 8 dice «si no suena es el DIP, no el programa» y el zumbador ya está medido
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 8, apartado «Zumbador»; §0-bis H9.
+- **Qué pasa (texto del lente, tal cual):** Paso 8, apartado «Zumbador»: dice «si no suena es el DIP, no el programa». Ya está medido lo contrario (§0-bis H9): `ESC B` **sí** suena por USB, pero da **un pitido corto por comando** e ignora los parámetros `n` y `t`. Conviene incorporarlo cuando se toque ese apartado.
+- **Estado:** abierta.
+
+---
+
+## F-113 · El Paso 8 no menciona que las líneas de acentos del boleto de prueba se parten en el papel
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 8; `ruleta/ticket.py`, `boleto_prueba`.
+- **Qué pasa (texto del lente, tal cual):** Paso 8 no menciona el hallazgo cosmético ya medido: las cuatro líneas de acentos del boleto de prueba pasan de 48 columnas y se parten en el papel. Es candidato a ficha y a un arreglo de `ticket.boleto_prueba` en 2b.
+- **Estado:** abierta.
+
+---
+
+## F-114 · El golden `"canal": 1` de la §7.11 fija un canal que decide el diagnóstico
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §7.11 (goldens del respaldo Bluetooth) y Paso 10.
+- **Qué pasa (texto del lente, tal cual):** §7.11 (respaldo Bluetooth) fija el golden `"canal": 1` con la MAC de ejemplo `AA:BB:CC:DD:EE:FF`; el canal real lo decide el diagnóstico y puede no ser 1. Como el Paso 10 solo se hace si el USB falla, y hoy el USB funciona, no bloquea.
+- **Estado:** abierta.
+
+---
+
+## F-115 · El archivo de hechos medidos que cita el plan existe y está sin commitear
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 1
+- **Dónde:** `docs/actas/2026-09-11-hechos-medidos.md`, `docs/planes/fase-2-impresora.md`, `docs/PAUSA-2026-09-11.md`.
+- **Qué pasa (texto del lente, tal cual):** El plan cita `docs/actas/2026-09-11-hechos-medidos.md` como «hechos crudos» y ese archivo existe y está sin commitear (`?? docs/actas/2026-09-11-hechos-medidos.md`), igual que el propio plan y `docs/PAUSA-2026-09-11.md`. El agente de commit tendrá que incluirlos en la lista de rutas (ficha F-013 sigue vigente).
+- **Relacionada con:** **F-013** y **F-104**.
+- **Estado:** abierta.
+
+---
+
+## F-116 · El Paso 5, SI FALLA, citaba un `assert` que el script del punto 3 ya no tiene
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 5, SI FALLA (primera viñeta) y Paso 5 punto 3 (bloque `python3 - <<"PY"`).
+- **Qué pasa (texto del lente, tal cual):** Paso 5, SI FALLA, primera viñeta: dice «El `assert` se dispara (`no hay exactamente una linea de tipo`)», pero el script del punto 3 ya no tiene ningún `assert` ni ese mensaje: termina con `raise SystemExit("config.json no esta en ninguno de los tres estados previstos: parar y preguntar")`. El remedio (detenerse y preguntar) es el mismo, así que no bloquea; conviene citar el mensaje real. (Parece resto de la reescritura de la ronda 1, que pasó el script a tres estados.)
+- **Estado:** **cerrada** en esta misma ronda correctiva (f2 · ronda 2, corrección 5): la viñeta ya cita el mensaje real del script.
+
+---
+
+## F-117 · El encabezado §Tiempos manda subir el límite en un «bucle de espera del Paso 13» que no existe
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §Tiempos (`grep -n "600000" docs/planes/fase-2-impresora.md`) y Paso 13 (`sleep 8`); `docs/planes/fase-1-preparar-pi.md`, Paso 12.
+- **Qué pasa (texto del lente, tal cual):** Encabezado §Tiempos: «solo hay que subirlo (a 600000) en el bucle de espera del Paso 13 si hubiera que reiniciar la Pi». El Paso 13 no reinicia la Pi ni tiene bucle de espera (solo `sleep 8`); el único reinicio del proyecto es el Paso 12 de la Fase 1. La referencia sobra o debería apuntar a ese otro paso.
+- **Estado:** abierta.
+
+---
+
+## F-118 · La regla `udev` del Paso 4 se puede pegar con `@VID@` y `@PID@` sin sustituir y el golden no lo delata
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 4 punto 2.b (bloque que escribe `/etc/udev/rules.d/61-ruleta-impresora.rules`) y §7.3 (goldens del dispositivo USB).
+- **Qué pasa (texto del lente, tal cual):** Paso 4, punto 2.b: la regla se escribe con los marcadores `@VID@` y `@PID@`. Si un ejecutor la pega sin sustituir, el archivo queda escrito y el golden `grep -c idVendor` sigue dando 1: lo único que lo delata es `test -c /dev/impresora-ruleta`. Refuerza la ficha F-102; se podría añadir un golden `grep -c '@VID@' /etc/udev/rules.d/61-ruleta-impresora.rules` → 0.
+- **Relacionada con:** **F-102** (el golden `stat` tampoco distingue si la regla funcionó) y **F-130**.
+- **Estado:** abierta.
+
+---
+
+## F-119 · El SSID `FDA806_5G` de §0-bis H1 y del Paso 0 es dato de sesión, no hecho medido
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §0-bis H1 y Paso 0 punto 2; `scratchpad/hechos-fase-1.md`.
+- **Qué pasa (texto del lente, tal cual):** §0-bis H1 y Paso 0 punto 2 afirman que la PC está conectada a `FDA806_5G`. Ese SSID no aparece en el archivo de hechos medidos de la sesión (`hechos-fase-1.md`), que sí registra la red de la Pi («netplan-wlan0-SDV 5G»). Es dato de sesión, no de hechos: conviene medirlo y anotarlo, o marcarlo como no medido. Toca también la ficha F-099.
+- **Relacionada con:** **F-099** y **F-126** (el otro lente levanta el mismo hallazgo cotejándolo contra los archivos del repositorio).
+- **Estado:** abierta.
+
+---
+
+## F-120 · El criterio `git status --porcelain | wc -l` → `1` del Paso 1 da por hecho que el `git pull` funcionó
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 1, tabla de CRITERIO DE ACEPTACIÓN, frente a su SI FALLA.
+- **Qué pasa (texto del lente, tal cual):** Paso 1, tabla de criterios: `git status --porcelain | wc -l` → `1` da por hecho que el `git pull` funcionó. Si no hubo internet (rama ya prevista en SI FALLA), HEAD se queda en `2052e47`, el `chmod +x` obligatorio vuelve a ensuciar `instalar.sh` y `herramientas/emparejar.sh`, y el conteo será `3`. Amplía la ficha F-098 al conteo, no solo al `rev-parse`.
+- **Relacionada con:** **F-098** (misma rama «si no hubo internet», allí sobre `git rev-parse HEAD`).
+- **Estado:** abierta.
+
+---
+
+## F-121 · Comprobado y correcto en la ronda 2: el intérprete de esta PC y las anclas del §6 (para no volver a auditarlas)
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 11, §7.12 y §6 (mapa de anclas).
+- **Qué pasa (texto del lente, tal cual):** Comprobado y correcto (para que nadie lo vuelva a auditar en la Fase 2): `python` en esta PC es `/c/Python314/python` (Python 3.14.4) y `python3` es el atajo de la Microsoft Store que contesta «Python was not found» —la nota del Paso 11 y de la §7.12 es exacta—; y las anclas del §6 casan hoy: app.py 46/56/115/268, escpos.py 34/43/50/54-57/67/546, __main__.py 87/211/227/266/375 y el `if` de 343 con su `print` en 344, `grep -c "[ok]"` = 6, config.json con una sola línea `"tipo": "bluetooth"` (16), sin `ruta` y con 7 premios `test`, instalar.sh 36-38/50/67, ruleta.service 13, README 78/87/153/225/255/429. Las fichas F-095, F-108 y F-109 siguen siendo solo desfases de una línea.
+- **Relacionada con:** **F-095**, **F-108** y **F-109** (los desfases de una línea que este cotejo confirma como tales).
+- **Estado:** cerrada de entrada (nota de verificación: no hay nada que corregir).
+
+---
+
+## F-122 · Verificados los goldens de bits del cambio (b) del Paso 12 contra `ruleta/escpos.py`
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 12, cambio (b) y sus goldens; `ruleta/escpos.py` y el test `test_archivo_con_papel_escribe_todo`.
+- **Qué pasa (texto del lente, tal cual):** Verificado que los goldens de bits del cambio (b) del Paso 12 son correctos contra `ruleta/escpos.py`: 0x72 y 0x16 y 0x1a pasan la máscara fija 0x93/0x12, 0x72 casa `& 0x60` (sin papel), 0x16 casa `& 0x0C` (poco papel) y 0x1a casa `& 0x08` (fuera de línea); el orden papel→impresora del test `test_archivo_con_papel_escribe_todo` coincide con el del código (líneas 415-422). No hay nada que corregir ahí.
+- **Estado:** cerrada de entrada (nota de verificación: no hay nada que corregir).
+
+---
+
+## F-123 · Verificada la afirmación de seguridad del Paso 13: «es seguro arrancar sin botones»
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 13; `config.json`; `ruleta/config.py` (líneas 84-85 y 309-312).
+- **Qué pasa (texto del lente, tal cual):** Verificada la afirmación de seguridad del Paso 13 («es seguro arrancar sin botones»): `config.json` trae `modo_habilitar: "mantener"` y `pull_up: true`, y `config.py` (líneas 84-85, 309-312) los valida; con los pines al aire el botón se lee como no presionado. Correcto.
+- **Estado:** cerrada de entrada (nota de verificación: no hay nada que corregir).
+
+---
+
+## F-124 · Las fichas F-092 a F-115 de la ronda 1 siguen abiertas y sin cambio
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/fichas.md`, F-092 a F-115; acta de cierre de la Fase 2 (Paso 14).
+- **Qué pasa (texto del lente, tal cual):** Siguen abiertas y sin cambio las fichas F-092 a F-115 de la ronda 1; ninguna alcanza la PARADA y todas quedan anotadas para el acta.
+- **Estado:** abierta.
+
+---
+
+## F-125 · El Paso 3 lista `0416:5011` entre los «valores típicos» y el VID:PID medido es `0418:5011`
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 3 (`grep -n "0416" docs/planes/fase-2-impresora.md`) y §0-bis H2.
+- **Qué pasa (texto del lente, tal cual):** Paso 3: la lista de «valores típicos de la familia» incluye `0416:5011`, que difiere en un dígito del VID:PID realmente medido (`0418:5011`, §0-bis H2). Riesgo de copiar el equivocado a la regla udev; convendría poner el medido primero y marcar los demás como pistas ajenas.
+- **Relacionada con:** **F-118** (la regla del Paso 4 es justo donde ese número acabaría).
+- **Estado:** abierta.
+
+---
+
+## F-126 · El SSID `FDA806_5G` es el único dato de §0-bis H1 sin respaldo en el archivo de hechos
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §0-bis H1; `docs/actas/2026-09-11-hechos-medidos.md`; `docs/PAUSA-2026-09-11.md`; `docs/fichas.md`, F-099.
+- **Qué pasa (texto del lente, tal cual):** §0-bis H1 afirma como hecho medido que la PC está conectada a `FDA806_5G`; ese SSID no aparece en `docs/actas/2026-09-11-hechos-medidos.md` ni en `docs/PAUSA-2026-09-11.md` (solo se repite en la ficha F-099). Es el único dato de H1 sin respaldo en el archivo de hechos.
+- **Relacionada con:** **F-119** (el mismo hallazgo por el otro lente, cotejado contra `hechos-fase-1.md`) y **F-099**.
+- **Estado:** abierta.
+
+---
+
+## F-127 · Documentos vecinos quedaron viejos: la Fase 1 y su acta dicen que `docs/planes/fase-2-impresora.md` «aún no existe»
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-1-preparar-pi.md` §9; `docs/actas/2026-09-11-fase-1.md` §7; `docs/fichas.md`, F-073; `docs/planes/fase-2-impresora.md`, Paso 14 punto 3.
+- **Qué pasa (texto del lente, tal cual):** Documentos vecinos quedaron viejos por la existencia de este plan: `docs/planes/fase-1-preparar-pi.md` §9 dice que `docs/planes/fase-2-impresora.md` «aún no existe» y el acta de la Fase 1 §7 lo repite; la ficha F-073 los daba por verificados. Se corrige al cerrar la Fase 2 (Paso 14, punto 3).
+- **Relacionada con:** **F-073**, que queda superada por este hallazgo: lo que allí se verificó como cierto dejó de serlo al escribirse el plan de la Fase 2.
+- **Estado:** abierta.
+
+---
+
+## F-128 · La §7.12 corre las pruebas en la PC sin que esté medido si esta PC tiene Pillow
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §7.12 (goldens de la sub-fase 2b) y Paso 12.
+- **Qué pasa (texto del lente, tal cual):** §7.12 manda correr `python -m unittest discover -s tests -t .` en la PC, pero no está medido que esta PC tenga Pillow instalado; si falta, las pruebas podrían fallar por entorno y no por el cambio de 2b. (Sí está verificado que en esta PC `python` es C:/Python314/python 3.14.4 y que `python3` es el atajo de la Microsoft Store, tal como dice el plan.)
+- **Relacionada con:** **F-121** (donde se verifica la parte del intérprete).
+- **Estado:** abierta.
+
+---
+
+## F-129 · El bucle de diferencias del Paso 11 solo recorre las llaves de primer nivel
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 11 punto 3 (bloque `python - <<"PY"` que compara los dos `config.json`).
+- **Qué pasa (texto del lente, tal cual):** Paso 11, punto 3: el bucle de diferencias solo recorre las llaves de primer nivel, así que una diferencia dentro de `impresora` se reporta como «difiere: impresora -> {...} | {...}» sin señalar la llave concreta. El veredicto `IGUALES`/`DISTINTOS` sí es exacto; el detalle es solo poco legible.
+- **Estado:** abierta.
+
+---
+
+## F-130 · La «Regla de emergencia sin VID:PID» del Paso 4 deja el golden `grep -c idVendor` en `0`
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 4 («Regla de emergencia sin VID:PID») y §7.3.
+- **Qué pasa (texto del lente, tal cual):** Paso 4, «Regla de emergencia sin VID:PID»: deja `grep -c idVendor … → 0`, excepción ya contemplada en la §7.3. Sin conflicto, pero conviene que el acta cruce ambos sitios si se usa.
+- **Relacionada con:** **F-118** y **F-102**.
+- **Estado:** abierta.
+
+---
+
+## F-131 · §5 trampa 4 y §6 siguen citando `escpos.py` línea 560 y hoy la apertura está en la 562
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §5 trampa 4 y §6 (mapa de anclas); `ruleta/escpos.py`.
+- **Qué pasa (texto del lente, tal cual):** §5 trampa 4 y §6 siguen citando `escpos.py` línea 560 para el modo `"ab"`; medido hoy la apertura está en la 562. Es la familia de desfases ya recogida en F-095/F-108, que además discrepan entre sí en un número: re-grep obligatorio antes de tocar esas líneas.
+- **Relacionada con:** **F-095** y **F-108** (misma familia, y discrepan entre sí en un número). **Re-grep obligatorio antes de tocar esas líneas.**
+- **Estado:** abierta.
+
+---
+
+## F-132 · Verificados los anclajes de `instalar.sh`, `ruleta.service`, `emparejar.sh`, `config.py`, `escpos.py`, README y los mensajes de log del Paso 13
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §6 (mapa de anclas), §7.5, §7.7 y Paso 9.
+- **Qué pasa (texto del lente, tal cual):** Verificado y correcto (no requiere acción): los anclajes de `instalar.sh` (2/6 en 36, `usermod` 37-38, regla udev en 50, `systemctl enable` en 67), `ruleta.service` (`SupplementaryGroups=gpio` en 13), `emparejar.sh` (`read -rp` en 55, bloque JSON 124-136, `tipo` en 131), `config.py` (`ConfigImpresora` en 53, `ruta` en 57, `validar` en 266), `escpos.py` (43, 50, 54-57, 67, 546), README (78, 87/92, 153, 225, 255, 429) y los mensajes de log del Paso 13 (`__main__.py` 142, `hardware.py` 83, `app.py` 115 y 268). Los conteos 6/7/9 de las §7.5, §7.7 y del Paso 9 se derivan bien del código y de `config.json`.
+- **Estado:** cerrada de entrada (nota de verificación: no hay nada que corregir).
+
+---
+
+## F-133 · Verificado: la bitácora §0 está enteramente sin marcar, coherente con su propio texto
+
+- **Fecha:** 2026-09-11
+- **Origen:** lentes f2 ronda 2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §0 (Bitácora).
+- **Qué pasa (texto del lente, tal cual):** La bitácora §0 está enteramente sin marcar, coherente con el texto que dice que se marca el día en que se corra el plan: no hay casillas marcadas sin evidencia.
+- **Estado:** cerrada de entrada (nota de verificación: no hay nada que corregir).
+
+---
+
+## F-134 · §0-bis H3 da por hecho el modelo «Zjiang ZJ-80250» y el `ieee1284_id` medido no lo confirma
+
+- **Fecha:** 2026-09-11
+- **Origen:** escéptico f2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, §0-bis H3 (`grep -n "ZJ-80250" docs/planes/fase-2-impresora.md`) y Paso 3; `docs/actas/2026-09-11-hechos-medidos.md`.
+- **Qué pasa (texto del escéptico, tal cual):** §0-bis H3 afirma como hecho que la unidad «es una Zjiang ZJ-80250» a partir del PPD del driver que descargó el usuario; el `ieee1284_id` realmente medido es `MFG:Printer;CMD:EPSON;MDL:POS-80;CLS:PRINTER;1`, que no lo confirma. El Paso 3 sí lo matiza; convendría matizarlo ya en H3.
+- **Por qué es residual:** ningún comando ni criterio del plan depende del nombre comercial; H3 se usa para deducir que hay cortador, zumbador y `DLE EOT 1`, y esas tres cosas ya están medidas por separado (§0-bis H9). Es una etiqueta de confianza de más, no un dato que mueva un paso.
+- **Estado:** abierta.
+
+---
+
+## F-135 · El `sudo dmesg | tail -n 30` del Paso 3 puede no traer la enumeración de la impresora
+
+- **Fecha:** 2026-09-11
+- **Origen:** escéptico f2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 3, bloque «QUÉ HACER — medición común (siempre)» (`grep -n "dmesg" docs/planes/fase-2-impresora.md`).
+- **Qué pasa (texto del escéptico, tal cual):** Paso 3: `sudo dmesg | tail -n 30` puede no contener la enumeración de la impresora si lleva conectada desde el arranque y hubo mensajes posteriores (que es justo el estado descrito en H2/H9). `sudo dmesg | grep -iE "usblp|usb 1-" | tail -n 20` es más fiable para lo que se busca.
+- **Por qué es residual:** no bloquea porque la línea `usblp0: ...` que se busca en `dmesg` es informativa: quien decide la rama del Paso 3 es `ls -l /dev/usb/`. Si `dmesg` no la trae, el ejecutor se queda sin la confirmación bonita, no sin el dato.
+- **Estado:** abierta.
+
+---
+
+## F-136 · El bloque de Python del Paso 11 abre `config.json` con ruta relativa y no dice desde dónde correrlo
+
+- **Fecha:** 2026-09-11
+- **Origen:** escéptico f2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 11 punto 3 (bloque `python - <<"PY"`).
+- **Qué pasa (texto del escéptico, tal cual):** Paso 11, punto 3: el bloque de Python abre `config.json` con ruta relativa; no dice explícitamente que hay que correrlo desde la raíz del repositorio de la PC (a diferencia de los comandos de la Pi, que sí llevan `cd ~/ruleta`).
+- **Por qué es residual:** si se corre desde otra carpeta el intento revienta con `FileNotFoundError`, que es ruidoso e inequívoco: no puede pasar por bueno un `IGUALES` falso.
+- **Estado:** abierta.
+
+---
+
+## F-137 · Verificado y correcto en la ronda del escéptico: vectores de estado, conteos del Paso 9 y §7.7, el commit `601c4c2b64…` y los anclajes de README, `instalar.sh`, `emparejar.sh` y `ruleta.service`
+
+- **Fecha:** 2026-09-11
+- **Origen:** escéptico f2
+- **Dónde:** `docs/planes/fase-2-impresora.md`, Paso 12 cambio (b), Paso 9, §7.7, Paso 1 y §6 (mapa de anclas); `ruleta/escpos.py`, `ruleta/ticket.py`, `ruleta/__main__.py`, `config.json`, `tests/`.
+- **Qué pasa (texto del escéptico, tal cual):** Verificado y correcto, para que nadie lo vuelva a auditar: los vectores de los goldens de 2b(b) coinciden con `ruleta/escpos.py` (`_MASCARA_FIJA_ESTADO=0x93`, `_VALOR_FIJO_ESTADO=0x12`, papel `& 0x60` sin papel, papel `& 0x0C` poco papel, estado `& 0x08` fuera de línea, `timeout_estado=1.0`, orden PAPEL→IMPRESORA en `_verificar_lista`); los conteos del Paso 9 y de la §7.7 se derivan bien (7 premios `test*` en `config.json`; 9 documentos con `[CORTE]` = 7 premio + consuelo + inventario, `ticket.py:94` dentro del cierre común); `grep -c "[ok]" ruleta/__main__.py` da 6; `601c4c2b64fc93e2a76b539f2b79fee9e1f91843` existe, es el cierre de Fase 1, coincide con `origin/main`, su `config.json` trae `"tipo": "bluetooth"` sin `"ruta"`, y `git ls-files -s` da `100755` para `instalar.sh` y `herramientas/emparejar.sh`; el único test que lee `config.json` (`test_config_json_del_proyecto_es_valido`) solo comprueba 7 premios y un stock, así que `tipo archivo` + `ruta` no rompe la suite; los anclajes de README (78, 87, 153, 225, 255, 429), `instalar.sh` (36-38, 50, 67, 69), `emparejar.sh` (55, 131) y `ruleta.service` (13) están donde dice el plan.
+- **Relacionada con:** **F-121**, **F-122** y **F-132** (mismas notas de verificación; ésta añade lo que aquéllas no cubren: el contenido del commit `601c4c2b64…`, los modos `100755` de `git ls-files -s` y el alcance real de `test_config_json_del_proyecto_es_valido`).
+- **Estado:** cerrada de entrada (nota de verificación: no hay nada que corregir).
