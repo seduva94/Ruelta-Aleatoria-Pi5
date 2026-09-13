@@ -4271,3 +4271,294 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Estado:** abierta (cosmética).
 
 ---
+
+## F-229 · El evento del 21 al 25 de septiembre ya tiene documento propio, y pide tres funciones que el programa no tiene
+
+- **Fecha:** 2026-09-13
+- **Origen:** evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` (documento nuevo);
+  `config.json` (bloque `premios`, todavía con `test1`…`test7`);
+  `ruleta/inventario.py` (`disponibles`, `probabilidades`, `sortear`);
+  `ruleta/config.py` (`Premio`, `ConfigJuego`, `ConfigConsuelo`).
+- **Qué pasa:** el usuario dictó el evento real el 2026-09-13 (fechas 21 al 25
+  de septiembre de 2026, horario de 12:00 a 23:00 hora de Hermosillo y los siete
+  premios con su stock y su cupo diario). Eso quedó escrito en
+  **`docs/evento-2026-09-asadero-33.md`**, que desde hoy es **la fuente de
+  verdad del evento**: si ese documento y `config.json` dicen cosas distintas,
+  **gana el documento** y el `config.json` se rehace desde él. El documento trae
+  además la propuesta de nombres para el boleto, el modelo de probabilidad
+  («peso = cupo diario», consuelo con peso N − 33) con escenarios para
+  N = 150 / 250 / 400 jugadas al día, las franjas propuestas y siete preguntas
+  abiertas con su valor por omisión. **Nada de esto se aplicó todavía a
+  `config.json`.**
+- **Las tres funciones que faltan** (marcadas «PENDIENTE DE CONSTRUIR» en el
+  documento):
+  1. **A · Probabilidad propia del boleto de consuelo.** Hoy
+     `Inventario.sortear` devuelve `None` **solo** cuando `disponibles()` está
+     vacía, así que con los premios del evento **las primeras 33 jugadas del día
+     ganan seguidas** (34 el 24 y el 25) y de ahí en adelante todo es consuelo.
+     Medido el 2026-09-13 corriendo `sortear`/`emitir` con el bloque propuesto:
+     el primer consuelo del lunes 21 es la jugada **34**, y el del jueves 24 la
+     **35**. Propuesta de forma: `juego.consuelo.peso`.
+  2. **B · Franjas horarias por premio, con tope por franja.** Hoy solo existen
+     `tope_diario` y `desde`/`hasta`, que trabajan por día completo; **no hay
+     manera de decir «de 19:00 a 23:00»**. Sin esto, la hielera puede salir a
+     cualquier hora del 24 o del 25, en contra del dictado. Propuesta de forma:
+     `franjas: [{desde_hora, hasta_hora, tope, peso}]` por premio, con el premio
+     no disponible fuera de sus franjas y el `peso` de la franja mandando sobre
+     el del premio.
+  3. **C · Horario del evento.** El programa no conoce la hora de apertura ni la
+     de cierre: juega a cualquier hora en que se apriete JUGAR con el mesero
+     habilitando. Propuesta de forma:
+     `juego.horario: {abre, cierra, fuera_de_horario}`, con
+     `fuera_de_horario` = `"no_jugar"` o `"consuelo"` (pregunta 5 del documento).
+- **Por qué es residual:** no es defecto de conducta del código ni afirmación
+  falsa de ningún documento: hoy el programa hace exactamente lo que dice su
+  documentación. Son **funciones que el evento pide y que no se han escrito**, y
+  su construcción es una fase con su propio plan, no una corrección de esta
+  pasada. Esta pasada solo podía escribir
+  `docs/evento-2026-09-asadero-33.md` y `docs/fichas.md`.
+- **Riesgo si no se toca:** grande, y con fecha. Si el evento abre el lunes 21
+  con el `config.json` de hoy: (1) los premios `test1`…`test7` siguen puestos;
+  (2) aunque se carguen los siete reales, **las 33 primeras jugadas de cada día
+  regalan premio** y a media tarde ya no queda nada que dar; (3) la hielera, que
+  es el premio mayor y solo hay dos, puede salir a las 12:30 del jueves en vez
+  de por la noche.
+- **Propuesta:** (a) que el usuario conteste las siete preguntas del §4 del
+  documento —sobre todo **N**, las jugadas esperadas por día—; (b) abrir una
+  fase de programación para A, B y C con plan prescriptivo y goldens; (c) recién
+  entonces convertir el §5 del documento en `config.json`; (d) antes del lunes
+  21, `python3 -m ruleta reiniciar --si` con el servicio detenido, y cotejar
+  `python3 -m ruleta reporte` contra la tabla del §1 del documento.
+- **Estado:** **abierta.** El documento existe y su aritmética está comprobada
+  (cupo × días = stock para los siete premios, 167 piezas; el bloque JSON del
+  §5.1 carga sin error en `ruleta/config.py`; los siete nombres se imprimen en
+  tamaño ×4 a 48 columnas). Lo que queda abierto es A, B, C y las respuestas del
+  usuario.
+
+---
+
+## F-230 · El «Aviso 1» del documento del evento usa el modelo de Poisson y el programa real entrega un punto más
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §2, «Aviso 1 — el cupo es un
+  **techo**, no una promesa» (tabla «Se entregan, en promedio»).
+- **Qué pasa:** la tabla reproduce **exactamente** el modelo de Poisson
+  E[min(X, cupo)]: agua 9.69, cerveza 8.75, tacos 3.22 cada uno, silla y set 1.46
+  cada uno, total **27.79 de 33 = 84.2 %**. Pero el proceso real del programa
+  **renormaliza los pesos** cuando un premio llega a su cupo y sale de la
+  tómbola, así que los que quedan valen más y se entrega **un poco más**:
+  simulación exacta del sorteo con N = 250 y 20 000 días → agua 9.77, cerveza
+  8.85, tacos 3.25, silla 1.49, total **28.11 de 33 = 85.2 %** (≈ **140** piezas
+  en los 5 días; sobrarían **~25** en vez de 26).
+- **Por qué es residual:** la diferencia es de **~1 punto**, y cae dentro del
+  «unas» con que está escrita la conclusión del documento («unas 139 piezas»,
+  «sobrarían unas 26»). No es una afirmación falsa: es un modelo aproximado que
+  se queda corto por el lado conservador. Corregirlo obliga a rehacer **toda** la
+  tabla con otro modelo (simulación en vez de Poisson), y eso es una pasada
+  entera, no una corrección de una celda.
+- **Riesgo si no se toca:** ninguno operativo. A lo sumo, el día del evento
+  sobran una o dos piezas menos de las anunciadas.
+- **Propuesta:** cuando el usuario fije **N** y se rehaga el §2 con los números
+  definitivos, recalcular esa tabla con la simulación del sorteo real (no con
+  Poisson) y decirlo en una nota al pie.
+- **Estado:** abierta.
+
+---
+
+## F-231 · La fila 2.0 de la tabla del factor de holgura dice 98 % y lo calculado es 98.9 %
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §2, tabla «Factor / Se entrega
+  del cupo / Costo».
+- **Qué pasa:** con el modelo de la propia tabla, el factor **2.0** da
+  **98.93 %**; el documento escribe **98 %**. Redondeando serían 99.
+- **Por qué es residual:** es **consistente con truncar**, que es lo que hacen
+  las otras filas verificadas: 1.0 → 84.21 se escribe 84, y 1.25 → 92.39 se
+  escribe 92. Con esa convención el 98 está bien. La única fila que quedaba
+  realmente fuera de convención era la de **1.5** (decía 95 contra 96.29
+  calculado), y ésa **sí** se pidió como corrección y ya se aplicó el
+  2026-09-13.
+- **Riesgo si no se toca:** ninguno; es un punto porcentual en una tabla que solo
+  sirve para elegir entre cuatro opciones muy separadas entre sí.
+- **Propuesta:** cuando se rehaga el §2, declarar la convención en una nota
+  («los porcentajes van truncados») o pasar todas las filas a un decimal:
+  84.2 / 92.4 / 96.3 / 98.9.
+- **Estado:** abierta.
+
+---
+
+## F-232 · «Cuántas jugadas ganan algo» usa 34/N y con la hielera en la tómbola el total de papelitos es N+1
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §2, tabla «Cuántas jugadas ganan
+  algo», renglón «Jueves 24 y viernes 25 (33 + la hielera)».
+- **Qué pasa:** ese renglón calcula **34 ÷ N** (con N = 250 da **13.60 %**). Eso
+  vale como **fracción de jugadas que ganan si se llenan todos los cupos del
+  día**. Pero si la hielera también tiene su papelito en la tómbola **todo el
+  día** —como en el bloque del §5.1, donde la hielera lleva `"peso": 1`— entonces
+  el total de papelitos del jueves y del viernes no es N sino **N + 1**, y la
+  cifra **por jugada** baja a 34 ÷ 251 = **13.55 %**.
+- **Por qué es residual:** la diferencia es de **0.05 puntos** y las dos lecturas
+  son legítimas; lo que falta es decir de cuál se habla. Además el número solo se
+  usa para la frase de calle «gana más o menos 1 de cada 8 personas», que no
+  cambia.
+- **Riesgo si no se toca:** confusión menor si alguien rehace la cuenta y no le
+  da igual.
+- **Propuesta:** al rehacer el §2, aclarar en una nota que el renglón supone que
+  **se llenan los cupos**, y que la probabilidad por jugada del jueves y el
+  viernes se reparte entre **N + 1** papelitos mientras la hielera esté en la
+  tómbola.
+- **Estado:** abierta.
+
+---
+
+## F-233 · El párrafo del reloj está en «lo que YA se puede cargar hoy» pero habla de las franjas, que son la pieza B
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §5.1, párrafo que empieza
+  «**Sobre el reloj:** las franjas dependen de la hora de la Pi…».
+- **Qué pasa:** el §5.1 se titula «Lo que YA se puede cargar hoy» y ese párrafo
+  habla de **las franjas**, que son la **pieza B**, todavía **pendiente de
+  construir**. El contenido es correcto y el aviso importa mucho (en producción
+  la Pi va sin red, así que la **batería del RTC** tiene que estar puesta y la
+  hora correcta antes del lunes 21), pero está en la sección equivocada.
+- **Por qué es residual:** no es una afirmación falsa —lo que dice del reloj es
+  cierto— sino un problema de **ubicación**. Y el aviso del RTC vale igual aunque
+  no haya franjas: la fecha del día operativo y los `desde`/`hasta` de los
+  premios también dependen del reloj de la Pi.
+- **Riesgo si no se toca:** que alguien lea el §5.1 y crea que las franjas ya
+  funcionan.
+- **Propuesta:** mover el párrafo al §5.2 (junto a la pieza B), **o** dejarlo
+  donde está con la marca **PENDIENTE DE CONSTRUIR · pieza B** y separar en un
+  renglón aparte el aviso del RTC, que sí aplica hoy.
+- **Estado:** abierta.
+
+---
+
+## F-234 · El documento del evento no dice en ninguna parte qué tiene `config.json` hoy
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §6 («Cómo se modifica este
+  documento y qué pasa después»); `config.json`, bloque `premios`.
+- **Qué pasa:** el documento explica cómo se convertirá en `config.json`, pero
+  **nunca dice qué hay cargado hoy**. Medido el 2026-09-13 en el `config.json`
+  del repo: **siete premios de prueba, `TEST 1`…`TEST 7`**, con pesos
+  **4 / 4 / 1 / 25 / 25 / 25 / 25**, stocks **10 / 10 / 1 / 50 / 50 / 50 / 50**,
+  topes diarios **2 / 2 / 1 / 10 / 10 / 10 / 10** y **sin** `desde` ni `hasta`.
+  Nada de eso se parece al evento.
+- **Por qué es residual:** el documento no afirma lo contrario en ningún lado; es
+  una **ausencia**, no una falsedad. La **F-229** ya deja constancia de que los
+  `test1`…`test7` siguen puestos, pero lo hace en `docs/fichas.md`, que el dueño
+  del restaurante no lee.
+- **Riesgo si no se toca:** que el dueño edite el documento, vea que «todo
+  cuadra» y suponga que la Pi ya está cargada con sus siete premios. Si el evento
+  abriera así, la ruleta repartiría `TEST 1`…`TEST 7`.
+- **Propuesta:** agregar al §6 un renglón corto al principio: «**Hoy la Pi tiene
+  premios de prueba** (`TEST 1` a `TEST 7`). Lo de este documento **todavía no
+  está cargado**», y remitir al paso 5 del mismo §6
+  (`python3 -m ruleta reiniciar --si`).
+- **Estado:** abierta.
+
+---
+
+## F-235 · La marca * del §1 dice «propuesta mía» sobre nombres que en realidad salen del dictado
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §1, columna «NOMBRE EN EL
+  BOLETO» y la nota «**\*** = propuesta mía, **a confirmar**».
+- **Qué pasa:** los siete nombres llevan la marca **\***, o sea «propuesta mía»,
+  pero **los nombres salen del dictado del usuario** (Hielera Igloo, Silla de
+  playa, Set BBQ, tacos de pastor, cerveza, agua fresca). Lo único que de verdad
+  se propone es **la redacción para el boleto**: las mayúsculas y la forma corta
+  («3 TACOS DE PASTOR» en vez de «Plato 3 tacos pastor»), más el **texto del
+  detalle**.
+- **Por qué es residual:** la marca peca **por exceso de prudencia**, no por
+  falsedad: marcar de más como «a confirmar» no le hace creer al dueño que algo
+  suyo ya está decidido, que es el daño que sí importa. Y la pregunta 6 del §4
+  invita justamente a corregir esa tabla.
+- **Riesgo si no se toca:** que el dueño crea que **nada** de esa tabla es suyo y
+  se ponga a revisar de cero lo que ya dictó.
+- **Propuesta:** precisar en la nota del §1: «**\*** = **la redacción** es
+  propuesta mía (mayúsculas, forma corta y texto del detalle); **los premios y
+  sus cantidades son tu dictado**».
+- **Estado:** abierta.
+
+---
+
+## F-236 · «Peso del consuelo = N − 33» no contempla que el jueves y el viernes hay 34 premios
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §2, «La regla que propongo: el
+  peso es el cupo» y «Aviso 2» (la nota «(150 → 117 · 200 → 167 · 250 → 217 ·
+  300 → 267 · 400 → 367)»); §5.2, bloque **PENDIENTE A**.
+- **Qué pasa:** la regla se justifica porque deja la tómbola en **exactamente N
+  papelitos**, y eso es cierto de lunes a miércoles (33 premios + N − 33). Pero
+  **el jueves 24 y el viernes 25 hay 34 premios** (entra la hielera), así que
+  esos dos días la tómbola tiene **N + 1** papelitos. Para que la propiedad
+  limpia se cumpliera también esos dos días, el peso del consuelo tendría que ser
+  **N − 34**. La lista de equivalencias tampoco lo contempla.
+- **Por qué es residual:** el efecto es de **un papelito entre N** (con N = 250,
+  0.4 %), y el peso del consuelo es **un solo número en el `config.json`** que no
+  puede cambiar por día. Elegir N − 33 para los cinco días es lo simple y lo
+  correcto de operar; lo que falta es **decirlo**.
+- **Riesgo si no se toca:** que alguien rehaga la cuenta del jueves, vea N + 1 y
+  crea que hay un error en la regla.
+- **Propuesta:** agregar media línea al §2: «el jueves y el viernes entra la
+  hielera, así que la tómbola tiene N + 1 papelitos; dejamos N − 33 los cinco
+  días porque el peso del consuelo es un solo valor y la diferencia es de un
+  papelito».
+- **Estado:** abierta.
+
+---
+
+## F-237 · La etiqueta «el cupo, sin ajustar» de la tabla de la silla nombra el cupo diario, no el de la franja
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §3, tabla «Peso de la silla en
+  su franja», primera fila: «2 (el cupo, sin ajustar)».
+- **Qué pasa:** dentro de esa franja el **cupo es 1** (así está en la tabla de
+  franjas del mismo §3: «Cupo en esa franja | 1»). El **2** es el **cupo
+  diario** del premio, que es también el `peso` que lleva la silla en el bloque
+  del §5.1. La etiqueta mezcla los dos.
+- **Por qué es residual:** **el número del cálculo está bien** —la fila compara
+  qué pasaría si se usara el peso 2 sin ajustar por la duración de la franja— y
+  la conclusión de la tabla no cambia. Es la **etiqueta** la que confunde.
+- **Riesgo si no se toca:** que el dueño lea «el cupo» y crea que puede salir más
+  de una silla por franja.
+- **Propuesta:** reescribir la etiqueta como «2 (el **cupo diario**, sin ajustar
+  por la franja)».
+- **Estado:** abierta.
+
+---
+
+## F-238 · Los `id` de los siete premios son invención mía y no llevan la marca *
+
+- **Fecha:** 2026-09-13
+- **Origen:** lente doc evento
+- **Dónde:** `docs/evento-2026-09-asadero-33.md` §1, primera columna
+  (`hielera`, `silla`, `bbq`, `tacos3`, `tacos2`, `cerveza`, `agua`); también en
+  el bloque JSON del §5.1.
+- **Qué pasa:** esos siete `id` **no salen del dictado**: los propuse yo, y sin
+  embargo son de las pocas celdas del §1 **sin** la marca **\***, que según la
+  nota del propio §1 significa «tu dictado, literal».
+- **Por qué es residual:** son **internos**: nunca los ve el cliente, no se
+  imprimen en el boleto y el dueño no los va a escribir a mano. Aun así aparecen
+  en `datos/boletos.csv` y en el reporte de inventario
+  (`python3 -m ruleta reporte`), que sí se leen en el asadero.
+- **Riesgo si no se toca:** ninguno operativo; a lo sumo el dueño ve `tacos3` en
+  un reporte y no sabe de dónde salió.
+- **Propuesta:** una línea bajo la tabla del §1: «los `id` de la primera columna
+  son nombres cortos internos que yo elegí; solo aparecen en la bitácora y en el
+  reporte de inventario, nunca en el boleto».
+- **Estado:** abierta.
+
+---
