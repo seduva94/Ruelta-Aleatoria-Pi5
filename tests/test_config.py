@@ -141,6 +141,13 @@ class TestCargar(unittest.TestCase):
         cfg = configmod.cargar(Path(__file__).resolve().parent.parent / "config.json")
         self.assertEqual(len(cfg.premios), 7)
         self.assertEqual(cfg.premios[2].stock, 1)
+        # Decisión del usuario del 2026-09-13, viéndolo en la demo: el boleto de
+        # consuelo NO dice que los premios se agotaron. Se ancla por igualdad y no
+        # por presencia porque el valor por omisión del código (ruleta/config.py)
+        # sigue siendo el texto viejo: borrar el bloque juego.consuelo del
+        # config.json lo devolvería sin que nada más se queje.
+        self.assertEqual(cfg.juego.consuelo.titulo, "SIGUE PARTICIPANDO")
+        self.assertEqual(cfg.juego.consuelo.texto, "¡Gracias por jugar!")
 
     def test_config_json_del_proyecto_apunta_a_la_impresora_usb(self):
         """Lo medido en la Pi el 2026-09-11: USB por /dev/ruleta-impresora, con pitido.

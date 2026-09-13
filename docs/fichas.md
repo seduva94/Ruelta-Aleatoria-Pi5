@@ -2248,7 +2248,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   sonoro.
 - **Propuesta:** anotar en D8 que quedó revisada el 2026-09-11 y por qué, en el
   cierre de la Fase 2.
-- **Estado:** abierta. El plan ya no se contradice a sí mismo: la decisión **D8** dice ahora que el papel confirmó `codepage_n`, `chars_por_linea` y `corte`, y que **`beep` es el único valor que cambió**, a `true`, por decisión del usuario después de oír el zumbador. La ficha sigue abierta por si el usuario prefiere volver a `false` cuando lo oiga una noche entera de evento.
+- **Estado:** abierta, como vigilancia. El plan ya no se contradice a sí mismo: la decisión **D8** dice ahora que el papel confirmó `codepage_n`, `chars_por_linea` y `corte`, y que **`beep` es el único valor que cambió**, a `true`, por decisión del usuario después de oír el zumbador el 2026-09-11 (**F-188** y `docs/actas/2026-09-11-fase-2.md` §6 punto 2 y §10). La ficha sigue abierta por si el usuario prefiere volver a `false` cuando lo oiga una noche entera de evento; cerrarla es decisión suya, no de un agente, y la pasada del texto de consuelo no la traía en su alcance (ver **F-223**).
 
 ---
 
@@ -2980,7 +2980,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   F-185): `cd ~/ruleta && python3 -m ruleta probar-impresora`, mirar el papel y
   decidir sobre `beep` (F-160). Y preguntarle al usuario por el boleto de las
   22:32.
-- **Estado:** **resuelta** el 2026-09-11 ~23:20 con la reprueba post-2b, **confirmada en papel por el usuario**: «todas las pruebas salieron y se escucharon los beeps». Cubre las tres cosas que faltaban: el **boleto de prueba con las cuatro tablas de acentos en dos renglones, sin líneas partidas** (cambio (f) de 2b, visto por fin impreso); el **boleto de inventario de arranque**; y **un pitido al final de cada boleto** (`"beep": true` operativo por USB). Queda escrito en `docs/actas/2026-09-11-fase-2.md` §10 y en la bitácora del plan (fila 13-bis). **Lo que esta ficha NO cierra:** el cambio de rollo (**F-190**, abierta) y la decisión de dejar `beep` en `true` durante toda la semana del evento (**F-160**, abierta).
+- **Estado:** **resuelta** el 2026-09-11 ~23:20 con la reprueba post-2b, **confirmada en papel por el usuario**: «todas las pruebas salieron y se escucharon los beeps». Cubre las tres cosas que faltaban: el **boleto de prueba con las cuatro tablas de acentos en dos renglones, sin líneas partidas** (cambio (f) de 2b, visto por fin impreso); el **boleto de inventario de arranque**; y **un pitido al final de cada boleto** (`"beep": true` operativo por USB). Queda escrito en `docs/actas/2026-09-11-fase-2.md` §10 y en la bitácora del plan (fila 13-bis). **Lo que esta ficha NO cierra:** el cambio de rollo (**F-190**, abierta) y la decisión de dejar `beep` en `true` durante toda la semana del evento (**F-160**, abierta: el usuario ya los oyó y los aprobó el 2026-09-11, pero la vigilancia para la semana del evento sigue en pie).
 
 ---
 
@@ -3936,5 +3936,338 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   podía tocar `logo.png` y `docs/fichas.md`.
 - **Estado:** anotación (no se actúa; la mejora necesita una pasada que pueda
   tocar `.gitattributes`).
+
+---
+
+## F-220 · El boleto de consuelo ya no anuncia que los premios se agotaron, pero el valor por omisión del código sí
+
+- **Fecha:** 2026-09-13
+- **Origen:** usuario en demo
+- **Dónde:** `config.json` (`juego.consuelo.texto`), `tests/test_config.py`
+  (`test_config_json_del_proyecto_es_valido`), `ruleta/config.py`
+  (`ConfigConsuelo.texto`, `grep -n "Por hoy se agotaron" ruleta/config.py`) y
+  `tests/test_ticket.py` (`test_consuelo`).
+- **Qué pasa:** viendo la demo, el usuario decidió que el boleto de
+  «SIGUE PARTICIPANDO» **no** debe decirle al cliente que los premios se
+  acabaron. El `config.json` del repositorio pasó de
+  `"Por hoy se agotaron los premios. ¡Gracias por jugar!"` a
+  **`"¡Gracias por jugar!"`**, y un golden nuevo ancla por igualdad ese texto y
+  el título. Lo residual es que **el valor por omisión del código no cambió**:
+  `ruleta/config.py` sigue trayendo el texto viejo y `test_consuelo` lo
+  comprueba con `assertIn("Por hoy se agotaron los premios. ¡Gracias por", …)`,
+  porque arma una config sintética sin bloque `juego.consuelo`.
+- **Por qué es residual:** la impresora obedece al `config.json`, que es el
+  archivo que viaja a la Pi con `git pull`; el defecto del código solo asomaría
+  si alguien borrara el bloque `juego.consuelo`. Y el golden nuevo se pone en
+  rojo justo en ese caso: medido como mutación M9 de esta pasada
+  (`'Por hoy se agotaron los premios. ¡Gracias por jugar!' != '¡Gracias por jugar!'`).
+- **Riesgo si no se toca:** dos textos oficiales conviviendo. Quien lea
+  `ruleta/config.py` o `tests/test_ticket.py` creerá que el boleto todavía
+  anuncia el agotamiento.
+- **Propuesta:** en una pasada que pueda escribir `ruleta/` y
+  `tests/test_ticket.py`, poner el mismo texto como valor por omisión y volver
+  ese `assertIn` una igualdad. **No se hizo:** esta pasada solo podía escribir
+  `config.json`, `tests/test_config.py` y `docs/fichas.md`.
+- **Estado:** abierta en cuanto al defecto del código. La decisión del usuario
+  ya está aplicada y anclada: `config.json` dice `"¡Gracias por jugar!"` y la
+  suite completa quedó en verde (194 pruebas) el 2026-09-13.
+
+---
+
+## F-221 · `juego.consuelo.texto` admite la cadena vacía sin queja
+
+- **Fecha:** 2026-09-13
+- **Origen:** ejecutor de la decisión del consuelo · mutación M4
+- **Dónde:** `ruleta/config.py`, validación de `juego.consuelo`
+  (`grep -n "consuelo" ruleta/config.py`).
+- **Qué pasa:** al mutar el `config.json` de la copia con
+  `"texto": ""` el cargador **no** protesta: la única razón por la que la
+  mutación se puso en rojo fue el golden nuevo, que compara el texto exacto. Con
+  otro texto vacío en producción el boleto de consuelo saldría con el título
+  grande y **una línea en blanco** debajo. Compárese con `negocio.nombre`, que
+  sí rechaza `"  "` (`tests/test_config.py`, "negocio.nombre").
+- **Por qué es residual:** nadie vacía ese texto por accidente y hoy el golden
+  lo cubre para el `config.json` del repositorio; no cubre un `config.json`
+  editado a mano en la Pi.
+- **Riesgo si no se toca:** un boleto de consuelo mudo, sin aviso en el log.
+- **Propuesta:** exigir texto no vacío en `juego.consuelo.titulo` y
+  `juego.consuelo.texto`, como ya se hace con `negocio.nombre`. **No se hizo:**
+  `ruleta/config.py` no estaba en el alcance de escritura de esta pasada.
+- **Estado:** abierta.
+
+---
+
+## F-222 · Verificado por los lentes del consuelo: alcance, 8 mutaciones en rojo, 194 pruebas y el papel a 48 columnas
+
+- **Fecha:** 2026-09-13
+- **Origen:** lentes consuelo
+- **Dónde:** `config.json` (`juego.consuelo`), `tests/test_config.py`
+  (`test_config_json_del_proyecto_es_valido`), las fichas **F-220** y **F-221**,
+  y la vista previa (`python -m ruleta vista-previa`).
+- **Qué pasa:** queda por escrito lo que midieron los dos lentes y el escéptico
+  sobre la pasada del texto de consuelo, para no volver a auditar lo mismo:
+  1. **Alcance:** el cambio toca exactamente los tres archivos permitidos
+     (`config.json`, `tests/test_config.py`, `docs/fichas.md`), sin archivos sin
+     rastrear, sin secretos, los tres en **UTF-8 sin BOM y con LF**, y el
+     `config.json` sigue siendo **JSON válido**.
+  2. **El golden muerde:** 8 mutaciones por copia en el scratchpad (nunca en el
+     repositorio), **las 8 en rojo**: el texto viejo («Por hoy se agotaron los
+     premios…»), texto vacío, texto con espacio final, texto sin la «¡» inicial,
+     texto en minúsculas, título con espacio final, título
+     `"SEGUI PARTICIPANDO"` y **borrar el bloque `juego.consuelo`** (que cae al
+     valor por omisión del código). Al restaurar el archivo, verde.
+  3. **Suite completa: 194 pruebas OK**, vuelta a correr en esta ronda
+     correctiva (`python -m unittest discover -s tests -t .`).
+  4. **Render real** con el `config.json` del repositorio: el boleto de consuelo
+     saca el título en 3x partido en dos renglones (`SIGUE` / `PARTICIPANDO`),
+     `¡Gracias por jugar!` centrado en **una sola línea**, sin renglón en blanco
+     de más, y con `[BEEP]` y `[CORTE]` intactos.
+  5. **Ancho de papel:** lo único que pasa de 48 columnas en la vista previa son
+     las tres líneas de corte (56 caracteres), y el exceso son los 8 caracteres
+     del marcador ` [CORTE]`, que lo pone el visor y no el papel. El **ancho
+     real máximo, con el bloque de consuelo incluido, es 48** (23 líneas lo
+     tocan exacto).
+  6. **F-220 comprobada afirmación por afirmación:** `ruleta/config.py:95` sigue
+     con el texto viejo, `tests/test_ticket.py:149` lo ancla con `assertIn`, el
+     `config_base()` de `tests/test_ticket.py` no trae bloque `juego` (por eso
+     cae al valor por omisión), y `config.json` está rastreado en git y es el
+     que `instalar.sh:93` usa en la Pi.
+  7. **F-221 comprobada:** `cargar()` acepta `juego.consuelo.texto = ""` y
+     `"  "` sin queja (medido otra vez en esta ronda), mientras
+     `negocio.nombre` sí rechaza `"  "` con «negocio.nombre no puede estar
+     vacío» (`ruleta/config.py:335-336`, prueba en `tests/test_config.py:99`).
+  8. **Ningún otro documento queda falso** con el cambio: `README.md:346` elide
+     el valor con «…» y `README.md:231` solo menciona el título
+     «SIGUE PARTICIPANDO» como texto configurable; los planes no citan el texto.
+- **Por qué es residual:** nota de verificación; no pide ningún cambio.
+- **Riesgo si no se toca:** ninguno. El riesgo sería perder los hechos y volver
+  a medirlos, o escribir el acta de memoria, que es lo que el §6 del protocolo
+  prohíbe.
+- **Propuesta:** dejar constancia y copiar estos hechos al acta del 2026-09-13
+  (ficha **F-225**) en lugar de volver a medir.
+- **Estado:** cerrada de entrada (nota de verificación).
+
+---
+
+## F-223 · Una pasada ajena intentó cerrar la F-160; el escéptico lo revirtió y la decisión queda para el usuario
+
+- **Fecha:** 2026-09-13
+- **Origen:** lentes consuelo · revertido por el escéptico
+- **Dónde:** `docs/fichas.md`, bloque **Estado** de la **F-160** y última frase
+  de la **F-188** (`grep -n "F-160" docs/fichas.md`).
+- **Qué pasó:** la pasada del texto de consuelo, además de lo suyo, **cerró la
+  F-160** (el `beep: true` frente a la decisión D8) y **ajustó la F-188** para
+  apuntar a ese cierre. Las dos fichas hablan del zumbador, no del texto del
+  boleto. La evidencia que citaban es real —`docs/actas/2026-09-11-fase-2.md`
+  §6, punto 2, y §10: el usuario decidió `beep: true` **después de oírlo** y lo
+  confirmó en papel, «todas las pruebas salieron y se escucharon los beeps»—,
+  pero **entre el 2026-09-11 y hoy no se midió nada nuevo sobre el zumbador**, y
+  la F-160 quedaba abierta como vigilancia de la semana del evento: su texto
+  decía «La ficha sigue abierta por si el usuario prefiere volver a `false`
+  cuando lo oiga una noche entera de evento», y el acta lo repite en §6 punto 2,
+  «Si en el evento molesta, se pone en `false` y basta reiniciar el servicio».
+  Esa noche entera de evento todavía no pasa.
+- **Qué se hizo:** el escéptico **revirtió los dos retoques antes del commit**:
+  la **F-160** vuelve a estar **abierta** (conservando el puntero nuevo a la
+  evidencia del 2026-09-11) y la **F-188** vuelve a decir «**F-160**, abierta».
+  Así el commit del texto de consuelo no arrastra ninguna decisión del usuario y
+  no hay que esperar su respuesta para commitear.
+- **Por qué queda la ficha:** para que conste que el cierre se propuso, con qué
+  evidencia, y por qué no se aplicó; y para que nadie lo vuelva a intentar desde
+  una pasada que venía a otra cosa.
+- **Riesgo si no se toca:** ninguno ya. El riesgo que se evitó era cerrar por
+  conveniencia una vigilancia que nadie ejerció y sentar el precedente de cerrar
+  fichas ajenas.
+- **Propuesta:** preguntarle al usuario, al cerrar la Fase 4 o después de la
+  primera noche de evento, si el pitido por boleto se queda. Si dice que sí,
+  cerrar la **F-160** en la pasada que la tenga en su alcance. **Requiere al
+  usuario.**
+- **Estado:** cerrada en cuanto al retoque (revertido). La **F-160** sigue
+  abierta.
+
+---
+
+## F-224 · La última frase de la F-188 se leía contradictoria: decía «NO cierra… F-160» y en el mismo renglón la daba por cerrada
+
+- **Fecha:** 2026-09-13
+- **Origen:** lentes consuelo
+- **Dónde:** `docs/fichas.md`, cierre de la **F-188**
+  (`grep -n "Lo que esta ficha NO cierra" docs/fichas.md`).
+- **Qué pasaba:** la frase «**Lo que esta ficha NO cierra:** el cambio de rollo
+  (**F-190**, abierta) y la decisión de dejar `beep` en `true` durante toda la
+  semana del evento (**F-160**, cerrada el 2026-09-13…)» solo se entendía si el
+  lector notaba que ese cierre era **posterior y de otra pasada**. A primera
+  vista parecía que la ficha decía y se desdecía en la misma línea.
+- **Por qué era residual:** era redacción, no un hecho falso: los dos datos eran
+  correctos por separado.
+- **Riesgo si no se toca:** ninguno ya.
+- **Estado:** **resuelta** el 2026-09-13 al revertir el cierre de la F-160
+  (**F-223**): la F-188 vuelve a decir «**F-160**, abierta» y la frase ya no se
+  desdice.
+
+---
+
+## F-225 · La pasada del consuelo no dejó acta del 2026-09-13 ni fila en la bitácora del plan
+
+- **Fecha:** 2026-09-13
+- **Origen:** lentes consuelo
+- **Dónde:** `docs/actas/` (solo hay tres archivos, los tres del 2026-09-11) y
+  la §0 «Bitácora» de `docs/planes/fase-2-impresora.md`.
+- **Qué pasa:** el §6 del protocolo pide actas escritas desde el archivo de
+  hechos medidos y memoria actualizada en cada hito. El cambio del texto de
+  consuelo —decisión del usuario viendo la demo, golden nuevo por igualdad y las
+  fichas F-220 a F-226— no tiene acta ni fila de bitácora. **No se hizo porque
+  el alcance de escritura de la pasada eran solo `config.json`,
+  `tests/test_config.py` y `docs/fichas.md`.**
+- **Por qué es residual:** nada de lo escrito es falso; lo que falta es el
+  registro, y escribirlo no le tocaba al ejecutor de esta pasada.
+- **Riesgo si no se toca:** en una semana nadie sabrá por qué el `config.json`
+  dice `¡Gracias por jugar!` sin ir a leer las fichas, y el acta acabará
+  escribiéndose de memoria.
+- **Propuesta:** el orquestador escribe `docs/actas/2026-09-13-consuelo.md`
+  desde el archivo de hechos de la sesión —los hechos medidos ya están en la
+  **F-222**— y agrega la fila de bitácora antes de cerrar la fase.
+- **Estado:** abierta, para el orquestador.
+
+---
+
+## F-226 · El golden del texto de consuelo vive en `test_config_json_del_proyecto_es_valido`, cuyo nombre no lo anuncia
+
+- **Fecha:** 2026-09-13
+- **Origen:** lentes consuelo
+- **Dónde:** `tests/test_config.py:140-150`
+  (`grep -n "consuelo" tests/test_config.py`).
+- **Qué pasa:** las dos igualdades que anclan `juego.consuelo.titulo` y
+  `juego.consuelo.texto` quedaron dentro de
+  `test_config_json_del_proyecto_es_valido`, un test cuyo nombre habla de la
+  **validez del archivo**, no del contenido del boleto de consuelo. Funciona y
+  muerde (8 de 8 mutaciones en rojo, **F-222**), pero un lector futuro no lo
+  buscaría ahí; justo debajo está
+  `test_config_json_del_proyecto_apunta_a_la_impresora_usb`, que sí nombra lo
+  que ancla.
+- **Por qué es residual:** es cosmético; el golden existe, muerde y está en
+  verde. El §5 manda que lo cosmético vaya a ficha, y los lentes no pidieron
+  corrección.
+- **Riesgo si no se toca:** alguien cambia el texto del consuelo, ve fallar un
+  test llamado «…es_valido» y cree que rompió el JSON.
+- **Propuesta:** mover las dos igualdades a un test propio, por ejemplo
+  `test_config_json_del_proyecto_trae_el_consuelo_aprobado`, en la próxima
+  pasada que toque `tests/test_config.py`.
+- **Estado:** abierta (cosmética).
+
+---
+
+## F-227 · Verificado por el escéptico del consuelo: 10 mutaciones propias en rojo, 194 pruebas y los bytes del boleto
+
+- **Fecha:** 2026-09-13
+- **Origen:** escéptico consuelo
+- **Dónde:** `config.json` (`juego.consuelo`), `tests/test_config.py`
+  (`test_config_json_del_proyecto_es_valido`), el boleto de consuelo real
+  (`ruleta.ticket.boleto_consuelo`) y las fichas **F-220**, **F-221** y
+  **F-222**.
+- **Qué pasa:** queda por escrito lo que midió el escéptico **por su cuenta**,
+  después de los lentes y sin verlos, al intentar refutar la pasada del texto de
+  consuelo. **No lo logró: el cambio en sí (config.json + golden) no tiene
+  objeción.** Esta ficha no repite la **F-222**: la confirma con mediciones
+  propias y añade el nivel de bytes.
+  1. **Render medido:** con
+     `ruleta.ticket.boleto_consuelo(ruleta.config.cargar("config.json"), Boleto(folio=7, premio=None, …))`
+     y `ruleta.escpos.decodificar_vista(datos, codepage="cp858", ancho=48)`, la
+     línea sale `   |              ¡Gracias por jugar!`: el texto **completo**,
+     en **una sola línea**, **centrado exacto** (`center(48)`: 14 espacios a la
+     izquierda, 19 caracteres, 15 a la derecha) y **sin renglón en blanco de
+     más**. El título sale en 3x partido en dos renglones (en la vista se ve
+     `SSSIIIGGGUUUEEE` / `PPPAAARRRTTTIIICCCIIIPPPAAANNNDDDOOO`, porque el visor
+     repite cada carácter tantas veces como el multiplicador). `[BEEP]` y
+     `[CORTE]` intactos al final.
+  2. **La palabra «agotaron» no está en el papel:** no aparece en los bytes del
+     boleto en ninguna de las cuatro codificaciones probadas (`cp858`, `cp850`,
+     `utf-8`, `latin-1`). Los **15 785 bytes** del boleto se generaron con el
+     `config.json` del repositorio tal como está en el árbol.
+  3. **La «¡» sobrevive al camino a la impresora:** en `cp858` se codifica como
+     **un solo byte `0xAD`** y no se translitera. `b"\xadGracias por jugar!"`
+     está literalmente en el flujo; `b"!Gracias"` **no**. El byte `0xAD` aparece
+     **exactamente una vez** en todo el boleto y antes va la secuencia
+     `ESC t 19` (`b"\x1bt\x13"`), que es la tabla `cp858` que declara el
+     `config.json` (`codepage_n = 19`). El tramo decodifica como
+     `¡Gracias por jugar!`.
+  4. **Suite completa en verde:** `python -m unittest discover -s tests -t .` →
+     **Ran 194 tests, OK** (0.74 s).
+  5. **Mutaciones propias: 10, todas en rojo.** Hechas **por copia**, sobre una
+     copia íntegra del repositorio en el scratchpad —nunca en el repositorio—,
+     con la copia en verde de partida y las mismas 194 pruebas. Las 10 fallan en
+     `tests.test_config.TestCargar.test_config_json_del_proyecto_es_valido`:
+     **M1** texto viejo con «agotaron»; **M2** espacio final; **M3** sin la «¡»;
+     **M4** texto vacío; **M5** minúsculas; **M6** título
+     `"SEGUI PARTICIPANDO"`; **M7** borrar el bloque `juego.consuelo` (cae al
+     valor por omisión del código y da
+     `'Por hoy se agotaron los premios. ¡Gracias por jugar!' != '¡Gracias por jugar!'`);
+     **M8** título con espacio doble; **M9** quitar el «!» final; **M10**
+     espacio duro (NBSP) en vez de espacio. Al restaurar el `config.json` de la
+     copia, verde otra vez. **El golden muerde, y muerde por igualdad, no por
+     presencia.**
+  6. **Higiene del árbol:** solo tres archivos modificados (`config.json`,
+     `tests/test_config.py`, `docs/fichas.md`), **cero archivos sin rastrear**
+     (`git status --porcelain -uall`), los tres en **UTF-8 sin BOM y con LF** en
+     índice y en árbol (`git ls-files --eol`: `i/lf w/lf attr/text eol=lf`),
+     `config.json` es **JSON válido** y no trae secretos (la única MAC es el
+     relleno `00:00:00:00:00:00`, que ya estaba).
+  7. **Las citas de línea de las fichas nuevas, una por una, todas correctas:**
+     `ruleta/config.py:95` (texto viejo por omisión), `ruleta/config.py:335-336`
+     (`negocio.nombre` no puede estar vacío), `tests/test_config.py:99` (rechazo
+     de `negocio.nombre = "  "`), `tests/test_config.py:140-150` (el golden
+     nuevo), `tests/test_ticket.py:149` (el `assertIn` con el texto viejo),
+     `config_base()` de `tests/test_ticket.py` sin bloque `juego` (por eso cae
+     al valor por omisión), `instalar.sh:93` (usa `${DIR}/config.json` en la Pi),
+     `README.md:231` (solo el título) y `README.md:346` (elide el valor con
+     «…»). **Ningún documento del repositorio queda falso** por el cambio:
+     «agotaron» no aparece en `README.md` ni en los planes.
+  8. **El punto 5 de la F-222 se reproduce:** en `python -m ruleta vista-previa`
+     lo único que pasa de 48 columnas son las tres líneas de corte (56
+     caracteres), y el exceso son los 8 del marcador ` [CORTE]` que pone el
+     visor. Descontándolo, el **ancho real máximo es 48** y son **exactamente 23
+     las líneas que lo tocan** (20 + las 3 de corte). Con `--todos`, 38 + 9.
+  9. **F-220 y F-221 siguen en pie:** `ruleta/config.py:95` mantiene el texto
+     viejo como valor por omisión y `tests/test_ticket.py:149` lo ancla con
+     `assertIn` (**F-220**); y `cargar()` acepta `juego.consuelo.texto = ""` y
+     `"  "` sin protestar (**F-221**). Ninguno de esos dos archivos estaba en el
+     alcance de escritura de esta pasada.
+- **Por qué es residual:** nota de verificación independiente; no pide ningún
+  cambio. El único cambio que el escéptico **sí** pidió —revertir el cierre de
+  la **F-160**— ya está aplicado (ver **F-223** y **F-224**).
+- **Riesgo si no se toca:** ninguno. El riesgo sería perder los hechos y volver
+  a medirlos, o escribir el acta de memoria, que es lo que el §6 del protocolo
+  prohíbe.
+- **Propuesta:** copiar estos hechos, junto con los de la **F-222**, al acta del
+  2026-09-13 que pide la **F-225**, en lugar de volver a medir.
+- **Estado:** cerrada de entrada (nota de verificación).
+
+---
+
+## F-228 · La F-220 llama «mutación M9» a la de borrar `juego.consuelo`; la F-222 dice que fueron ocho y la lista en octavo lugar
+
+- **Fecha:** 2026-09-13
+- **Origen:** escéptico consuelo
+- **Dónde:** `docs/fichas.md`, párrafo «Por qué es residual» de la **F-220** y
+  punto 2 de la **F-222** (`grep -n "mutación M9" docs/fichas.md`).
+- **Qué pasa:** la **F-220** dice que la mutación de borrar el bloque
+  `juego.consuelo` fue la «**M9** de esta pasada», mientras que la **F-222**
+  cuenta **ocho** mutaciones y la enumera en **octavo** lugar. Es numeración
+  interna de la pasada del ejecutor, que no se ve desde fuera. **El hecho
+  medido no está en duda:** esa mutación queda en rojo con el mensaje exacto
+  `'Por hoy se agotaron los premios. ¡Gracias por jugar!' != '¡Gracias por jugar!'`,
+  y el escéptico lo confirmó por su cuenta (es su **M7** de diez, **F-227**).
+  Lo que no cuadra es el número, no el hecho.
+- **Por qué es residual:** no es afirmación falsa contra el código, ni assert
+  que no muerda, ni golden en rojo: es una etiqueta de conteo entre dos fichas.
+  El escéptico no pidió corrección por ella.
+- **Riesgo si no se toca:** quien audite el conteo de mutaciones busca una
+  novena que no está en la lista y cree que falta evidencia.
+- **Propuesta:** en la próxima pasada que toque estas fichas, sustituir en la
+  **F-220** «mutación M9 de esta pasada» por «la mutación de borrar el bloque
+  `juego.consuelo`» y remitir al punto 2 de la **F-222** y al punto 5 de la
+  **F-227**. **No se hizo aquí:** la ronda correctiva del escéptico traía en su
+  alcance solo sus cuatro correcciones exactas.
+- **Estado:** abierta (cosmética).
 
 ---
