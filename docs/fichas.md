@@ -4977,3 +4977,64 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   **Requiere autorización del usuario** para tocar código.
 
 ---
+
+## F-251 · Se abre la Fase 4a (papel) con su plan prescriptivo, y hay cuatro afirmaciones de documento que siguen siendo falsas hasta que la fase las corrija
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · redacción del plan prescriptivo, desde el archivo de
+  hechos del orquestador
+- **Dónde:** `docs/planes/fase-4a-papel.md` (nuevo) y
+  `docs/actas/2026-09-15-hechos-medidos-fase-4a.md` (copia literal del archivo
+  de hechos, 4979 bytes,
+  `sha256 2efbe4c10cbda88eda3382d607bc887008b9e5bfac7c6ec6c94d4e7e4b2bf300`).
+- **Qué pasa:** queda **abierta la Fase 4a**, una sub-fase de programación que
+  arregla el camino del papel y **solo** eso: leer la respuesta **fresca** del
+  `DLE EOT` (drenar, preguntar y quedarse con el **último** byte), añadir la
+  consulta **`DLE EOT 2`** —la única que en esta impresora cambia de verdad
+  cuando se acaba el papel: `0x12` con papel, **`0x32`** sin papel, medido el
+  2026-09-15— y endurecer la máscara de «poco papel» a la **pareja** de bits.
+  Cierra las filas **21** y **21-ter** de la bitácora de la Fase 3 y resuelve
+  las fichas **F-250** y la parte de **F-091** que quedó en rojo el 2026-09-15 a
+  las 13:29, cuando el kiosco emitió el boleto **00009**, descontó **TEST 7** y
+  lo dio por impreso sin que saliera papel.
+- **Por qué está aquí y no es una parada de fase:** es el **registro de apertura**
+  de la fase, no un hallazgo. Se anota para que quede fechado quién abrió la
+  fase, con qué evidencia y con qué alcance, y para que la lista de abajo no se
+  pierda si la cadena se interrumpe a medias.
+- **Lo que sigue siendo FALSO en el repositorio mientras la fase no termine**
+  (son las correcciones C1 a C8 del escéptico del 2026-09-13, que nunca llegaron
+  a aplicarse, y están detalladas una por una en el **Paso 8** del plan):
+  1. **F-091**, línea de Estado: dice «así que la consulta funciona de verdad
+     por cable y lanzada desde systemd». Lo demostrado por cable es que el nodo
+     **acepta la escritura** del comando, no que la respuesta leída sea la suya.
+  2. **F-190**, título y «Qué pasa»: atribuyen el aviso al **sensor *near-end***.
+     No hubo sensor: era `0x16`, la respuesta sana de `DLE EOT 1`, leída con la
+     tabla de `DLE EOT 4`. Y lo medido el 2026-09-15 va más lejos: en esta
+     impresora `DLE EOT 4` contesta `0x12` **incluso con el rollo fuera**.
+  3. **`docs/planes/fase-2-impresora.md`**, tabla de pendientes (filas «Aviso de
+     «sin papel» por USB» y «Cambiar el rollo de papel»): la primera da por
+     funcionando en hardware real algo que falló, y la segunda manda cambiar un
+     rollo que está bien.
+  4. **`docs/actas/2026-09-11-fase-2.md`**, tabla de cierre, fila «Impresora»:
+     dice «avisando de **poco papel** (sensor *near-end*)». **Esa fila no se
+     reescribe** —las actas son evidencia—: lleva una **nota fechada** debajo.
+
+  Se suma una quinta, que no es del escéptico sino de esta fase:
+  **`docs/planes/fase-2-impresora.md:2392`** fija los números de línea de
+  `escpos.py` («58-60 y 64-66, 104, 118-125 y 661-662») y de `__main__.py`
+  («351-355»), y **esta fase los mueve todos**: hay que re-medirlos en el mismo
+  commit.
+- **Riesgo si no se toca:** el evento empieza el **lunes 21 de septiembre de
+  2026** y dura una semana. Cada jugada con el rollo agotado **regala un folio y
+  un premio**, en silencio, y el aviso falso de poco papel enseña al personal a
+  ignorar los avisos del programa, que es exactamente lo contrario de lo que
+  hace falta.
+- **Propuesta:** ejecutar el plan `docs/planes/fase-4a-papel.md` completo, con su
+  cadena: ejecutor, lentes en paralelo, escéptico, commit compuertado, deploy
+  observado y **prueba en vivo sin papel** con el usuario delante (Paso 11), que
+  es el único criterio que de verdad cierra la fase.
+- **Estado:** **abierta** el 2026-09-15 (plan escrito, ninguna casilla de la
+  bitácora marcada, ninguna línea de código tocada). Se cierra cuando el §7 del
+  plan esté entero en verde.
+
+---
