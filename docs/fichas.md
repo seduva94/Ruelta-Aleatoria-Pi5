@@ -1155,7 +1155,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Nota:** el PPD del driver del fabricante confirma que la impresora entiende
   `DLE EOT 1`, así que la consulta tiene sentido técnico
   (`docs/actas/2026-09-11-hechos-medidos.md`, sección del driver).
-- **Estado:** **resuelta a medias** el 2026-09-11 (2b, cambio (d)). `consultar_estado` ya vale por USB: `crear_impresora` se lo pasa a `ImpresoraArchivo` y este pregunta `DLE EOT` antes del boleto cuando la ruta es un dispositivo de caracteres, con la misma política que el Bluetooth (si no contesta, se imprime igual). **Siguen sin efecto por cable** `reintentos`, `timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`, `pausa_final_seg` y `bytes_por_segundo`, y así lo dice ahora la tabla del `README.md` §6, con una nota debajo. `espera_reintento_seg` **sí** cuenta con cualquier tipo: `Ruleta.arrancar` (`ruleta/app.py`) espera el doble de ese valor entre los intentos del inventario de arranque. **Medido en hardware real el 2026-09-11**, tras el deploy: la impresora contestó `DLE EOT` por el nodo USB y el servicio escribió `La impresora /dev/ruleta-impresora reporta poco papel: cambia el rollo pronto` **antes** de mandar el inventario, así que la consulta funciona de verdad por cable y lanzada desde systemd. Lo único que sigue sin probarse de esta parte es el caso extremo (sin papel o fuera de línea) con el rollo fuera.
+- **Estado:** **resuelta a medias** el 2026-09-11 (2b, cambio (d)). `consultar_estado` ya vale por USB: `crear_impresora` se lo pasa a `ImpresoraArchivo` y este pregunta `DLE EOT` antes del boleto cuando la ruta es un dispositivo de caracteres, con la misma política que el Bluetooth (si no contesta, se imprime igual). **Siguen sin efecto por cable** `reintentos`, `timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`, `pausa_final_seg` y `bytes_por_segundo`, y así lo dice ahora la tabla del `README.md` §6, con una nota debajo. `espera_reintento_seg` **sí** cuenta con cualquier tipo: `Ruleta.arrancar` (`ruleta/app.py`) espera el doble de ese valor entre los intentos del inventario de arranque. **Medido en hardware real el 2026-09-11**, tras el deploy: la impresora contestó `DLE EOT` por el nodo USB y el servicio escribió `La impresora /dev/ruleta-impresora reporta poco papel: cambia el rollo pronto` **antes** de mandar el inventario, así que la consulta funciona de verdad por cable y lanzada desde systemd. Lo único que sigue sin probarse de esta parte es el caso extremo (sin papel o fuera de línea) con el rollo fuera. **MEDIDO POR FIN el 2026-09-15 a las 13:29:17 (Fase 3), y FALLÓ.** El usuario dejó la impresora **sin papel** a propósito y jugó una vez, con el servicio `active` y el folio previo en 8. La impresora encendió su foco rojo y se puso a pitar cada segundo, con el trabajo retenido en su búfer. El journal dice, en orden: `Boleto 00009 emitido: TEST 7` → `WARNING … reporta poco papel` (el aviso rezagado de siempre) → `Boleto 00009 impreso: TEST 7`. **No se detectó «sin papel» ni «fuera de línea»:** las dos guardias que añadió 2b quedaron derrotadas por el **mismo desfase de un comando** diagnosticado el 2026-09-13 —la impresora repite el último byte de estado y el programa lee la respuesta a la **pregunta anterior**—, tal y como lo había predicho el escéptico de ese día. Daño medido: `boletos.csv` con el 00009 `emitido` **e** `impreso`, `estado.json` en folio 9 y el premio **TEST 7 descontado sin que saliera papel**; el proceso, sano (`wchan` = `hrtimer_nanosleep`, `NRestarts=0`), porque la escritura a `usblp` no se bloqueó. Al reponer el papel (13:31–13:33) la impresora soltó sola el boleto retenido, cortado —lo que **no** salva el caso: si se apaga la impresora o la Pi antes de reponer, el trabajo se pierde y el programa ya lo dio por impreso—. Evidencia: `docs/actas/2026-09-15-fase-3.md` §6-bis. **El arreglo va en la ficha F-250.**
 ---
 
 ## F-092 · El plan de la Fase 2 dice que incorpora mediciones del 2026-09-12 y todas son del 2026-09-11
@@ -2063,7 +2063,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   en el deploy hay que mirar las dos cosas. El arreglo corto sigue siendo
   documentar `sudo udevadm control --reload && sudo udevadm trigger
   --subsystem-match=usbmisc` en vez de mandar el instalador entero.
-- **Estado:** abierta (medir en el deploy). **Medido en el deploy (2026-09-11):** `sudo ./instalar.sh` salió con **código 0** en la Pi, pero **con red** (la del punto de acceso de la laptop). El caso que preocupa a esta ficha —re-correrlo durante el evento, sin internet y con `apt-get update` fallando— sigue sin medir.
+- **Estado:** abierta (medir en el deploy). **Medido en el deploy (2026-09-11):** `sudo ./instalar.sh` salió con **código 0** en la Pi, pero **con red** (la del punto de acceso de la laptop). El caso que preocupa a esta ficha —re-correrlo durante el evento, sin internet y con `apt-get update` fallando— sigue sin medir. **Nota del 2026-09-15 (Fase 3):** el usuario decidió que **no habrá batería RTC** y que **la Pi irá con el internet del asadero** durante el evento (acta `docs/actas/2026-09-15-fase-3.md` §7, ficha **F-241**). Con esa decisión, el escenario que preocupaba a esta ficha —re-correr el instalador **sin internet**— deja de ser el caso de producción, aunque sigue valiendo para un corte de red. Y el **segundo filo** de la nota de ronda 2 —que el paso `7/7` vuelve a dejar el servicio `enabled`— **ya no es un problema**: desde el cierre de la Fase 2 el kiosco se queda `enabled` **a propósito** (ficha **F-185**, cerrada). Sigue sin medirse el código de salida de `apt-get update` sin red.
 
 ---
 
@@ -2888,7 +2888,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   `sudo systemctl disable ruleta` antes de apagar la Pi para cablear, como
   manda el aviso 1 de la Fase 3). Ya está anotado en el plan: §0 bitácora Paso
   13, nota del deploy, §9 y aviso 1 de la Fase 3.
-- **Estado:** **cerrada** el 2026-09-11 ~23:20, **no por ejecución sino por decisión del orquestador**: **el kiosco queda corriendo por USB**, con el servicio `active` y `enabled`. Por tanto el final del Paso 13 («devolver el servicio al estado en que lo dejó la Fase 1») y el golden **§7.9** quedan **SUPERADOS**, y así consta en `docs/planes/fase-2-impresora.md` (estado global, bitácora filas 13 y 13-bis, nota «Reprueba post-2b y cierre en papel», Paso 13, §7.9 y §9) y en `docs/actas/2026-09-11-fase-2.md` (§3, §7, §8 y §10). **Lo que la decisión NO cambia, y sigue siendo obligatorio en la Fase 3:** antes de apagar la Pi para cablear los botones, `sudo systemctl stop ruleta` **y** `sudo systemctl disable ruleta`, y `sudo systemctl enable ruleta` al volver; con el servicio arriba y los botones cableados, **cada pulsación de prueba gasta papel y consume un folio** (para probar sin gastar, `--impresora vista`).
+- **Estado:** **cerrada** el 2026-09-11 ~23:20, **no por ejecución sino por decisión del orquestador**: **el kiosco queda corriendo por USB**, con el servicio `active` y `enabled`. Por tanto el final del Paso 13 («devolver el servicio al estado en que lo dejó la Fase 1») y el golden **§7.9** quedan **SUPERADOS**, y así consta en `docs/planes/fase-2-impresora.md` (estado global, bitácora filas 13 y 13-bis, nota «Reprueba post-2b y cierre en papel», Paso 13, §7.9 y §9) y en `docs/actas/2026-09-11-fase-2.md` (§3, §7, §8 y §10). **Lo que la decisión NO cambia, y sigue siendo obligatorio en la Fase 3:** antes de apagar la Pi para cablear los botones, `sudo systemctl stop ruleta` **y** `sudo systemctl disable ruleta`, y `sudo systemctl enable ruleta` al volver; con el servicio arriba y los botones cableados, **cada pulsación de prueba gasta papel y consume un folio** (para probar sin gastar, `--impresora vista`). **Nota del 2026-09-15 (Fase 3, ejecutada):** se cablearon los botones y la receta se cumplió **a medias**: el servicio se **detuvo** (`SIGTERM` a las 11:47:03) pero **nunca se deshabilitó** —`is-enabled` seguía en `enabled`—. No llegó a morder porque **la Pi no se apagó**: el archivo de hechos registra un solo arranque, el de las 11:44:42. Lo otro que anunciaba esta ficha **sí pasó, y era el precio previsto**: las tres jugadas de prueba gastaron papel y **tres folios** (ficha **F-243**: hay que correr `reiniciar --si` antes del lunes 21). Evidencia: `docs/actas/2026-09-15-fase-3.md` §3, §5 y §8.
 
 ---
 
@@ -3033,7 +3033,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Propuesta:** poner rollo nuevo antes del evento y tener al menos uno de
   repuesto junto a la Pi. De paso, cambiar el rollo es la única forma de probar
   de verdad el camino «sin papel» que sigue sin medirse (**F-091**).
-- **Estado:** abierta (compra / acción del usuario).
+- **Estado:** abierta (compra / acción del usuario). **Nota del 2026-09-15 (Fase 3):** el rollo **se acabó de verdad**. Fue en una prueba deliberada de las 13:29 —el usuario dejó la impresora sin papel a propósito— y **lo repuso él mismo entre las 13:31 y las 13:33**, con lo que la impresora soltó el boleto que tenía retenido. Así que el **rollo de hoy es nuevo**; lo que **sigue abierto es el repuesto**: tiene que haber al menos un rollo más junto a la Pi durante la semana del evento. Y el **riesgo que esta ficha anunciaba ya no es una hipótesis**: se midió que, con el papel agotado, el folio se gasta y el premio se descuenta **sin boleto** —y no porque el firmware no conteste, sino porque contesta tarde— (**F-091** actualizada, **F-250** nueva).
 
 ---
 
@@ -3146,7 +3146,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   ya habrá GPIO cableado y añadir un pin más sale barato. Si se descarta, cerrar
   esta ficha anotando el motivo. Nota: la viñeta del acta todavía **no** cita
   este número; conviene añadírselo cuando el acta se vuelva a tocar.
-- **Estado:** abierta (idea; decisión del usuario en la Fase 3).
+- **Estado:** abierta (idea; decisión del usuario en la Fase 3). **Actualizada el 2026-09-15:** la Fase 3 **se ejecutó** —en vivo, sin plan previo, solo cableado de los dos botones— y **esta idea no se habló ni se decidió**. Sigue abierta y **cambia de dueño**: ya no es «decisión del usuario en la Fase 3» sino **decisión del usuario antes del evento**. Dato nuevo que la hace más pertinente: la instalación quedó **sin LED** (ficha **F-240**), así que hoy el mesero **no tiene ningún aviso** —ni visual ni sonoro— cuando algo falla; el único pitido que existe es el de la impresora al terminar un boleto. Evidencia: `docs/actas/2026-09-15-fase-3.md` §6.
 
 ---
 
@@ -4560,5 +4560,420 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   son nombres cortos internos que yo elegí; solo aparecen en la bitácora y en el
   reporte de inventario, nunca en el boleto».
 - **Estado:** abierta.
+
+---
+
+## F-239 · Las patitas del pulsador HABILITAR van metidas en terminales de cuchilla que no las sujetan
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · cableado de los botones, observado durante la sesión en vivo
+- **Dónde:** el hardware: el pulsador chico metálico de tapa roja que hace de
+  botón HABILITAR, en sus dos cables (azul y negro).
+- **Qué pasa:** ese pulsador tiene **dos patitas planas y delgadas**, y los
+  cables llevan **terminales de crimpar tipo cuchilla**, que son para cuchillas
+  **anchas**. La patita entra, hace contacto y **funcionó durante toda la sesión
+  del 2026-09-15** —las pulsaciones en GPIO 27 se registraron limpias—, pero el
+  contacto **se sostiene por presión de una pieza que no está hecha para esa
+  patita**.
+- **Por qué es residual:** no es un defecto del programa ni de la documentación,
+  y **hoy funciona**: los tres boletos de prueba salieron con ese cableado. Es un
+  riesgo mecánico, no un fallo medido.
+- **Riesgo si no se toca:** que el botón del mesero deje de responder **en medio
+  del evento**, con el primer tirón del cable al mover la caja. El síntoma sería
+  el peor posible para el personal: la ruleta «no hace nada» al apretar JUGAR, y
+  el journal diría `Pulsación ignorada: el botón HABILITAR no está presionado`,
+  que es exactamente lo mismo que dice cuando el mesero simplemente no está
+  sosteniendo el botón.
+- **Propuesta:** **soldar el cable a la patita**, o enrollar bien el cobre
+  alrededor de ella y aislarlo, **antes del lunes 21**. Ya está anotado como
+  casilla 17 de la bitácora del plan de la Fase 3 y como nota en el `README.md`
+  §2 («Pulsadores con patitas delgadas»).
+- **Estado:** abierta. **Requiere al usuario** (es trabajo físico sobre su
+  hardware).
+
+---
+
+## F-240 · `config.json` dice `"led": 22` y no hay ningún LED conectado
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · estado final del cableado
+- **Dónde:** `config.json` § `gpio` (`grep -n '"led"' config.json` → **44**);
+  `ruleta/hardware.py` líneas **81** y **93-105**.
+- **Qué pasa:** la instalación quedó **sin LED**: no hay nada conectado al pin
+  15. Y `config.json` sigue diciendo `"led": 22`. **No falla**: `gpiozero` crea
+  el objeto `LED(22)` sin comprobar que haya algo enchufado, y el 2026-09-15 el
+  servicio arrancó `active` con `GPIO listo: jugar=17 habilitar=27 led=22`. El
+  programa cree que tiene LED, lo enciende y lo apaga, y no lo ve nadie.
+- **Por qué es residual:** no rompe nada, no gasta nada y el valor `null` ya está
+  contemplado por el código (`ruleta/config.py`, la lista `pines` de la línea
+  **313**, acepta `None` en `led`; y `EntradasGPIO.led()` sale sin hacer nada si
+  `self._led is None`). Es una **decisión del usuario**, no un defecto.
+- **Riesgo si no se toca:** con el pin 15 libre, como está hoy, ninguno. Pero no
+  es «ninguno técnico»: con `"led": 22` el programa deja **GPIO 22 (pin físico
+  15) configurado como salida** todo el tiempo y lo pone **en alto** en el estado
+  «listo» (`ruleta/hardware.py`, líneas **81** y **93-105**), que es exactamente
+  la situación que la decisión **D5** del plan de la Fase 3 y la ficha **F-246**
+  llaman **cortocircuito** cuando un cable de botón a tierra acaba en ese pin. Y
+  la casilla 17 de la bitácora está abierta —hay que **soldar** los cables de
+  HABILITAR—, así que alguien va a volver a manipular el header antes del 21: de
+  ahí que valga la regla de mover cables **con la Pi apagada y sin corriente**
+  (README §2 y aviso 1 del diagrama), y que `"led": null` sea la única de las
+  tres opciones que quita el pin de en medio. El otro riesgo, el que ya estaba
+  anotado, es de
+  **documentación**: el `README.md` §2 explica qué significa cada estado del LED
+  («apagado = HABILITAR suelto · fijo = listo · parpadeo lento = imprimiendo ·
+  parpadeo rápido = error») y en el kiosco de hoy **esa señal no existe**. Si se
+  acaba el papel o falla la impresora, el mesero no tiene ningún aviso visual:
+  solo el papel que no sale.
+- **Propuesta:** que el usuario elija una de tres — **(a)** dejarlo como está a
+  sabiendas; **(b)** poner `"led": null` para que la configuración diga la verdad;
+  **(c)** conectar un LED de verdad al pin 15 con su resistencia de 330 Ω, como
+  describe el README §2, y recuperar el aviso visual. La opción (c) es la única
+  que **añade** algo al evento. Cualquiera de las tres cierra esta ficha.
+- **Estado:** abierta. **Decisión del usuario.**
+
+---
+
+## F-241 · Pieza D: el programa debería esperar a que la hora esté sincronizada antes de imprimir y de aceptar jugadas
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · decisión del usuario sobre la batería RTC, y lo medido al
+  arrancar la Pi esa mañana
+- **Dónde:** el arranque del programa: `ruleta/app.py` (el inventario de arranque
+  sale de la línea **270**, `Inventario impreso (%s). Folio actual %05d`, y el
+  bucle de jugadas empieza tras `Lista. Esperando jugadas.`, línea **117**);
+  `docs/evento-2026-09-asadero-33.md` §«Tres cosas que el programa TODAVÍA NO
+  SABE HACER» (piezas A, B y C), donde ésta sería la **D**.
+- **Qué pasa:** el usuario decidió el 2026-09-15 que **no habrá batería RTC** (no
+  la consigue a tiempo) y que **la Pi llevará el internet del asadero**, de modo
+  que **NTP le pone la hora al arrancar**. Pero la hora **no llega instantánea**:
+  medido ese mismo día, la Pi arrancó a las **11:44:42** con el reloj en «Sep 13
+  17:09» y **NTP no lo corrigió hasta las 11:47** — unos **tres minutos** con la
+  fecha equivocada, y el journal de esos minutos lo muestra. El programa, hoy,
+  **no mira el reloj**: arranca, imprime el inventario y acepta jugadas con la
+  fecha que haya.
+- **Por qué es residual:** **es una función que no existe**, no un defecto de
+  conducta del código actual: el programa hace exactamente lo que está escrito.
+  Y el riesgo tiene una mitigación manual que ya está documentada (encender unos
+  minutos antes y mirar la fecha del boleto de inventario, `README.md` §2).
+- **Riesgo si no se toca:** durante los primeros minutos tras encender —**unos
+  tres** el 2026-09-15, que es la única medición que hay—, **la Pi cree que es
+  otro día**, y la fecha no es decorativa en este programa:
+  - el **boleto** sale con fecha y hora equivocadas, y ése es el papel que el
+    cliente presenta en caja;
+  - el **día operativo** se calcula mal (`juego.hora_inicio_dia` = 6), y de él
+    dependen los **topes diarios** de cada premio: una jugada contada en el día
+    equivocado gasta cupo de un día que no es;
+  - de la fecha dependen también los campos **`desde`/`hasta`** con los que el
+    documento del evento piensa repartir los premios grandes por día;
+  - y el **boleto de inventario de arranque** —el papel que el dueño mira para
+    saber cómo empieza el día— sale con esa fecha falsa.
+- **Propuesta:** **pieza D**, como fase de programación con su propio plan: al
+  arrancar, **esperar hasta unos 2 minutos** a que la hora esté sincronizada
+  antes de imprimir el inventario y antes de aceptar la primera jugada; si al
+  cabo de ese tiempo no lo consiguió, **arrancar igual pero avisarlo en el
+  boleto** (el kiosco no se puede quedar muerto porque falle la red). Los dos
+  números —los 2 minutos y qué se considera «sincronizada»— se deciden al
+  planear la pieza: lo único medido hoy son los ~3 minutos del 2026-09-15, y en
+  una red que **no** es la del asadero.
+- **Estado:** abierta (pieza de programación pendiente; **requiere autorización
+  del usuario** para abrir la fase).
+
+---
+
+## F-242 · El «Contexto del producto» de `CLAUDE.md` dice «producción sin red» y «batería RTC necesaria», y desde el 2026-09-15 es falso
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · decisión del usuario sobre la batería RTC
+- **Dónde:** `CLAUDE.md`, sección «Contexto del producto», la viñeta que empieza
+  por **Red:** (`grep -n "En producción la Pi va sin red" CLAUDE.md`).
+- **Qué pasa:** ese párrafo dice que **en producción la Pi va sin red** y que
+  **por eso la batería RTC es necesaria**. El 2026-09-15 el usuario decidió lo
+  contrario: **no habrá batería RTC** —no la consigue a tiempo— y **la Pi llevará
+  el internet del asadero durante el evento**, que es lo que le pondrá la hora al
+  encender. `CLAUDE.md` es el documento que **se lee al empezar cada sesión**: si
+  se queda así, cada agente nuevo arranca con un hecho falso sobre el producto.
+- **Por qué es residual (aquí):** no es que nadie lo haya medido mal —era verdad
+  cuando se escribió, y el propio párrafo dice de dónde salía—, es que **la
+  decisión del usuario lo derogó**. Y el ejecutor de esta fase **no podía
+  arreglarlo**: `CLAUDE.md` estaba **fuera del conjunto de archivos permitido**
+  del brief, y tocarlo habría sido saltarse la compuerta del commit.
+- **Riesgo si no se toca:** que la próxima sesión planifique contando con la
+  batería RTC —o peor, que repita la receta vieja del README y ponga
+  `timedatectl set-ntp false`, que es justo lo que impediría que la hora se
+  corrigiera sola—.
+- **Propuesta:** **lo actualiza el orquestador**, que sí puede tocar los
+  documentos de memoria y de protocolo: reescribir esa viñeta con la decisión
+  del 2026-09-15, citando como evidencia `docs/actas/2026-09-15-fase-3.md` §7, y
+  **sin borrar** lo que decía antes (mismo formato de nota fechada que ya usa el
+  propio `CLAUDE.md` para la corrección del 2026-09-11). **En el `README.md` ya
+  está hecho** en esta misma pasada: §3 («El SSH y el Wi-Fi son solo para
+  instalar y probar»), §4 paso 7 y §9 («Hora o fecha incorrectas»), los tres con
+  nota fechada.
+- **Aviso para quien lo haga:** `CLAUDE.md` no es el único sitio con esa premisa
+  derogada. `grep -n "sin red\|sin internet\|batería RTC" docs/fichas.md`
+  devuelve **más de una docena** de líneas en fichas viejas que razonan a partir
+  de «la Pi va sin red» o de «la batería RTC es necesaria» —entre ellas la
+  **F-153**, que ya lleva su nota fechada del 2026-09-15—. No hay que reescribir
+  esas fichas (su texto histórico vale y sus conclusiones no dependen todas de la
+  premisa), pero quien actualice `CLAUDE.md` conviene que sepa que existen.
+- **Estado:** abierta. **Le toca al orquestador** (fuera del alcance del ejecutor
+  de la Fase 3).
+
+---
+
+## F-243 · Las tres jugadas de prueba dejaron el inventario real en folio 3
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · estado de los datos al cerrar la sesión
+- **Dónde:** en la Pi, `datos/estado.json` y `datos/boletos.csv`.
+- **Qué pasa:** las jugadas del 2026-09-15 no fueron una simulación: **gastaron
+  folio e inventario**. Medido al cerrar la sesión de hardware (12:31):
+  `estado.json` con **folio 3**, `test4`, `test7` y `test6` **entregados una vez
+  cada uno** y `boletos_por_dia` del **2026-09-15 en 3**; `boletos.csv` con **6
+  líneas** (`emitido` + `impreso` por cada boleto). **Pero el día siguió:** el
+  usuario jugó por su cuenta entre las 12:31 y las 13:18 (folios **4 a 8**, todos
+  impresos), hubo la prueba sin papel de las 13:29 (folio **9**, descontado sin
+  boleto, **F-091**) y una jugada final a las 13:33:23 (folio **10**). **El
+  estado real al cerrar el día es folio 10**, con `test4`=1, `test7`=4,
+  `test6`=3 y `test5`=2.
+- **Por qué es residual:** era **el precio conocido** de probar en hardware real
+  —la Fase 2 ya lo había dejado escrito: «cada pulsación de prueba gasta papel y
+  consume un folio»— y tiene un comando de una línea que lo deshace.
+- **Riesgo si no se toca:** que el evento empiece con **diez premios contados
+  como ya entregados** y el folio arrancando en el 11. Con los premios de prueba
+  (`test1`…`test7`) da igual, pero **la Fase 4 va a cargar los premios reales**,
+  y ahí diez piezas de inventario fantasma sí se notan —y una de ellas, el folio
+  9, es un premio que **el programa cree entregado y del que no existe boleto**
+  (**F-091**)—. Además el primer boleto del lunes no diría 00001.
+- **Propuesta:** **antes del lunes 21**, con el servicio parado:
+  `python3 -m ruleta reiniciar --si` (respalda lo anterior y deja folio y
+  contadores en cero) y volver a arrancar. Es el mismo paso 5 que ya pide el §6
+  del documento del evento, y la casilla 19 de la bitácora del plan de la Fase 3.
+  Conviene hacerlo **junto con** la carga de los premios reales, no antes, para
+  no tener que repetirlo.
+- **Estado:** abierta (pendiente, con fecha límite: el lunes 21 de septiembre).
+
+---
+
+## F-244 · `pkill -f` dentro de un `ssh 'bash -c …'` que contiene el patrón literal mata al propio bash
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · trampa medida en la sesión (pasó tres veces)
+- **Dónde:** cualquier comando de la forma
+  `ssh ruleta 'bash -c "pkill -f /tmp/monitor-botones.py; …"'`.
+- **Qué pasa:** el `bash` remoto **se ve a sí mismo** en la tabla de procesos —su
+  línea de comando contiene el patrón que se le está pidiendo matar—, así que
+  `pkill -f` lo mata, y **nada de lo que venía detrás del `;` se ejecuta**.
+  El síntoma engaña: el comando «termina» sin error visible y el trabajo no se
+  hizo. **Pasó tres veces** la mañana del 2026-09-15 antes de que se entendiera.
+- **Por qué es residual:** es una trampa del entorno, no del repositorio: no hay
+  ningún archivo del proyecto que esté mal.
+- **Riesgo si no se toca:** se vuelve a perder media hora la próxima vez que
+  alguien tenga que limpiar un proceso en la Pi por SSH.
+- **Propuesta:** ya está escrita como **trampa 1** de la §5 del plan de la Fase 3.
+  La receta: escribir el patrón con corchetes (`[m]onitor-botones`), que no
+  coincide consigo mismo, y **no repetir la ruta literal** en el mismo comando
+  —guardarla en una variable (`M=/tmp/monitor-botones.py`) y usar la variable—.
+- **Estado:** **cerrada de entrada** (nota de trampa: queda documentada en el
+  plan §5, no hay nada que arreglar en el repositorio).
+
+---
+
+## F-245 · Un proceso lanzado por SSH en segundo plano cuelga la sesión hasta el timeout, pero sobrevive
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · trampa medida en la sesión
+- **Dónde:** los lanzamientos del monitor y de los escáneres en la Pi
+  (`/tmp/monitor-botones.py`, `/tmp/scan-pines.py`).
+- **Qué pasa:** aunque se use `setsid` + `nohup` y se redirijan las tres salidas,
+  **la conexión SSH no devuelve el control**: se queda colgada hasta que salta el
+  timeout. El proceso, en cambio, **sí arranca y sí sigue vivo**. Es decir: la
+  señal que uno mira para saber si funcionó (que el comando vuelva) miente en las
+  dos direcciones.
+- **Por qué es residual:** trampa del entorno; no hay nada mal en el repositorio.
+- **Riesgo si no se toca:** que alguien concluya que el proceso no arrancó, lo
+  relance, y acabe con **dos monitores** peleándose por los mismos pines GPIO —lo
+  que en `gpiozero` significa que el segundo falla al reservar el pin, o peor,
+  que se mezclen dos registros en el mismo archivo—.
+- **Propuesta:** ya está escrita como **trampa 2** de la §5 del plan de la Fase 3.
+  La receta: no esperar a que vuelva el `ssh`; **abrir una conexión nueva** y
+  comprobar el proceso y su archivo de log desde ahí.
+- **Estado:** **cerrada de entrada** (nota de trampa).
+
+---
+
+## F-246 · Los escáneres de pines deben declarar SOLO entradas: el primer monitor ponía GPIO 22 como salida
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · desviación detectada durante la propia sesión
+- **Dónde:** el primer `/tmp/monitor-botones.py` de la sesión, que además de los
+  dos `Button` creaba un `LED(22)` y lo ponía a parpadear.
+- **Qué pasa:** ese monitor dejaba **GPIO 22 (pin físico 15) configurado como
+  salida**. Un pin de salida en alto, conectado a tierra a través de un botón,
+  es un **cortocircuito**. Y el motivo por el que se estaba corriendo el monitor
+  era, precisamente, que **no se sabía dónde estaban conectados los cables**: la
+  sesión terminó descubriendo un cable en un pin que nadie esperaba (el 23). Si
+  esa noche hubiera habido un cable en el **pin 15**, la herramienta de
+  diagnóstico habría provocado el daño que venía a evitar.
+- **Por qué es residual:** **no llegó a pasar** —no había nada en el pin 15— y se
+  corrigió de raíz en la misma sesión: los dos escáneres posteriores
+  (`/tmp/scan-pines.py`, 17 pines primero y 26 después) declararon **todos** los
+  pines como **entrada con pull-up**, ninguno como salida.
+- **Riesgo si no se toca:** que la próxima vez que alguien improvise una
+  herramienta de diagnóstico de GPIO copie el patrón del LED y sí queme algo. La
+  Pi 5 no es barata y el evento es en menos de una semana.
+- **Propuesta:** queda como **regla escrita**, no como recordatorio: decisión
+  **D5** y **trampa 3** de la §5 del plan de la Fase 3, y **prohibición 3** de su
+  §8 — «no se declara ningún pin como salida en una herramienta de diagnóstico».
+- **Estado:** **cerrada** el 2026-09-15: corregida en la misma sesión y escrita
+  como decisión, trampa y prohibición en `docs/planes/fase-3-botones.md`.
+
+---
+
+## F-247 · El diagrama de cableado lo generó el orquestador, y lo verificó un agente distinto
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · desviación de rol, anotada por el propio orquestador
+- **Dónde:** `docs/cableado-botones.svg` (18 638 bytes); su generador,
+  `gen_cableado.py`, vive **solo en el scratchpad de la sesión**, que es efímero.
+- **Qué pasa:** el §1 del protocolo dice que **Fable no escribe código** y que
+  solo toca documentos de memoria y archivos efímeros de sesión. El SVG del
+  cableado lo produjo **un programa que escribió Fable**. La atenuante, que es
+  real: el generador es **un archivo efímero del scratchpad**, nunca entró al
+  repositorio, y **Fable no verificó su propia salida** — la verificó un **agente
+  independiente** contra el pinout oficial J8 del conector de 40 pines, contra
+  `config.json` y contra el `README.md` §2, y **encontró un defecto real**: las
+  etiquetas de los pines 11 y 13 se encimaban. Se corrigió y se volvió a
+  verificar.
+- **Por qué es residual:** el resultado está verificado por un tercero y el
+  código que lo produjo no vive en el repositorio; no hay nada que mantener ni
+  que probar. Es una desviación de procedimiento, anotada para que no siente
+  precedente.
+- **Riesgo si no se toca:** que la próxima vez se dé por bueno que «el
+  orquestador escriba un script rápido» sin pasar por la verificación
+  independiente, que es la parte que de verdad atrapó el error.
+- **Propuesta:** dejarlo anotado aquí y en la §8 del acta de la Fase 3. Si alguna
+  vez hay que **regenerar** el diagrama (por ejemplo si se conecta el LED o
+  cambian los pines), que sea un **ejecutor** quien escriba el generador y lo
+  deje en `herramientas/`, con su verificación.
+- **Estado:** **cerrada** el 2026-09-15 (desviación anotada; el diagrama está
+  verificado y en el repositorio).
+
+---
+
+## F-248 · El SVG del cableado entra al repositorio con finales de línea CRLF, y `.gitattributes` no dice nada de `*.svg`
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · medición del ejecutor al copiar el diagrama al repositorio
+- **Dónde:** `docs/cableado-botones.svg` y `.gitattributes`
+  (`grep -n "svg" .gitattributes` → **no devuelve nada**).
+- **Qué pasa:** el archivo se copió **byte a byte** desde el scratchpad —mismo
+  tamaño, 18 638 bytes, y mismo `sha256` (`b238da27…`), comprobado— y trae
+  **finales de línea CRLF** (214 de 214). Pero `.gitattributes` solo declara
+  `*.sh`, `*.service`, `*.py`, `*.json` y `*.md` como texto con LF, y en esta PC
+  `core.autocrlf` está en `true`: `git check-attr text -- docs/cableado-botones.svg`
+  responde **`unspecified`**, así que **git normalizará esos CRLF a LF al
+  guardarlo**. El archivo del repositorio y el archivo del disco no tendrán el
+  mismo hash.
+- **Por qué es residual:** **el dibujo se ve exactamente igual** con CRLF o con
+  LF; un SVG es texto XML y ningún visor se entera. No afecta a nada que se
+  ejecute.
+- **Riesgo si no se toca:** confusión al verificar. Quien compare el `sha256` del
+  archivo desplegado con el de este documento verá dos números distintos y
+  pensará que alguien tocó el diagrama. Es la misma historia que la **F-219**,
+  la de `logo.png`.
+- **Propuesta:** añadir `*.svg text eol=lf` a `.gitattributes` (una línea, junto
+  a las otras cinco) **o**, si se prefiere no tocar ese archivo, dejar constancia
+  —como aquí— de que el hash que manda es el de la copia de trabajo y que git
+  guarda la versión con LF. `.gitattributes` estaba **fuera del conjunto de
+  archivos permitido** de esta fase, por eso no se hizo.
+- **Estado:** abierta (decisión menor; cualquiera de las dos salidas la cierra).
+
+---
+
+## F-249 · Muchas fichas viejas remiten «a la Fase 3» para arreglos de CÓDIGO, y la Fase 3 que se ejecutó fue solo de cableado
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · cierre documental, al repasar `docs/fichas.md`
+- **Dónde:** `docs/fichas.md`, las entradas que dicen «Fase 3» en su
+  **Propuesta** o en su **Estado** (`grep -n "Fase 3" docs/fichas.md`): entre
+  ellas rechazar rutas inexistentes bajo `/dev/` (**F-152**, cuyo Estado dice
+  literalmente «abierta (Fase 3)», y su ficha madre **F-090**), distinguir
+  «papel: no contestó» de «papel: hay», llamar a `beep()` tantas veces como
+  pitidos se quieran, los valores por defecto duplicados entre constructor y
+  llamadores, y el zumbador propio en un GPIO (**F-194**).
+- **Qué pasa:** cuando se escribieron esas fichas, «la Fase 3» era el nombre de
+  *la siguiente vez que alguien toque código*. La Fase 3 que **de verdad se
+  ejecutó** el 2026-09-15 fue **solo de hardware**: cablear los dos botones y
+  demostrarlos. **No se tocó ni una línea de código, ni `config.json`, ni los
+  tests**, y por tanto **ninguna de esas fichas se resolvió ni se cerró**.
+- **Por qué es residual:** ninguna de ellas es un defecto de conducta ni un
+  golden en rojo; son mejoras aplazadas, y siguen exactamente igual de aplazadas
+  que ayer. Lo único que cambió es que **el número de fase al que apuntan ya está
+  gastado**.
+- **Riesgo si no se toca:** que alguien lea «Estado: abierta (Fase 3)», vea que
+  la Fase 3 está cerrada en el plan y en el acta, y **dé la ficha por resuelta**
+  sin que nadie haya tocado nada.
+- **Propuesta:** no reescribir las fichas una a una —son varias y el texto
+  histórico vale—, sino dejar **esta** como aviso cruzado, y que la próxima fase
+  de código empiece por `grep -n "Fase 3" docs/fichas.md` y reasigne a mano las
+  que siga teniendo sentido hacer. Las dos fichas cuyo **Estado** hablaba de la
+  Fase 3 como momento de decisión —**F-185** y **F-194**— sí llevan ya una nota
+  fechada del 2026-09-15.
+- **Estado:** abierta (aviso cruzado; se cierra cuando una fase de código las
+  reasigne).
+
+---
+
+## F-250 · Con el rollo agotado el kiosco emite, descuenta y da por impreso un boleto que no sale
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 3 · prueba deliberada sin papel de las 13:29, con el usuario
+  en vivo
+- **Dónde:** `ruleta/escpos.py`, la consulta de estado de `ImpresoraArchivo`
+  (`grep -n "CMD_ESTADO_PAPEL\|CMD_ESTADO_IMPRESORA\|_MASCARA_FIJA_ESTADO" ruleta/escpos.py`)
+  y su uso antes de cada boleto.
+- **Qué pasa:** la consulta `DLE EOT` que añadió la sub-fase 2b **no protege
+  nada cuando de verdad hace falta**. Medido el 2026-09-15 a las 13:29:17, con el
+  servicio `active`: con la impresora **sin papel**, el journal dijo
+  `Boleto 00009 emitido: TEST 7` → `WARNING … reporta poco papel` →
+  `Boleto 00009 impreso: TEST 7`. **Ni «sin papel» ni «fuera de línea» se
+  detectaron.** La causa es la que ya se diagnosticó el 2026-09-13: **la
+  impresora repite el último byte de estado y el programa lee la respuesta a la
+  pregunta anterior**; un desfase de un comando basta para derrotar a las dos
+  guardias. El resultado: `boletos.csv` con el folio 00009 `emitido` **e**
+  `impreso`, `estado.json` en folio 9 y el premio **TEST 7 descontado del
+  inventario sin que saliera papel**. El proceso ni siquiera se enteró —`wchan`
+  en `hrtimer_nanosleep`, `NRestarts=0`—: la escritura al nodo `usblp` no se
+  bloquea porque la impresora **acepta los bytes en su búfer** y los retiene.
+- **Por qué está aquí y no como parada de fase:** **no es residual por su
+  gravedad, lo es por su alcance.** La Fase 3 era de cableado: no tocó código, ni
+  `config.json`, ni los tests, y el arreglo **espera la autorización del
+  usuario**, igual que el del aviso falso de poco papel. Se anota aquí, con la
+  medición entera, para que la Fase 4 no empiece sin saberlo. Es hermana de la
+  **F-091**, que es donde vive la historia de esta consulta.
+- **Riesgo si no se toca:** durante la semana del evento, **cada jugada con el
+  rollo agotado regala un folio y un premio sin entregar boleto**, en silencio.
+  El cliente se va sin nada, el inventario baja igual, y el descuadre solo
+  aparece si alguien cuadra `boletos.csv` contra los boletos que llegaron a caja.
+  Con 33 premios al día y una impresora que ya avisa de poco papel desde el
+  2026-09-11 (**F-190**), no es un caso raro: es el caso de cualquier tarde en
+  que nadie mire el rollo.
+- **Atenuante medida, que no resuelve nada:** al reponer el papel (13:31–13:33)
+  la impresora **soltó sola** el boleto retenido en su búfer, cortado. Depende de
+  que nadie apague nada: si se apaga la impresora o la Pi antes de reponer, el
+  trabajo se pierde y el programa ya lo dio por impreso; y si el papel se acaba a
+  media impresión, sale un boleto incompleto. Ninguno de esos dos límites se
+  provocó: están razonados en el archivo de hechos, no medidos.
+- **Propuesta (la que deja escrita el archivo de hechos):** en la **Fase 4**,
+  **leer la respuesta FRESCA**: tras mandar el `DLE EOT`, leer hasta unos **64
+  bytes o 150 ms** y quedarse con el **último byte válido**, o **drenar el búfer
+  con un tope** antes de preguntar. Eso, **además** de la máscara estricta que ya
+  estaba propuesta. Mientras no exista el arreglo, la única defensa es de
+  procedimiento: **rollo de repuesto junto a la Pi y mirar el papel** (**F-190**),
+  y cuadrar `boletos.csv` contra la caja al cerrar el día.
+- **Estado:** abierta. **Riesgo abierto más grande que deja la Fase 3.**
+  **Requiere autorización del usuario** para tocar código.
 
 ---

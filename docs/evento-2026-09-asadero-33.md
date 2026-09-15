@@ -5,8 +5,10 @@
 no cambia de horario, así que es la misma hora todo el evento).
 **Días con nombre:** 21 lunes · 22 martes · 23 miércoles · **24 jueves** · **25 viernes**.
 
-**Última edición:** 2026-09-13 · Claude (ejecutor), a partir del dictado de
-sdurazo del 2026-09-13.
+**Última edición:** 2026-09-15 · Claude (ejecutor), y **solo la bitácora del §7**
+(cierre de la Fase 3). Los premios, los cupos, las franjas y las probabilidades
+siguen siendo los del dictado de sdurazo del **2026-09-13**: no se tocó ninguna
+tabla.
 
 ---
 
@@ -498,4 +500,5 @@ Reglas que propongo para ese campo:
 | Fecha | Quién | Qué cambió |
 |---|---|---|
 | 2026-09-13 | Claude (ejecutor), del dictado de sdurazo | **Primera versión.** Fechas 21–25 de septiembre, horario 12:00–23:00 de Hermosillo, los 7 premios reales con stock y cupo (167 piezas, 33 al día), nombres y detalles propuestos, modelo de probabilidad «peso = cupo» con escenarios de N = 150 / 250 / 400, franjas propuestas para los grandes y la hielera, 7 preguntas abiertas y el mapa a `config.json` con las tres piezas pendientes de construir (A: peso del consuelo · B: franjas · C: horario del evento). |
+| 2026-09-15 | Claude (ejecutor), cierre de la Fase 3 | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo ni ninguna probabilidad.** (1) **Los botones quedaron cableados y probados** en hardware: tres jugadas reales imprimieron boleto (acta: `docs/actas/2026-09-15-fase-3.md`). (2) El usuario decidió que **no habrá batería RTC** y que **la Pi irá con el internet del asadero**, que es lo que le pondrá la hora al encender. (3) De ahí sale una **pieza D pendiente de construir**, además de la A, la B y la C: que el programa **espere a que la hora esté sincronizada** antes de imprimir el inventario y de aceptar jugadas, y lo **avise en el boleto** si no lo consigue. Importa para este documento porque durante los primeros minutos tras encender la Pi cree que es otro día —el 2026-09-15 se midieron unos tres, de las 11:44:42 a las 11:47—, y del día dependen los **topes diarios** y las fechas **`desde`/`hasta`** (ficha **F-241**). (4) Recordatorio con fecha límite, ya escrito en el §6 paso 5: **reiniciar el inventario antes del lunes 21**, porque las pruebas del día dejaron el folio en 10 (ficha **F-243**). (5) **Aviso que afecta a los premios de este documento:** una prueba deliberada con la impresora **sin papel** demostró que hoy, con el rollo agotado, el kiosco **emite el boleto, descuenta el premio y lo da por impreso aunque no salga papel**. Hasta que la Fase 4 lo arregle, la defensa es de procedimiento: **rollo de repuesto junto a la Pi** y cuadrar `boletos.csv` contra la caja al cerrar el día (fichas **F-091**, **F-190** y **F-250**). |
 |  |  |  |

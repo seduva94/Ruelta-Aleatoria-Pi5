@@ -35,10 +35,14 @@ Todo el texto (config, boletos, mensajes, comandos) está en español.
 Los botones van **entre el pin GPIO y tierra (GND)**. No hace falta resistencia:
 el programa activa las resistencias pull-up internas de la Pi. Presionado = 0 V.
 
+**Hay un dibujo de todo esto:** `docs/cableado-botones.svg`. Ábrelo con doble
+clic —se ve en cualquier navegador y se puede imprimir—. Enseña la Pi vista
+desde arriba, qué cable va a qué pin y qué no hay que conectar nunca.
+
 | Función | GPIO (BCM) | Pin físico | El otro cable a |
 |---|---|---|---|
 | Botón JUGAR | GPIO 17 | pin 11 | GND (pin 9) |
-| Botón HABILITAR | GPIO 27 | pin 13 | GND (pin 9 o 14) |
+| Botón HABILITAR | GPIO 27 | pin 13 | GND (**pin 25** en la Pi del asadero; sirve cualquier GND) |
 | LED (opcional) | GPIO 22 | pin 15 | resistencia 330 Ω → LED → GND |
 
 ```
@@ -55,6 +59,32 @@ GPIO22 (15) (16) GPIO23      <-- LED
 
 Los pines se cambian en `config.json` → sección `gpio`. Evita GPIO 0-3, 7-11,
 14, 15 y 18-21 (tienen funciones especiales). Alternativas limpias: 23, 24, 25, 5, 6, 16, 26.
+
+**Así quedó cableado de verdad** (2026-09-15, medido con los botones puestos):
+JUGAR con el contacto **NO al pin 11** y el **COM al pin 9 (GND)**; HABILITAR con
+la **señal al pin 13** y el otro cable al **pin 25 (GND)**. Los ocho pines de
+tierra (6, 9, 14, 20, 25, 30, 34 y 39) son intercambiables: si un cable no llega
+al 9, se usa el 25 y no pasa nada —pero **mueve cualquier cable con la Pi
+apagada y con el cable de corriente desconectado**, como dice el aviso 1 del
+dibujo—. Lo que **no** se cambia son los GPIO 17 y 27.
+
+**Pulsadores con patitas delgadas.** Los pulsadores chicos de metal traen dos
+patitas planas y **delgadas**. Las terminales de crimpar tipo cuchilla son para
+cuchillas anchas y **no las sujetan**: el botón puede funcionar hoy y dejar de
+funcionar con el primer tirón del cable. **Suelda el cable a la patita, o
+enrolla bien el cobre**, antes de meterlo todo en la caja.
+
+**La hora, si la Pi NO lleva batería RTC.** Sin batería, la Pi olvida la hora al
+apagarse y la recupera **por internet** al encender (así se decidió el
+2026-09-15 para este evento). En la práctica: **enciende la Pi unos minutos
+antes de abrir** y **mira la fecha del boleto de inventario** que imprime
+al arrancar. Si sale una fecha vieja, **no la apagues para volver a
+encenderla**: lo medido el 2026-09-15 es que la Pi tardó **unos tres minutos
+desde que arrancó** (11:44:42) en que internet le corrigiera la hora (11:47), así
+que reiniciarla vuelve a imprimir un boleto con la fecha mal. **Espera unos
+minutos** con la Pi encendida y el internet funcionando y **pide otro boleto de
+inventario**: el mesero mantiene **HABILITAR 6 segundos sin que nadie toque
+JUGAR** (§5, punto 4). No abras hasta que ese boleto traiga la fecha de hoy.
 
 **LED del botón arcade.** Muchos botones arcade traen un módulo LED de 5 V o
 12 V. Un pin GPIO da 3.3 V y muy poca corriente: conéctalo a través de un
@@ -86,9 +116,14 @@ opciones avanzadas:
 Desde tu PC entras con `ssh asadero@ruleta.local` (o `ssh ruleta` si guardaste
 el alias en `~/.ssh/config`).
 
-**El SSH y el Wi-Fi son solo para instalar y probar.** En el evento la Pi va
-**sin red**, así que la **batería RTC es necesaria**: sin ella, tras un apagón
-los boletos salen con la fecha y la hora equivocadas.
+**El SSH y el Wi-Fi son solo para instalar y probar.** *(Corregido el
+2026-09-15. Aquí decía que «en el evento la Pi va **sin red**, así que la
+**batería RTC es necesaria**». El usuario decidió ese día lo contrario: **no
+habrá batería RTC** y **la Pi llevará el internet del asadero** durante el
+evento, que es lo que le pone la hora al encender. Lo que sigue siendo verdad es
+que, sin batería y sin red, los boletos salen con la fecha equivocada tras un
+apagón: por eso hay que encenderla unos minutos antes de abrir y mirar la fecha
+del boleto de inventario, §2.)*
 
 **Si te llevas la Pi fuera del negocio** no encontrará su Wi-Fi y no responderá.
 La salida, sin regrabar nada: en tu PC, **Configuración → Red e Internet → Punto
@@ -175,14 +210,19 @@ python3 -m ruleta vista-previa --todos
 **Cada vez que cambies `config.json` con el servicio corriendo:**
 `sudo systemctl restart ruleta`.
 
-**Paso 7 · Hora e inventario en cero.** En el evento la Pi va sin internet, así
-que **instala la batería RTC** y deja la hora fija (mientras haya internet
-puedes dejar `set-ntp true` y se sincroniza sola):
+**Paso 7 · Hora e inventario en cero.** *(Corregido el 2026-09-15. Este paso
+decía «en el evento la Pi va sin internet, así que **instala la batería RTC** y
+deja la hora fija». Ya no: **no hay batería RTC** y **la Pi va con el internet
+del asadero**, así que lo correcto es dejar que la hora la ponga la red.)*
+Comprueba la zona horaria y **deja encendida la sincronización**:
 ```bash
 sudo timedatectl set-timezone America/Hermosillo
-sudo timedatectl set-ntp false
-sudo timedatectl set-time "2026-09-15 18:30:00"
+sudo timedatectl set-ntp true
+timedatectl                          # que la fecha y la hora sean las de hoy
 ```
+Los dos comandos que ponían la hora a mano (`set-ntp false` y
+`set-time "…"`) solo hacen falta si de verdad no va a haber red: con red,
+apagar la sincronización deja el reloj a la deriva.
 Deja el inventario en cero para el evento:
 ```bash
 python3 -m ruleta reiniciar --si
@@ -487,8 +527,16 @@ fallo de la impresora **no** reinicia el servicio (el boleto no sale, el LED
 parpadea rápido y el programa sigue esperando). `python3 -m ruleta
 diagnostico` lo señala.
 
-**Hora o fecha incorrectas en los boletos.** Instala la batería RTC, fija la
-hora con `timedatectl` (paso 7) y activa su recarga agregando
+**Hora o fecha incorrectas en los boletos.** *(2026-09-15: para este evento **no
+hay batería RTC**; la hora se la pone el internet del asadero al encender. Si la
+fecha sale mal es que la Pi todavía no ha sincronizado la hora: **no la apagues
+para volver a encenderla**. Al reiniciar vuelve a arrancar con la fecha vieja y a
+imprimir otro boleto de inventario equivocado —lo medido el 2026-09-15 es que
+tardó **unos tres minutos**, de las 11:44:42 a las 11:47—. Déjala encendida con
+el internet funcionando, espera unos minutos y **pide otro boleto de inventario**
+(el mesero mantiene HABILITAR 6 segundos sin que nadie toque JUGAR, §5 punto 4)
+hasta que traiga la fecha de hoy.)* Si algún día sí se instala la batería RTC: fija la hora con
+`timedatectl` (paso 7) y activa su recarga agregando
 `dtparam=rtc_bbat_vchg=3000000` a `/boot/firmware/config.txt`.
 
 **El Bluetooth de la Pi no aparece** (`No default controller available`):
