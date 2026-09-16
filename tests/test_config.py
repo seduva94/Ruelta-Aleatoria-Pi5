@@ -6,17 +6,35 @@ from datetime import date
 from pathlib import Path
 
 from ruleta import config as configmod
-from ruleta.config import ErrorConfig
+from ruleta.config import ErrorConfig, Franja
 
 RAIZ = Path(__file__).resolve().parent.parent
 RUTA_CONFIG = RAIZ / "config.json"
 RUTA_EVENTO = RAIZ / "docs" / "evento-2026-09-asadero-33.md"
 
-# Las llaves que la Fase 4b copió del documento del evento al config.json.
-# NO están 'desde' ni 'hasta': se cargan en la pasada final antes del lunes 21
-# (decisión D1 del plan, ficha F-259). Lo ancla
+# Las llaves que la Fase 4b copió del documento del evento al config.json, más
+# 'franjas', que añadió la Fase 4d (pieza B). NO están 'desde' ni 'hasta': se
+# cargan en la pasada final antes del lunes 21 (ficha F-259). Lo ancla
 # TestPremiosOficialesDelEvento.test_los_premios_del_config_todavia_no_traen_fechas.
-CLAVES_DEL_DOCUMENTO = ("id", "nombre", "detalle", "stock", "tope_diario", "peso")
+CLAVES_OBLIGATORIAS = ("id", "nombre", "detalle", "stock", "tope_diario", "peso")
+CLAVES_DEL_DOCUMENTO = CLAVES_OBLIGATORIAS + ("franjas",)
+
+# Fila de la tabla de la tómbola del §2 del documento del evento, de la forma
+#   | Una pieza de AGUA FRESCA (peso 11) | 11 + 10 = 21 | **52.4 %** |
+# Se parsea en vez de transcribirse para que los números del documento los tenga
+# que calcular el programa (golden test_las_probabilidades_del_2_las_calcula_el_programa).
+FILA_TOMBOLA = re.compile(
+    r"\|[^|\n]*?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]*[A-ZÁÉÍÓÚÑ]) \(peso (\d+)\)[^|\n]*\|"
+    r"\s*(\d+) \+ (\d+) = (\d+)\s*\|\s*\*\*([\d.]+) %\*\*\s*\|")
+
+
+def como_dict(valor):
+    """Las franjas del validador (objetos Franja) en la forma cruda del JSON."""
+    if isinstance(valor, list):
+        return [como_dict(v) for v in valor]
+    if isinstance(valor, Franja):
+        return {"desde_hora": valor.desde_hora, "hasta_hora": valor.hasta_hora, "tope": valor.tope}
+    return valor
 
 
 def base(**extra):
@@ -123,6 +141,66 @@ class TestReglas(unittest.TestCase):
         self.espera_error(base(juego={"hora_inicio_dia": 24}), "hora_inicio_dia")
         self.espera_error(base(juego={"intentos_inventario_arranque": 0}), "intentos_inventario_arranque")
         self.espera_error(base(juego={"consuelo": {"peso": -1}}), "juego.consuelo.peso")
+        self.espera_error(base(juego={"separacion_min_entre_premios": -1}),
+                          "juego.separacion_min_entre_premios")
+        self.espera_error(base(juego={"espera_hora_seg": -0.5}), "juego.espera_hora_seg")
+
+    # -- horario del evento (pieza C, Fase 4d) ------------------------------- #
+
+    def test_horario_del_evento_valido(self):
+        cfg = configmod.desde_dict(base(juego={"horario": {"abre": "12:00", "cierra": "23:00",
+                                                           "fuera_de_horario": "no_jugar"}}))
+        self.assertEqual((cfg.juego.horario.abre, cfg.juego.horario.cierra,
+                          cfg.juego.horario.fuera_de_horario), ("12:00", "23:00", "no_jugar"))
+        # Sin la llave NO hay horario, y eso es «se juega a cualquier hora»: se
+        # ancla por igualdad a None porque es lo único que separa una instalación
+        # vieja de una nueva.
+        self.assertIsNone(configmod.desde_dict(base()).juego.horario)
+        self.assertIsNone(configmod.desde_dict(base(juego={"hora_inicio_dia": 6})).juego.horario)
+        # Y por omisión, si el bloque existe, fuera de horario se da consuelo.
+        con_bloque = configmod.desde_dict(base(juego={"horario": {"abre": "12:00", "cierra": "23:00"}}))
+        self.assertEqual(con_bloque.juego.horario.fuera_de_horario, "consuelo")
+
+    def test_horario_del_evento_invalido(self):
+        def horario(**h):
+            return base(juego={"horario": {"abre": "12:00", "cierra": "23:00", **h}})
+        self.espera_error(horario(abre="25:00"), "juego.horario.abre")
+        self.espera_error(horario(abre="12:60"), "juego.horario.abre")
+        self.espera_error(horario(abre="9:00"), "juego.horario.abre")       # falta el cero
+        self.espera_error(horario(cierra="mediodía"), "juego.horario.cierra")
+        self.espera_error(horario(cierra=1200), "juego.horario.cierra")
+        self.espera_error(horario(abre="23:00", cierra="12:00"), "anterior")
+        self.espera_error(horario(abre="12:00", cierra="12:00"), "anterior")
+        self.espera_error(horario(fuera_de_horario="apagar"), "fuera_de_horario")
+        self.espera_error(base(juego={"horario": {"abre": "12:00", "cierra": "23:00", "todo": 1}}),
+                          "juego.horario")
+        self.espera_error(base(juego={"horario": "12:00-23:00"}), "juego.horario")
+
+    # -- franjas por premio (pieza B, Fase 4d) ------------------------------- #
+
+    def test_franjas_validas(self):
+        cfg = configmod.desde_dict(base(premios=[{
+            "id": "silla", "nombre": "Silla", "peso": 2, "tope_diario": 2,
+            "franjas": [{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1},
+                        {"desde_hora": "19:00", "hasta_hora": "22:00"}]}]))
+        self.assertEqual([como_dict(f) for f in cfg.premios[0].franjas],
+                         [{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1},
+                          {"desde_hora": "19:00", "hasta_hora": "22:00", "tope": 1}])
+        # Sin la llave, la lista está vacía: el premio vale a cualquier hora.
+        self.assertEqual(configmod.desde_dict(base()).premios[0].franjas, [])
+
+    def test_franjas_invalidas(self):
+        def con_franjas(franjas):
+            return base(premios=[{"id": "silla", "nombre": "Silla", "peso": 2, "franjas": franjas}])
+        self.espera_error(con_franjas([{"desde_hora": "13:00", "hasta_hora": "25:00"}]), "hasta_hora")
+        self.espera_error(con_franjas([{"desde_hora": "16:00", "hasta_hora": "13:00"}]), "anterior")
+        self.espera_error(con_franjas([{"desde_hora": "13:00", "hasta_hora": "13:00"}]), "anterior")
+        self.espera_error(con_franjas([{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": 0}]), "tope")
+        self.espera_error(con_franjas([{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": "1"}]), "tope")
+        self.espera_error(con_franjas([{"desde_hora": "13:00"}]), "faltan")
+        self.espera_error(con_franjas([{"desde_hora": "13:00", "hasta_hora": "16:00", "peso": 12}]), "peso")
+        self.espera_error(con_franjas([["13:00", "16:00"]]), "objeto")
+        self.espera_error(con_franjas("13:00-16:00"), "lista")
 
     def test_consuelo_sin_peso_vale_cero(self):
         """Omitir la llave es el comportamiento de antes de la Fase 4c: consuelo sin papelitos.
@@ -201,6 +279,15 @@ class TestCargar(unittest.TestCase):
         # TestPremiosOficialesDelEvento.test_config_json_lleva_el_peso_de_consuelo_del_documento,
         # que lo DERIVA del §5.2 del documento del evento en vez de transcribirlo.
         self.assertGreater(cfg.juego.consuelo.peso, 0)
+        # Censo derivado de las franjas (Fase 4d): las cinco del §3 del documento
+        # del evento, y SOLO en los tres premios grandes. Los valores exactos los
+        # compara TestPremiosOficialesDelEvento contra el documento.
+        self.assertEqual({p.id: len(p.franjas) for p in cfg.premios if p.franjas},
+                         {"hielera": 1, "silla": 2, "bbq": 2})
+        self.assertEqual(sum(len(p.franjas) for p in cfg.premios), 5)
+        self.assertIsNotNone(cfg.juego.horario)
+        self.assertGreater(cfg.juego.separacion_min_entre_premios, 0)
+        self.assertGreater(cfg.juego.espera_hora_seg, 0)
 
     def test_config_json_del_proyecto_apunta_a_la_impresora_usb(self):
         """Lo medido en la Pi el 2026-09-11: USB por /dev/ruleta-impresora, con pitido.
@@ -235,52 +322,54 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
     Cargado el 2026-09-15 (Fase 4b, plan `docs/planes/fase-4b-config-oficial.md`).
     """
 
-    def premios_del_documento(self):
-        """La lista `premios` del §5.1, parseada del documento, no transcrita."""
+    def bloque_del_documento(self, llave: str):
+        """El único bloque ```json del documento que EMPIEZA por esa llave.
+
+        Los bloques se localizan por su contenido y no por el número de sección,
+        porque las secciones se mueven. Se busca por dónde EMPIEZA el bloque —y
+        no por «lo menciona»— porque desde la Fase 4d hay bloques anidados: el
+        `"juego"` del §5.1 lleva dentro un `"consuelo"` y un `"horario"` que
+        también tienen bloque propio en el §5.2.
+        """
         texto = RUTA_EVENTO.read_text(encoding="utf-8")
         bloques = re.findall(r"^```json\s*?\n(.*?)^```", texto, re.DOTALL | re.MULTILINE)
-        con_premios = [b for b in bloques if '"premios"' in b]
+        empiezan = [b for b in bloques if b.lstrip().startswith(f'"{llave}"')]
         self.assertEqual(
-            len(con_premios), 1,
-            f"En {RUTA_EVENTO.name} debe haber EXACTAMENTE un bloque de código json con la "
-            f"lista \"premios\" (el del §5.1); se encontraron {len(con_premios)} entre "
-            f"{len(bloques)} bloques json. Si el documento cambió de forma, arregla este "
-            f"golden: NO lo borres.")
-        # El bloque es un fragmento de objeto ("premios": [...]), no un JSON
-        # completo; se envuelve en llaves para poder parsearlo tal cual está
-        # escrito en el documento, sin retocarlo.
-        premios = json.loads("{" + con_premios[0] + "}")["premios"]
+            len(empiezan), 1,
+            f"En {RUTA_EVENTO.name} debe haber EXACTAMENTE un bloque de código json que empiece "
+            f"por \"{llave}\"; se encontraron {len(empiezan)} entre {len(bloques)} bloques json. "
+            f"Si el documento cambió de forma, arregla este golden: NO lo borres.")
+        # Es un fragmento de objeto ("premios": [...]), no un JSON completo: se
+        # envuelve en llaves para parsearlo tal cual está escrito, sin retocarlo.
+        return json.loads("{" + empiezan[0] + "}")[llave]
+
+    def premios_del_documento(self):
+        """La lista `premios` del §5.1, parseada del documento, no transcrita."""
+        premios = self.bloque_del_documento("premios")
         self.assertEqual(len(premios), 7,
                          "La tabla del §1 del documento del evento fija SIETE premios.")
         for i, p in enumerate(premios, start=1):
-            faltan = sorted(set(CLAVES_DEL_DOCUMENTO) - set(p))
+            faltan = sorted(set(CLAVES_OBLIGATORIAS) - set(p))
             self.assertEqual(faltan, [],
                              f"Al premio #{i} del §5.1 le faltan las llaves {faltan}.")
         return premios
 
     def consuelo_del_documento(self):
-        """El bloque `consuelo` del §5.2 (PENDIENTE A), parseado del documento.
-
-        Es el bloque que la Fase 4c construyó: `titulo`, `texto` y el `peso`
-        nuevo. Se busca por contenido —el único bloque ```json que menciona
-        `"consuelo"`— y no por número de sección, porque las secciones se mueven.
-        """
-        texto = RUTA_EVENTO.read_text(encoding="utf-8")
-        bloques = re.findall(r"^```json\s*?\n(.*?)^```", texto, re.DOTALL | re.MULTILINE)
-        con_consuelo = [b for b in bloques if '"consuelo"' in b]
-        self.assertEqual(
-            len(con_consuelo), 1,
-            f"En {RUTA_EVENTO.name} debe haber EXACTAMENTE un bloque de código json con "
-            f"\"consuelo\" (el del §5.2, PENDIENTE A); se encontraron {len(con_consuelo)} entre "
-            f"{len(bloques)} bloques json. Si el documento cambió de forma, arregla este "
-            f"golden: NO lo borres.")
-        # Igual que el del §5.1, es un fragmento de objeto: se envuelve en llaves
-        # para parsearlo tal cual está escrito, sin retocarlo.
-        consuelo = json.loads("{" + con_consuelo[0] + "}")["consuelo"]
+        """El bloque `consuelo` del §5.2 (PENDIENTE A), parseado del documento."""
+        consuelo = self.bloque_del_documento("consuelo")
         faltan = sorted({"titulo", "texto", "peso"} - set(consuelo))
         self.assertEqual(faltan, [],
                          f"Al bloque `consuelo` del §5.2 le faltan las llaves {faltan}.")
         return consuelo
+
+    def juego_del_documento(self):
+        """El bloque `juego` del §5.1, con horario, separación, espera y consuelo."""
+        juego = self.bloque_del_documento("juego")
+        faltan = sorted({"horario", "separacion_min_entre_premios", "espera_hora_seg",
+                         "consuelo"} - set(juego))
+        self.assertEqual(faltan, [],
+                         f"Al bloque `juego` del §5.1 le faltan las llaves {faltan}.")
+        return juego
 
     def test_config_json_lleva_el_peso_de_consuelo_del_documento(self):
         """Pieza A (Fase 4c): el `peso` del consuelo se DERIVA del §5.2, no se copia.
@@ -298,50 +387,132 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
             "config.json y el §5.2 (PENDIENTE A) de docs/evento-2026-09-asadero-33.md dicen "
             "cosas distintas. Gana el DOCUMENTO (§6, paso 1): corrige config.json, no el golden.")
 
-    def test_el_peso_del_documento_obedece_la_regla_N_menos_33_del_su_propio_2(self):
-        """El documento tiene que estar de acuerdo consigo mismo: §5.2 contra §2.
+    def test_config_json_lleva_el_bloque_de_juego_del_documento(self):
+        """Piezas B, C y D (Fase 4d): el bloque `juego` del §5.1 manda sobre config.json.
 
-        El §2 («Cómo cambiar N») escribe la regla **N − 33** y su tabla de
-        equivalencias (150 → 117 · 200 → 167 · 250 → 217 · 300 → 267 · 400 →
-        367). Esto comprueba dos cosas por igualdad: (a) que esa tabla obedezca
-        la regla, y (b) que el `peso` del §5.2 sea una de sus entradas. Así un
-        peso tecleado a mano —218, 271— se pone en rojo, y a la vez el usuario
-        puede responder la **pregunta 1 del §4** con CUALQUIERA de las N
-        tabuladas sin que la suite se queje: es el cambio que el propio documento
-        manda hacer, y **no debe obligar a tocar la tabla de escenarios del §2**.
+        Se comparan **de una vez y por igualdad** el horario del evento, la
+        separación mínima entre premios, la espera de la hora al arrancar y el
+        consuelo entero: si el usuario cambia una hora en el documento y nadie
+        rehace `config.json`, la suite se pone en rojo.
+        """
+        del_documento = self.juego_del_documento()
+        j = configmod.cargar(RUTA_CONFIG).juego
+        self.assertIsNotNone(j.horario, "config.json tiene que traer el bloque juego.horario.")
+        del_config = {
+            "horario": {"abre": j.horario.abre, "cierra": j.horario.cierra,
+                        "fuera_de_horario": j.horario.fuera_de_horario},
+            "separacion_min_entre_premios": j.separacion_min_entre_premios,
+            "espera_hora_seg": j.espera_hora_seg,
+            "consuelo": {"titulo": j.consuelo.titulo, "texto": j.consuelo.texto,
+                         "peso": j.consuelo.peso},
+        }
+        self.assertEqual(
+            del_config, del_documento,
+            "config.json y el bloque \"juego\" del §5.1 de docs/evento-2026-09-asadero-33.md "
+            "dicen cosas distintas. Gana el DOCUMENTO (§6, paso 1): corrige config.json, no el "
+            "golden.")
+
+    def test_el_5_2_dice_lo_mismo_que_el_5_1_en_los_tres_bloques_que_se_repiten(self):
+        """El documento tiene que estar de acuerdo consigo mismo.
+
+        El §5.2 vuelve a escribir, pieza por pieza, tres cosas que el §5.1 ya
+        trae dentro de `"juego"`: el consuelo (A), el horario (C) y la espera de
+        la hora (D). Están las dos veces a propósito —el §5.2 explica cada pieza
+        por separado— y por eso hay que vigilar que no se separen: `config.json`
+        se compara contra el §5.1, así que una pieza mal copiada en el §5.2
+        pasaría en silencio.
+        """
+        juego = self.juego_del_documento()
+        self.assertEqual(self.consuelo_del_documento(), juego["consuelo"],
+                         "El bloque `consuelo` del §5.2 (A) no dice lo mismo que el del §5.1.")
+        self.assertEqual(self.bloque_del_documento("horario"), juego["horario"],
+                         "El bloque `horario` del §5.2 (C) no dice lo mismo que el del §5.1.")
+        self.assertEqual(self.bloque_del_documento("espera_hora_seg"), juego["espera_hora_seg"],
+                         "La `espera_hora_seg` del §5.2 (D) no dice lo mismo que la del §5.1.")
+
+    def test_la_franja_de_ejemplo_del_5_2_B_es_la_de_la_hielera(self):
+        """El §5.2 B dice ser «la franja de la hielera tal cual está cargada»: que lo sea."""
+        cfg = configmod.cargar(RUTA_CONFIG)
+        hielera = next(p for p in cfg.premios if p.id == "hielera")
+        self.assertEqual(
+            self.bloque_del_documento("franjas"), como_dict(hielera.franjas),
+            "El ejemplo de `franjas` del §5.2 (PENDIENTE B) ya no es la franja real de la "
+            "hielera. Gana el DOCUMENTO: si la franja cambió, cámbiala también en el §5.1 y en "
+            "config.json.")
+
+    def test_las_probabilidades_del_2_las_calcula_el_programa(self):
+        """La tabla de la tómbola del §2 tiene que salir de los pesos reales.
+
+        El §2 explica cuánto se gana con un par de ejemplos («una pieza de AGUA
+        FRESCA abierta: 11 + 10 = 21 papelitos, gana el 52.4 %»). Esos números
+        **no se transcriben**: se comprueban contra el `peso` que ese premio
+        tiene en `config.json`, contra `juego.consuelo.peso` y contra la división
+        hecha aquí. Cambiar un peso sin corregir el documento —o al revés— pone
+        la suite en rojo. Es lo que sustituye al golden de la regla «N − 33»,
+        que murió con el modelo viejo el 2026-09-16.
         """
         texto = RUTA_EVENTO.read_text(encoding="utf-8")
-        # Lista, NO diccionario: el documento escribe esa tabla DOS veces (§2 y
-        # §5.2), y con un dict la segunda tapaba a la primera, así que un error
-        # en la del §2 pasaba en verde.
-        pares = [(int(n), int(peso)) for n, peso in re.findall(r"(\d+)\s*→\s*(\d+)", texto)]
-        self.assertNotEqual(
-            pares, [], "No se encontró en el documento del evento la tabla de equivalencias "
-                       "«N → peso del consuelo» del §2. Si el documento cambió de forma, arregla "
-                       "este golden: NO lo borres.")
-        self.assertEqual([(n, peso) for n, peso in pares if peso != n - 33], [],
-                         f"La tabla «N → peso» del documento del evento no obedece su propia "
-                         f"regla N − 33: {pares}.")
-        # «Las N que el §2 tabula» hay que leerlas del §2 y de ningún otro sitio:
-        # leyéndolas de todo el documento, añadir la N solo al §5.2 bastaba para
-        # pasar en verde.
-        parrafo = re.search(r"\*\*Cómo cambiar N:\*\*(.*?)\n\n", texto, re.DOTALL)
+        filas = FILA_TOMBOLA.findall(texto)
+        self.assertGreaterEqual(
+            len(filas), 2,
+            "No se encontró la tabla «Qué está abierto en ese momento | Papelitos | Gana» del §2 "
+            "del documento del evento. Si el documento cambió de forma, arregla este golden: NO "
+            "lo borres.")
+        cfg = configmod.cargar(RUTA_CONFIG)
+        por_nombre = {p.nombre: p for p in cfg.premios}
+        for nombre, peso, sumando, consuelo, total, porcentaje in filas:
+            with self.subTest(premio=nombre):
+                premio = por_nombre.get(nombre)
+                self.assertIsNotNone(premio, f"El §2 nombra un premio que no está en config.json: "
+                                             f"{nombre!r}. Ids cargados: {sorted(por_nombre)}")
+                self.assertEqual(int(peso), premio.peso,
+                                 f"El §2 dice que {nombre} tiene peso {peso} y config.json dice "
+                                 f"{premio.peso}.")
+                self.assertEqual(int(sumando), premio.peso)
+                self.assertEqual(int(consuelo), cfg.juego.consuelo.peso,
+                                 f"El §2 suma {consuelo} papelitos de consuelo y config.json tiene "
+                                 f"{cfg.juego.consuelo.peso}.")
+                self.assertEqual(int(total), int(sumando) + int(consuelo),
+                                 f"La suma del §2 para {nombre} no cuadra.")
+                self.assertEqual(porcentaje, f"{100.0 * int(sumando) / int(total):.1f}",
+                                 f"El porcentaje del §2 para {nombre} no es el que sale de "
+                                 f"dividir {sumando} entre {total}.")
+
+    def test_la_nota_historica_del_2_sigue_obedeciendo_su_regla_N_menos_33(self):
+        """La nota histórica del §2 se conserva, y tiene que seguir siendo cierta.
+
+        El modelo viejo («el peso es el cupo», peso del consuelo = **N − 33**)
+        murió el 2026-09-16 con el reparto por horas, pero el §2 lo conserva
+        como nota histórica porque hay fichas que razonan desde ahí y porque
+        vuelve a valer si alguien quita el horario. La tabla de equivalencias se
+        lee **solo dentro de esa nota** —leyéndola de todo el documento,
+        cualquier flecha entre números la envenenaría— y tiene que cumplir la
+        regla que la propia nota escribe.
+        """
+        texto = RUTA_EVENTO.read_text(encoding="utf-8")
+        nota = re.search(r"### Nota histórica.*?(?=\n---|\n## )", texto, re.DOTALL)
         self.assertIsNotNone(
-            parrafo, "No se encontró el párrafo «Cómo cambiar N» del §2 (Aviso 2) del documento "
-                     "del evento. Si el documento cambió de forma, arregla este golden: NO lo "
-                     "borres.")
-        del_2 = {int(peso) for _, peso in re.findall(r"(\d+)\s*→\s*(\d+)", parrafo.group(1))}
-        self.assertIn(self.consuelo_del_documento()["peso"], del_2,
-                      f"El `peso` del consuelo del §5.2 no es ninguna de las N tabuladas en el "
-                      f"§2 ({sorted(del_2)}). Si el usuario eligió otra N, añádela allí "
-                      f"con su N − 33; NO toques la tabla de escenarios del §2.")
+            nota, "No se encontró la «Nota histórica» del §2 del documento del evento. Si el "
+                  "documento cambió de forma, arregla este golden: NO lo borres.")
+        pares = [(int(n), int(peso)) for n, peso in re.findall(r"(\d+)\s*→\s*(\d+)", nota.group(0))]
+        self.assertNotEqual(
+            pares, [], "La nota histórica del §2 ya no trae la tabla «N → peso del consuelo».")
+        self.assertEqual([(n, peso) for n, peso in pares if peso != n - 33], [],
+                         f"La tabla «N → peso» de la nota histórica no obedece la regla N − 33 "
+                         f"que la propia nota escribe: {pares}.")
 
     def test_config_json_lleva_exactamente_los_premios_del_documento(self):
-        """Igualdad campo por campo y en orden, no «están todos los ids»."""
-        del_documento = [{k: p[k] for k in CLAVES_DEL_DOCUMENTO}
+        """Igualdad campo por campo y en orden, no «están todos los ids».
+
+        Desde la Fase 4d se comparan también las `franjas` (pieza B), que es lo
+        que decide a qué horas puede salir cada premio grande.
+        """
+        del_documento = [{k: como_dict(p.get(k, [])) if k == "franjas" else p[k]
+                          for k in CLAVES_DEL_DOCUMENTO}
                          for p in self.premios_del_documento()]
         cfg = configmod.cargar(RUTA_CONFIG)
-        del_config = [{k: getattr(p, k) for k in CLAVES_DEL_DOCUMENTO} for p in cfg.premios]
+        del_config = [{k: como_dict(getattr(p, k)) for k in CLAVES_DEL_DOCUMENTO}
+                      for p in cfg.premios]
         self.assertEqual(
             del_config, del_documento,
             "config.json y el §5.1 de docs/evento-2026-09-asadero-33.md dicen cosas "
@@ -351,7 +522,7 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
         """Decisión D1 de la Fase 4b: `desde`/`hasta` se cargan en la pasada final.
 
         El bloque del §5.1 **sí** trae las fechas (21 al 25 de septiembre de
-        2026), y por eso el golden de arriba compara solo las seis llaves de
+        2026), y por eso el golden de arriba compara solo las siete llaves de
         `CLAVES_DEL_DOCUMENTO`. Se cargaron los premios **sin** fechas a
         propósito, el 2026-09-15: con el `desde` puesto en el 21, **ningún premio
         estaría disponible** en las pruebas del usuario del día 16 y solo saldrían

@@ -4742,8 +4742,23 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   números —los 2 minutos y qué se considera «sincronizada»— se deciden al
   planear la pieza: lo único medido hoy son los ~3 minutos del 2026-09-15, y en
   una red que **no** es la del asadero.
-- **Estado:** abierta (pieza de programación pendiente; **requiere autorización
-  del usuario** para abrir la fase).
+- **Estado:** **resuelta** el **2026-09-16** (Fase 4d, pieza D; plan
+  `docs/planes/fase-4d-horas.md`). Se construyó exactamente lo que esta ficha
+  proponía: al arrancar, y **solo al arrancar**, el kiosco espera hasta
+  `juego.espera_hora_seg` segundos —**120** en `config.json`— preguntando **cada
+  2 s** si el sistema ya sincronizó la hora (el archivo
+  `/run/systemd/timesync/synchronized` y, si no existe, `timedatectl show -p
+  NTPSynchronized --value`). Si lo consigue, sigue normal; si se agota el tiempo,
+  **arranca igual** —el kiosco nunca se queda muerto— y escribe en el boleto de
+  inventario de arranque la línea `HORA SIN CONFIRMAR: revisar fecha`, además de
+  registrarlo como aviso. **Ninguna jugada espera nada.** Goldens con el
+  comprobador inyectado: `tests/test_app.py`,
+  `test_arranque_espera_a_que_la_hora_se_sincronice` y
+  `test_arranque_avisa_en_el_boleto_si_la_hora_no_se_confirma`. **Lo que esta
+  ficha pedía y NO se hizo:** no se bloquean las jugadas mientras la hora no esté
+  confirmada, solo la impresión del inventario de arranque; el kiosco arranca y
+  juega igual. **Falta medirlo en la Pi**: hasta el despliegue, esto solo está
+  probado en la PC.
 
 ---
 
@@ -5489,9 +5504,18 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   corregir **las dos cosas** —la tabla del §1 y el bloque del §5.1— y después
   `config.json`: solo entonces el golden vigila el cambio y se pone en rojo
   mientras los dos no coincidan.
-- **Estado:** **abierta. Requiere decisión del usuario** (pregunta 6 del §4 del
-  documento del evento). Con ella siguen abiertas las preguntas **1** (N, el peso
-  del consuelo), **2**, **3**, **4**, **5** y **7** del mismo §4.
+- **Estado:** **resuelta** el **2026-09-16** (Fase 4d). El usuario confirmó los
+  siete nombres y los siete detalles, con dos cambios suyos: **CERVEZA** →
+  «Tecate Light, Tecate Roja o Indio» y **AGUA FRESCA** → «Horchata, Jamaica o
+  Cebada». Se quitaron **todos los asteriscos** de la tabla del §1 y se anotó la
+  confirmación con fecha; los dos detalles nuevos se copiaron al bloque del §5.1
+  y de ahí a `config.json`, que es el orden que esta misma ficha pedía. Del §4
+  siguen abiertas **solo la pregunta 7** (factor de holgura, que con el reparto
+  por horas casi no aplica); las preguntas **1**, **2**, **3**, **4** y **5**
+  quedaron respondidas ese mismo día. **El aviso de esta ficha sigue vivo como
+  regla:** el golden compara `config.json` contra el **bloque del §5.1**, no
+  contra la tabla del §1, así que un nombre corregido solo en el §1 deja la suite
+  en verde.
 
 ---
 
@@ -5625,11 +5649,19 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   ese §2 tabula (cambiar N NO obliga a tocar la tabla de escenarios del §2). **Ya
   arrancado el evento el número se puede medir**, no adivinar: el renglón
   `Boletos emitidos hoy` del reporte impreso dice cuántas jugadas hubo.
-- **Estado:** **abierta. Requiere decisión del usuario** (pregunta 1 del §4 del
-  documento del evento). Con ella siguen abiertas las preguntas **2**, **3**,
-  **4**, **5**, **6** (**F-260**) y **7** del mismo §4. Sustituye, en cuanto al
-  número, a la parte de **F-261** que pedía construir la pieza A; **F-261 quedó
-  resuelta** el mismo día.
+- **Estado:** **cerrada por derogación** el **2026-09-16** (Fase 4d). **La
+  pregunta ya no existe:** el usuario contestó que **es imposible saber cuántas
+  jugadas habrá**, y de ahí salió el reparto por horas, que **no usa N**. El peso
+  del consuelo dejó de ser «N − 33» y pasó a **10**, un número que ya no depende
+  de la asistencia sino de contra cuántas piezas abiertas compite. Todo lo que
+  esta ficha decía sobre el riesgo de errar N —«si hace 400 jugadas, los premios
+  se acaban antes de la cena»— **dejó de aplicar**: medido el 2026-09-16
+  simulando un día entero, con 1 980, 660 o 220 jugadas se entregan **las 34
+  piezas**. Lo que **sí** hereda esta ficha es que **el 10 lo propuse yo**, no el
+  usuario: ver **F-270**. El golden de la regla N − 33 se sustituyó por
+  `test_las_probabilidades_del_2_las_calcula_el_programa`, y la regla vieja
+  sobrevive, vigilada, en la nota histórica del §2
+  (`test_la_nota_historica_del_2_sigue_obedeciendo_su_regla_N_menos_33`).
 
 ---
 
@@ -5735,7 +5767,206 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   que ya va a tocar ese mismo §5.1, reescribir el párrafo del reloj con la
   decisión del 2026-09-15 y remitir a la **pieza D**. **Requiere visto bueno del
   usuario**, porque es su documento.
-- **Estado:** **abierta.** Hermanas: **F-242** (la derogación, anotada el
-  2026-09-15) y **F-241** (la pieza D).
+- **Estado:** **resuelta** el **2026-09-16** (Fase 4d). El párrafo «Sobre el
+  reloj» del §5.1 se reescribió con la decisión del 2026-09-15 —la Pi llevará el
+  internet del asadero y **no habrá batería RTC**— y ahora remite a la **pieza
+  D**, que esa misma fase construyó: al arrancar, el kiosco espera hasta
+  `juego.espera_hora_seg` (120 s) a que la hora esté sincronizada y, si no lo
+  consigue, escribe en el boleto `HORA SIN CONFIRMAR: revisar fecha`. La nota
+  fechada del párrafo viejo se conserva dentro del propio §5.1. Hermanas:
+  **F-242** (la derogación) y **F-241** (la pieza D, ahora construida).
+
+---
+
+## F-267 · El reparto por horas cambia la conducta de `tope_diario` también donde NO hay `juego.horario`
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · decisión **D3** del plan `docs/planes/fase-4d-horas.md`
+- **Dónde:** `ruleta/inventario.py`, `ventana_del_dia()` e `instantes_del_dia()`
+  (`grep -n "ventana_del_dia" ruleta/inventario.py`).
+- **Qué pasa:** hasta el 2026-09-16, un premio con `tope_diario` tenía su cupo
+  **disponible entero desde el primer minuto del día operativo**. Desde esta
+  fase el cupo **se abre poco a poco**, y eso vale **también cuando no hay bloque
+  `juego.horario`**: en ese caso el tramo es el **día operativo completo**, de
+  `hora_inicio_dia` a 24 horas después. Con el valor por omisión (6:00) y un
+  premio de una pieza al día, esa pieza **no se puede ganar hasta las 18:00**.
+  Medido y anclado por igualdad en `tests/test_inventario.py`,
+  `test_stock_y_tope_diario`: a las 12:00 el motivo es `se libera a las 18:00`.
+- **Por qué es residual:** es **exactamente** lo que la decisión D3 manda —«sin
+  horario configurado, el reparto se hace sobre el día operativo completo»— y en
+  el Asadero 33 no cambia nada, porque su `config.json` **sí** trae horario. No
+  hay ninguna otra instalación de este programa.
+- **Riesgo si no se toca:** que alguien copie este programa a otro negocio, no
+  ponga `juego.horario`, y se extrañe de que su premio del día no salga por la
+  mañana. Está escrito en el `README.md` §7, entre paréntesis y con la fecha,
+  pero es el tipo de cambio que se lee después de sufrirlo.
+- **Propuesta:** dejarlo como está y que lo confirme el orquestador. La
+  alternativa —no repartir cuando no hay horario— también es defendible, pero
+  contradice la decisión D3 y el ejecutor **no improvisó**: implementó lo escrito
+  y lo anotó aquí. Si algún día se prefiere la otra, el cambio es de una línea en
+  `instantes_del_dia()` y el golden que se pone en rojo es ese mismo.
+- **Estado:** **abierta como confirmación del orquestador.** Técnicamente hecho,
+  probado y documentado.
+
+---
+
+## F-268 · La separación mínima solo la marca un boleto CONFIRMADO: un boleto «incierto» no frena al siguiente premio
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · decisión **D4** del plan; el ejecutor, al elegir dónde
+  colgar el instante del último premio
+- **Dónde:** `ruleta/inventario.py`, `confirmar()`
+  (`grep -n "_ultimo_premio" ruleta/inventario.py`).
+- **Qué pasa:** la decisión D4 dice, literal, «si el **último boleto con premio
+  (impreso)** se imprimió hace menos de esos minutos…», así que el instante se
+  apunta en `confirmar()`, que es el evento `impreso`. Pero hay un tercer estado:
+  **`incierto`**, el boleto cuya impresión se cortó a medio envío y que **pudo
+  salir en papel** (por eso el premio se queda contado como entregado). Ese
+  boleto **no** apunta el instante, así que la jugada siguiente puede dar otro
+  premio de inmediato.
+- **Por qué es residual:** no es un defecto de conducta ni una afirmación falsa:
+  es la decisión implementada al pie de la letra. Y el caso es raro —por **cable
+  USB** un `ErrorEnvio` es mucho menos probable que por Bluetooth— y benigno: lo
+  peor que pasa es que salgan dos premios seguidos, que es justo la molestia que
+  la regla quiere evitar, no un premio de más (el stock ya se descontó).
+- **Riesgo si no se toca:** que en el único caso en que se corta una impresión,
+  dos premios salgan pegados. Nadie lo notaría salvo el mesero.
+- **Propuesta:** que el orquestador decida si `marcar_incierto()` debe apuntar
+  también el instante. Son dos líneas y un golden; el ejecutor **no lo hizo por
+  su cuenta** porque la decisión decía «impreso».
+- **Estado:** **abierta como confirmación del orquestador.** **Sin golden:**
+  `test_la_separacion_solo_la_marca_un_boleto_impreso` ancla el boleto
+  **revertido** y el **consuelo confirmado**, pero **ninguna prueba llama a
+  `marcar_incierto()` junto a `espera_separacion()`** (comprobado el 2026-09-16:
+  las cinco llamadas a `marcar_incierto` de la suite están en pruebas de
+  pendientes y de stock, no de separación). Hoy este comportamiento se puede
+  cambiar **sin que la suite se ponga en rojo**; si el orquestador lo confirma tal
+  cual está, hace falta el golden que lo fije.
+
+---
+
+## F-269 · El tope de una franja se puede pasar cruzando franjas: lo abierto y no ganado se arrastra
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · tensión entre las decisiones **D2** y **D3** del plan,
+  vista por el ejecutor al implementar `liberadas()`
+- **Dónde:** `ruleta/inventario.py`, `motivo_no_disponible()` y `liberadas()`
+  (`grep -n "franja_activa" ruleta/inventario.py`).
+- **Qué pasa:** la **D2** dice que el `tope` de una franja es «el máximo **de esa
+  franja, ese día**», y la **D3** dice que «una pieza liberada y no ganada sigue
+  disponible hasta el cierre». Las dos no caben a la vez. El programa cuenta
+  **piezas abiertas menos entregadas hoy**, sin llevar la cuenta por franja, así
+  que: si la silla de la franja de la comida (13:00–16:00, tope 1) **no se gana**,
+  a las 19:00 se abre la de la cena y quedan **dos** disponibles; las dos pueden
+  salir esa noche. **El tope de una sola franja tampoco se respeta cuando lo que
+  se arrastra se gasta dentro de ella:** medido el 2026-09-16 con el `config.json`
+  real, a las 19:00 sin nada entregado la silla tiene **dos** piezas abiertas y
+  las **dos** pueden salir entre las 19:00 y las 22:00, dentro de una franja de
+  `tope` 1. Lo único que nunca se pasa es el `tope_diario` del premio, que sigue
+  cortando el día en 2. El golden `test_el_tope_de_una_franja_se_respeta` ancla el
+  otro caso, el que sí se cumple: ganada la silla de la comida, no sale otra hasta
+  las 19:00.
+- **Por qué es residual:** el efecto es el que el usuario pidió —«las piezas no
+  se acumulan por adelantado» se cumple, porque nada se arrastra al día
+  siguiente— y lo que se arrastra dentro del día es justo lo que la D3 llama «no
+  se pierde». Respetar el tope por franja al pie de la letra obligaría a llevar
+  un contador **por franja y por día** en `estado.json`, es decir, estado nuevo y
+  persistido, en la fase que abre el evento el lunes.
+- **Riesgo si no se toca:** que un jueves flojo salgan **las dos sillas del día
+  entre las 19:00 y las 22:00**, en vez de una en la comida y otra en la cena. No
+  se regala ninguna pieza de más.
+- **Propuesta:** que el orquestador confirme que el arrastre dentro del día es lo
+  querido. Si no lo es, hace falta un contador por franja en `estado.json` y su
+  migración de estados viejos.
+- **Estado:** **abierta como confirmación del orquestador.** Documentado en el §2
+  del documento del evento («si nadie juega en un buen rato, se juntan varias
+  piezas abiertas»).
+
+---
+
+## F-270 · El peso 10 del consuelo lo propuse yo, no el usuario (hereda lo que quedaba de F-263)
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · decisión **D5** del plan
+- **Dónde:** `config.json`, `juego.consuelo.peso` = **10**; §2 y §5.2 (PENDIENTE
+  A) de `docs/evento-2026-09-asadero-33.md`.
+- **Qué pasa:** con el reparto por horas, el consuelo ya no compite contra los 34
+  papelitos del día sino contra **lo que esté abierto en ese instante**, que
+  normalmente es **una o dos piezas**. El **10** sale de ahí: con un agua abierta
+  (peso 11) gana el **52.4 %** de las jugadas, y con solo la hielera (peso 1), el
+  **9.1 %**. El usuario **no eligió ese número**: dictó la tabla de premios, las
+  franjas, el horario y la regla de que los premios no salgan seguidos, pero del
+  peso del consuelo no dijo nada.
+- **Por qué es residual:** es el único número del modelo que no cambia **cuántos**
+  premios se entregan —eso lo fija el reloj—, solo **cada cuántas jugadas** toca.
+  Medido el 2026-09-16 simulando un día entero: con 1 980, 660 o 220 jugadas se
+  entregan **las 34 piezas** igual; por debajo de eso se queda alguna pieza en la
+  bodega (**33.6 de 34** con 99 jugadas, **31.7 de 34** con 66).
+- **Riesgo si no se toca:** que en las horas flojas gane demasiada gente seguida
+  —a las 12:30, con una sola agua abierta, gana **1 de cada 2**— y el boleto
+  pierda gracia. Subirlo a 20 bajaría esa primera jugada al 35 %.
+- **Propuesta:** enseñarle al usuario la tabla del §2 del documento («qué tan
+  seguido se gana») y preguntarle si le gusta el 52 % del momento en que hay una
+  pieza abierta. Se cambia **un solo número**, en el §5.1 y el §5.2 del documento
+  **y** en `config.json`: dos goldens comparan los dos archivos por igualdad.
+- **Estado:** **abierta. Requiere decisión del usuario.** Sustituye a **F-263**,
+  que quedó cerrada por derogación el mismo día.
+
+---
+
+## F-271 · Un horario que cruce la medianoche no se puede escribir, y nadie avisa de que `hora_inicio_dia` y `horario` pueden pelearse
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · ejecutor, al escribir la validación de la decisión **D1**
+- **Dónde:** `ruleta/config.py`, `validar()`, la rama de `juego.horario`
+  (`grep -n "horario.abre" ruleta/config.py`).
+- **Qué pasa:** la validación exige **`abre` < `cierra`**, así que un horario de
+  bar —«de 20:00 a 02:00»— **no se puede expresar**: el mensaje dice que la
+  apertura tiene que ser anterior al cierre y no explica que no hay forma de
+  cruzar la medianoche. Además, nadie comprueba que el horario **quepa dentro del
+  día operativo**: con `hora_inicio_dia` en 6 y un horario de 02:00 a 05:00, todo
+  el evento caería en el día operativo **anterior**, los topes diarios se
+  contarían al revés y el programa **no diría nada**.
+- **Por qué es residual:** el Asadero 33 abre de **12:00 a 23:00**, dentro de su
+  día operativo (que empieza a las 6:00), y el propio documento del evento lo
+  deja comprobado: «el día operativo siempre coincide con el día del calendario».
+  Ninguno de los dos casos puede darse hoy.
+- **Riesgo si no se toca:** que alguien copie el programa a un negocio nocturno y
+  se lleve un reparto por horas contado en el día equivocado, **sin un solo
+  aviso**. Es el mismo tipo de trampa silenciosa que la **F-264**.
+- **Propuesta:** dos validaciones baratas en `validar()`: (a) si `abre` es mayor
+  o igual que `cierra`, decir en el mensaje que **el horario no puede cruzar la
+  medianoche**; y (b) si los minutos de `abre` quedan por debajo de
+  `hora_inicio_dia`, avisar de que ese horario cae en el día operativo anterior.
+  Las dos con golden, como el resto.
+- **Estado:** **abierta.** Hermanas: **F-264** (un cero de más en el peso del
+  consuelo tampoco avisa).
+
+---
+
+## F-272 · `ruleta/hardware.py` estaba en el conjunto de archivos permitido y no hizo falta tocarlo
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · brief del orquestador (lista de archivos esperados al
+  terminar)
+- **Dónde:** `ruleta/hardware.py`, sin cambios; §7 del plan
+  `docs/planes/fase-4d-horas.md`.
+- **Qué pasa:** el brief de la fase esperaba ver `ruleta/hardware.py` entre los
+  archivos modificados. **No se tocó:** nada de lo que esta fase construye —el
+  horario, las franjas, el reparto, la separación y la espera de la hora— pasa
+  por los botones ni por el LED. El comprobador de la hora vive en
+  `ruleta/app.py`, que es donde está el ciclo de arranque, y entra **inyectado**
+  por el constructor de `Ruleta`, igual que el reloj.
+- **Por qué es residual:** el conjunto de archivos del §7 de un plan es una
+  **compuerta** —«como mucho estos»—, no una obligación de tocarlos todos.
+  Inventar un cambio en `hardware.py` para que la lista cuadrara habría sido
+  peor: ese módulo está **verificado en hardware** desde la Fase 3 y las
+  prohibiciones de las fases anteriores lo protegen.
+- **Riesgo si no se toca:** ninguno técnico. El único riesgo es de proceso: que
+  el agente de commit o un verificador lea la lista del brief como un censo
+  exacto y se extrañe de que falte un archivo.
+- **Propuesta:** que el orquestador lo dé por bueno. Queda anotado aquí para que
+  el acta de la fase no tenga que reconstruirlo de memoria.
+- **Estado:** **abierta como confirmación del orquestador.**
 
 ---

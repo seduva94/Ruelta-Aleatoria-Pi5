@@ -5,12 +5,16 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
-from ruleta import config as configmod
+from ruleta import config as configmod, ticket
 from ruleta.app import Ruleta, crear_impresora
 from ruleta.config import ErrorConfig
 from ruleta.escpos import ErrorConexion, ErrorEnvio, ImpresoraMemoria
 from ruleta.hardware import Antirrebote, EntradasSimuladas
 from ruleta.inventario import Inventario
+
+# Horario que deja FUERA la hora del reloj de prueba (19:00): así una jugada cae
+# antes de la apertura sin tener que mover el reloj de todas las demás pruebas.
+HORARIO_CERRADO = {"abre": "20:00", "cierra": "23:00"}
 
 
 class RngSiempreConsuelo:
@@ -98,9 +102,29 @@ class TestRuleta(unittest.TestCase):
 
     # -- ayudantes ------------------------------------------------------------ #
 
-    def nueva_ruleta(self, cfg, inv):
+    def nueva_ruleta(self, cfg, inv, hora_sincronizada=None):
+        extra = {} if hora_sincronizada is None else {"hora_sincronizada": hora_sincronizada}
         return Ruleta(cfg, inv, self.imp, self.ent, reloj=self.reloj.ahora,
-                      monotonico=self.reloj.monotonico, dormir=self.dormidas.append)
+                      monotonico=self.reloj.monotonico, dormir=self.dormidas.append, **extra)
+
+    def ruleta_con_horario(self, fuera_de_horario="consuelo", **horario):
+        """Una ruleta cuyo `config.json` trae horario de evento (pieza C, Fase 4d)."""
+        cfg = config_prueba(juego={"horario": {**HORARIO_CERRADO, **horario,
+                                               "fuera_de_horario": fuera_de_horario}})
+        carpeta = Path(self.tmp.name) / f"h{fuera_de_horario}{len(self.imp.trabajos)}{len(horario)}"
+        inv = Inventario(cfg.premios, carpeta,
+                         rng=random.Random(3), peso_consuelo=cfg.juego.consuelo.peso,
+                         horario=cfg.juego.horario,
+                         separacion_min_entre_premios=cfg.juego.separacion_min_entre_premios)
+        self.ruleta = self.nueva_ruleta(cfg, inv)
+        return inv
+
+    def reloj_que_avanza(self):
+        """`dormir` que además mueve el reloj: hace falta para esperar de verdad."""
+        def dormir(seg):
+            self.dormidas.append(seg)
+            self.reloj.avanzar(seg)
+        return dormir
 
     def ticks(self, seg, paso=0.01):
         n = int(round(seg / paso))
@@ -375,6 +399,98 @@ class TestRuleta(unittest.TestCase):
         self.assertIn("PARTICIPANDO", textos[1])
         self.assertNotIn("GANASTE", textos[1])
         self.assertEqual(inv.folio_actual, 2)
+
+    # -- horario del evento (pieza C, Fase 4d) -------------------------------- #
+
+    def test_fuera_de_horario_con_consuelo_imprime_consuelo(self):
+        """Respuesta del usuario a la pregunta 5 del §4: que se lleve algo."""
+        inv = self.ruleta_con_horario("consuelo")
+        self.pulsar()
+        textos = self.trabajos_texto()
+        self.assertEqual(len(textos), 1)
+        self.assertIn("PARTICIPANDO", textos[0])
+        self.assertNotIn("GANASTE", textos[0])
+        self.assertEqual(inv.folio_actual, 1)                    # el consuelo gasta folio
+        self.assertEqual(inv.entregados("unico") + inv.entregados("tacos"), 0)
+        self.assertEqual(self.ruleta.boletos_impresos, 1)
+        self.assertEqual(self.ruleta.errores, 0)
+        self.assertEqual(self.ent.estado_led, "listo")
+
+    def test_fuera_de_horario_con_no_jugar_no_imprime_nada(self):
+        """La otra ruta del documento: ni papel ni folio, solo el LED."""
+        inv = self.ruleta_con_horario("no_jugar")
+        self.pulsar()
+        self.assertEqual(self.imp.trabajos, [])
+        self.assertEqual(inv.folio_actual, 0)
+        self.assertEqual(self.ruleta.boletos_impresos, 0)
+        self.assertEqual(self.ruleta.errores, 0)                 # no es una avería
+        self.assertEqual(self.ent.estado_led, "error")           # lo único que avisa
+        self.ticks(7.0)
+        self.assertEqual(self.ent.estado_led, "listo")
+
+    def test_dentro_del_horario_se_juega_normal(self):
+        """Control: con el mismo código y el reloj dentro, sale el premio."""
+        inv = self.ruleta_con_horario("no_jugar", abre="12:00", cierra="23:00")
+        self.pulsar()
+        textos = self.trabajos_texto()
+        self.assertEqual(len(textos), 1)
+        self.assertIn("GANASTE", textos[0])
+        self.assertEqual(inv.folio_actual, 1)
+
+    # -- espera de la hora al arrancar (pieza D, Fase 4d) --------------------- #
+
+    def arrancar_esperando_hora(self, respuestas, espera_hora_seg):
+        """Arranca la ruleta con un comprobador de hora falso; devuelve las consultas."""
+        pendientes = list(respuestas)
+        consultas = []
+
+        def comprobador():
+            consultas.append(self.reloj.monotonico())
+            return pendientes.pop(0) if pendientes else False
+
+        cfg = config_prueba(juego={"espera_hora_seg": espera_hora_seg,
+                                   "intentos_inventario_arranque": 1})
+        self.ruleta = self.nueva_ruleta(cfg, self.inv, hora_sincronizada=comprobador)
+        self.ruleta.dormir = self.reloj_que_avanza()
+        self.ruleta.arrancar()
+        return consultas
+
+    def test_arranque_espera_a_que_la_hora_se_sincronice(self):
+        """No, no, sí: arranca a la tercera consulta y el boleto NO lleva aviso."""
+        consultas = self.arrancar_esperando_hora([False, False, True], 120)
+        self.assertEqual(len(consultas), 3)
+        self.assertEqual(self.dormidas, [2.0, 2.0])              # cada 2 s, como dice el plan
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertIn("INVENTARIO", self.trabajos_texto()[0])
+        self.assertNotIn(ticket.AVISO_HORA, self.trabajos_texto()[0])
+
+    def test_arranque_avisa_en_el_boleto_si_la_hora_no_se_confirma(self):
+        """Nunca llega la hora: arranca IGUAL, pero el boleto lo dice."""
+        consultas = self.arrancar_esperando_hora([], 0.1)
+        self.assertGreaterEqual(len(consultas), 1)
+        self.assertEqual(len(self.imp.trabajos), 1)              # nunca se queda colgado
+        self.assertIn(ticket.AVISO_HORA, self.trabajos_texto()[0])
+        self.assertIn("INVENTARIO", self.trabajos_texto()[0])
+
+    def test_sin_espera_configurada_no_se_pregunta_la_hora(self):
+        """Por omisión (0 s) nada cambia respecto de antes de la Fase 4d."""
+        self.assertEqual(config_prueba().juego.espera_hora_seg, 0.0)
+        consultas = self.arrancar_esperando_hora([False], 0)
+        self.assertEqual(consultas, [])
+        self.assertEqual(self.dormidas, [])
+        self.assertNotIn(ticket.AVISO_HORA, self.trabajos_texto()[0])
+
+    def test_un_comprobador_de_hora_que_falla_no_tira_el_arranque(self):
+        def revienta():
+            raise OSError("timedatectl no está")
+
+        cfg = config_prueba(juego={"espera_hora_seg": 120, "intentos_inventario_arranque": 1})
+        self.ruleta = self.nueva_ruleta(cfg, self.inv, hora_sincronizada=revienta)
+        self.ruleta.dormir = self.reloj_que_avanza()
+        self.ruleta.arrancar()
+        self.assertEqual(self.dormidas, [])                      # no se queda dando vueltas
+        self.assertEqual(len(self.imp.trabajos), 1)
+        self.assertIn(ticket.AVISO_HORA, self.trabajos_texto()[0])
 
     def test_modo_siempre_no_necesita_habilitar_y_no_tiene_gesto(self):
         cfg = config_prueba(gpio={"modo_habilitar": "siempre", "boton_habilitar": None, "led": None})

@@ -17,10 +17,35 @@ from pathlib import Path
 from typing import Any
 
 _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+_HORA_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+FUERA_DE_HORARIO = ("consuelo", "no_jugar")
 
 
 class ErrorConfig(ValueError):
     """La configuración es inválida; el mensaje dice exactamente qué corregir."""
+
+
+def minutos_del_dia(hora: str) -> int:
+    """Minutos desde la medianoche de una hora "HH:MM" ya validada."""
+    h, m = hora.split(":")
+    return int(h) * 60 + int(m)
+
+
+@dataclass(frozen=True)
+class Franja:
+    """Ventana de horas de un premio, con su propio tope (pieza B, Fase 4d).
+
+    Decisión del usuario del 2026-09-16: la hielera solo de 19:00 a 23:00, y la
+    silla y el set BBQ una pieza de 13:00 a 16:00 y otra de 19:00 a 22:00.
+    """
+    desde_hora: str                   # "HH:MM"
+    hasta_hora: str                   # "HH:MM"
+    # Piezas que esa franja ABRE ese día. NO es un máximo por franja: el
+    # programa cuenta «abiertas hoy menos entregadas hoy», así que lo que una
+    # franja abre y nadie gana se arrastra a la siguiente del mismo día (ficha
+    # F-269). Lo único que corta el día es el 'tope_diario' del premio.
+    tope: int = 1
 
 
 @dataclass(frozen=True)
@@ -33,6 +58,9 @@ class Premio:
     desde: date | None = None         # solo disponible a partir de esta fecha (día operativo)
     hasta: date | None = None         # solo disponible hasta esta fecha inclusive
     detalle: str = ""                 # texto chico debajo del premio en el boleto
+    # Lista vacía = sin franjas, disponible a cualquier hora del día (como antes
+    # de la Fase 4d). Con franjas, el premio SOLO existe dentro de ellas.
+    franjas: list[Franja] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -101,12 +129,32 @@ class ConfigConsuelo:
 
 
 @dataclass(frozen=True)
+class ConfigHorario:
+    """Horario del evento (pieza C, Fase 4d). Sin este bloque se juega todo el día."""
+    abre: str = ""                    # "HH:MM"
+    cierra: str = ""                  # "HH:MM", posterior a 'abre'
+    # Qué pasa si alguien juega fuera del horario:
+    #   "consuelo"  -> se imprime el boleto de consuelo (gasta folio). Lo que el
+    #                  usuario decidió el 2026-09-16 para este evento.
+    #   "no_jugar"  -> no se imprime nada y el log lo dice.
+    fuera_de_horario: str = "consuelo"
+
+
+@dataclass(frozen=True)
 class ConfigJuego:
     espera_entre_jugadas_seg: float = 5.0
     hora_inicio_dia: int = 6          # a las 01:00 todavía cuenta como el día anterior
     imprimir_inventario_al_arrancar: bool = True
     intentos_inventario_arranque: int = 3
+    # Minutos que deben pasar entre dos boletos CON PREMIO: decisión del usuario
+    # del 2026-09-16, «los premios no deben salir seguidos». 0 = sin regla.
+    separacion_min_entre_premios: float = 0.0
+    # Segundos que el kiosco espera al arrancar a que la hora esté sincronizada
+    # (pieza D). La Pi no lleva batería RTC y del reloj dependen los topes
+    # diarios, las franjas y el reparto por horas. 0 = no esperar.
+    espera_hora_seg: float = 0.0
     consuelo: ConfigConsuelo = field(default_factory=ConfigConsuelo)
+    horario: ConfigHorario | None = None
 
 
 @dataclass(frozen=True)
@@ -155,7 +203,11 @@ def desde_dict(crudo: dict[str, Any], ruta: Path | None = None) -> Config:
 
     juego_crudo = dict(crudo.get("juego", {}))
     consuelo = _construir(ConfigConsuelo, juego_crudo.pop("consuelo", {}), "juego.consuelo")
-    juego = _construir(ConfigJuego, juego_crudo, "juego", consuelo=consuelo)
+    # Sin la llave 'horario' no hay horario de evento: se juega todo el día, que
+    # es como se comportaba el programa antes de la Fase 4d (2026-09-16).
+    horario_crudo = juego_crudo.pop("horario", None)
+    horario = None if horario_crudo is None else _construir(ConfigHorario, horario_crudo, "juego.horario")
+    juego = _construir(ConfigJuego, juego_crudo, "juego", consuelo=consuelo, horario=horario)
 
     premios = [_premio(p, i) for i, p in enumerate(crudo.get("premios", []))]
 
@@ -202,8 +254,34 @@ def _premio(p: dict[str, Any], indice: int) -> Premio:
             if not isinstance(datos[llave], str):
                 raise ErrorConfig(f"{donde}.{llave} debe ser una fecha entre comillas con formato \"AAAA-MM-DD\"")
             datos[llave] = _fecha(datos[llave], f"{donde}.{llave}")
+    if "franjas" in datos:
+        # Las franjas llegan como lista de objetos crudos: hay que convertirlas
+        # ANTES de verificar tipos, igual que las fechas, porque la anotación de
+        # Premio.franjas pide objetos Franja y no diccionarios.
+        datos["franjas"] = _franjas(datos["franjas"], donde)
     _verificar_tipos(Premio, datos, donde)
     return Premio(**datos)
+
+
+def _franjas(crudo: Any, donde: str) -> list[Franja]:
+    forma = ('{ "desde_hora": "HH:MM", "hasta_hora": "HH:MM", "tope": 1 }')
+    if not isinstance(crudo, list):
+        raise ErrorConfig(f"{donde}.franjas debe ser una lista de franjas {forma}")
+    salida = []
+    for i, f in enumerate(crudo, start=1):
+        if not isinstance(f, dict):
+            raise ErrorConfig(f"La franja #{i} del {donde} debe ser un objeto {forma}")
+        desconocidas = set(f) - set(Franja.__dataclass_fields__)
+        if desconocidas:
+            raise ErrorConfig(
+                f"Llaves desconocidas en la franja #{i} del {donde}: {sorted(desconocidas)}. "
+                f"Las válidas son: {sorted(Franja.__dataclass_fields__)}")
+        faltan = {"desde_hora", "hasta_hora"} - set(f)
+        if faltan:
+            raise ErrorConfig(f"A la franja #{i} del {donde} le faltan las llaves {sorted(faltan)}")
+        _verificar_tipos(Franja, f, f"franja #{i} del {donde}")
+        salida.append(Franja(**f))
+    return salida
 
 
 # --------------------------------------------------------------------------- #
@@ -262,6 +340,14 @@ def _fecha(valor: Any, donde: str) -> date:
         return date.fromisoformat(str(valor))
     except ValueError:
         raise ErrorConfig(f"Fecha inválida en {donde}: '{valor}'. Usa el formato AAAA-MM-DD")
+
+
+def _verificar_hora(valor: Any, donde: str) -> None:
+    """Una hora del reloj de 24 horas, entre comillas y con formato HH:MM."""
+    if not isinstance(valor, str) or not _HORA_RE.match(valor):
+        raise ErrorConfig(
+            f"Hora inválida en {donde}: {valor!r}. Debe ir entre comillas y con formato "
+            "\"HH:MM\" en reloj de 24 horas (por ejemplo \"12:00\" o \"23:00\")")
 
 
 # --------------------------------------------------------------------------- #
@@ -342,6 +428,26 @@ def validar(cfg: Config) -> None:
             f"juego.consuelo.peso no puede ser negativo (se encontró {j.consuelo.peso}): son los "
             "papelitos del boleto de consuelo en la tómbola. 0 = el consuelo solo sale cuando ya "
             "no queda ningún premio disponible")
+    if j.separacion_min_entre_premios < 0:
+        raise ErrorConfig(
+            "juego.separacion_min_entre_premios no puede ser negativa: son los minutos que tienen "
+            "que pasar entre dos boletos con premio. 0 = sin esa regla")
+    if j.espera_hora_seg < 0:
+        raise ErrorConfig(
+            "juego.espera_hora_seg no puede ser negativa: son los segundos que el kiosco espera al "
+            "arrancar a que la hora esté sincronizada. 0 = no esperar")
+    if j.horario is not None:
+        _verificar_hora(j.horario.abre, "juego.horario.abre")
+        _verificar_hora(j.horario.cierra, "juego.horario.cierra")
+        if minutos_del_dia(j.horario.abre) >= minutos_del_dia(j.horario.cierra):
+            raise ErrorConfig(
+                f"juego.horario: la hora de apertura ('{j.horario.abre}') tiene que ser anterior "
+                f"a la de cierre ('{j.horario.cierra}')")
+        if j.horario.fuera_de_horario not in FUERA_DE_HORARIO:
+            raise ErrorConfig(
+                f"juego.horario.fuera_de_horario debe ser 'consuelo' (imprime el boleto de "
+                f"consuelo) o 'no_jugar' (no imprime nada); se encontró "
+                f"'{j.horario.fuera_de_horario}'")
     if not cfg.negocio.nombre.strip():
         raise ErrorConfig("negocio.nombre no puede estar vacío")
 
@@ -364,3 +470,16 @@ def validar(cfg: Config) -> None:
             raise ErrorConfig(f"El tope_diario del premio '{p.id}' debe ser un entero ≥ 1 o null")
         if p.desde and p.hasta and p.desde > p.hasta:
             raise ErrorConfig(f"El premio '{p.id}' tiene 'desde' posterior a 'hasta'")
+        for i, f in enumerate(p.franjas, start=1):
+            donde = f"la franja #{i} del premio '{p.id}'"
+            _verificar_hora(f.desde_hora, f"{donde} ('desde_hora')")
+            _verificar_hora(f.hasta_hora, f"{donde} ('hasta_hora')")
+            if minutos_del_dia(f.desde_hora) >= minutos_del_dia(f.hasta_hora):
+                raise ErrorConfig(
+                    f"En {donde}, 'desde_hora' ('{f.desde_hora}') tiene que ser anterior a "
+                    f"'hasta_hora' ('{f.hasta_hora}')")
+            if not isinstance(f.tope, int) or isinstance(f.tope, bool) or f.tope < 1:
+                raise ErrorConfig(
+                    f"El 'tope' de {donde} debe ser un entero ≥ 1: son las piezas que esa "
+                    f"franja ABRE ese día, no un máximo por franja (lo que corta el día es el "
+                    f"'tope_diario' del premio); se encontró {f.tope!r}")

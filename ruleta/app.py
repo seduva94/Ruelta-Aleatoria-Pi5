@@ -8,6 +8,12 @@ Máquina de estados que se ejecuta por sondeo (~100 veces por segundo):
     el botón del cliente solo sirve para jugar).
   * Tras cada boleto hay una espera (espera_entre_jugadas_seg) en la que se
     ignoran pulsaciones; además hay que soltar el botón antes de jugar de nuevo.
+  * Fuera del horario del evento (juego.horario, Fase 4d) la jugada sale de
+    consuelo; con "fuera_de_horario": "no_jugar" no se imprime nada y solo
+    avisa el LED.
+  * Al arrancar, y solo al arrancar, se espera hasta juego.espera_hora_seg a
+    que la hora del sistema esté sincronizada: el reparto por horas depende
+    del reloj y la Pi no tiene batería RTC.
   * Gesto del personal: mantener HABILITAR presionado pulsacion_larga_seg
     segundos SIN que nadie toque JUGAR imprime el reporte de inventario.
     Si durante ese tiempo alguien juega, el gesto se cancela.
@@ -22,8 +28,11 @@ registra, se enciende el LED de error y se sigue esperando pulsaciones.
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 from . import escpos, ticket
@@ -35,6 +44,39 @@ from .inventario import ErrorPersistencia, Inventario
 log = logging.getLogger(__name__)
 
 SEGUNDOS_LED_ERROR = 6.0
+# Cada cuánto se le vuelve a preguntar al sistema si ya tiene la hora (pieza D).
+PERIODO_CONSULTA_HORA = 2.0
+MARCA_TIMESYNC = Path("/run/systemd/timesync/synchronized")
+
+
+def hora_sincronizada_del_sistema() -> bool:
+    """¿El sistema ya puso la hora en hora? (pieza D, Fase 4d).
+
+    La Pi del asadero NO lleva batería RTC: al encender cree que es el día en
+    que se apagó, y la hora real le llega por NTP cuando entra a la red del
+    restaurante. Del día y de la hora dependen los topes diarios, las fechas
+    'desde'/'hasta', las franjas y el reparto por horas, así que el kiosco
+    espera un poco antes de imprimir nada.
+
+    Se usa la señal que exista: primero el archivo que crea systemd-timesyncd
+    al sincronizar; si no está, `timedatectl`. En una máquina sin ninguna de las
+    dos (una PC de desarrollo, por ejemplo) se contesta que sí, para no quedarse
+    esperando algo que nadie va a contestar.
+    """
+    try:
+        if MARCA_TIMESYNC.exists():
+            return True
+    except OSError:      # pragma: no cover - rutas raras del sistema de archivos
+        pass
+    if not shutil.which("timedatectl"):
+        return True
+    try:
+        r = subprocess.run(["timedatectl", "show", "-p", "NTPSynchronized", "--value"],
+                           capture_output=True, text=True, timeout=10)
+    except (subprocess.SubprocessError, OSError) as e:
+        log.warning("No se pudo preguntar a timedatectl si la hora está sincronizada: %s", e)
+        return False
+    return r.stdout.strip() == "yes"
 
 
 def crear_impresora(cfg: Config, tipo: str | None = None,
@@ -67,7 +109,8 @@ class Ruleta:
     def __init__(self, cfg: Config, inventario: Inventario, impresora: Impresora,
                  entradas: Entradas, reloj: Callable[[], datetime] = datetime.now,
                  monotonico: Callable[[], float] = time.monotonic,
-                 dormir: Callable[[float], None] = time.sleep):
+                 dormir: Callable[[float], None] = time.sleep,
+                 hora_sincronizada: Callable[[], bool] = hora_sincronizada_del_sistema):
         self.cfg = cfg
         self.inv = inventario
         self.impresora = impresora
@@ -75,6 +118,7 @@ class Ruleta:
         self.reloj = reloj
         self.monotonico = monotonico
         self.dormir = dormir
+        self.hora_sincronizada = hora_sincronizada
 
         rebote = cfg.gpio.rebote_ms / 1000.0
         self._deb_jugar = Antirrebote(rebote)
@@ -95,6 +139,33 @@ class Ruleta:
     # Ciclo de vida
     # ------------------------------------------------------------------ #
 
+    def esperar_hora_sincronizada(self) -> bool:
+        """Espera hasta `juego.espera_hora_seg` a que el sistema ponga la hora.
+
+        Devuelve True si la hora quedó confirmada. Con el tope en 0 (el valor
+        por omisión) no se espera nada y se da por buena, que es como se
+        comportaba el programa antes de la Fase 4d. Esto SOLO ocurre al
+        arrancar: una vez arriba, ninguna jugada vuelve a esperar.
+        """
+        tope = self.cfg.juego.espera_hora_seg
+        if tope <= 0:
+            return True
+        limite = self.monotonico() + tope
+        while True:
+            try:
+                if self.hora_sincronizada():
+                    return True
+            except Exception:
+                log.exception("Falló la consulta de la hora del sistema; se sigue sin confirmarla")
+                return False
+            restante = limite - self.monotonico()
+            if restante <= 0 or self._detener:
+                log.warning("HORA SIN CONFIRMAR: el sistema no sincronizó la hora en %.0f s. "
+                            "Revisa la fecha del boleto de inventario antes de abrir: si está "
+                            "mal, NO reinicies, espera y pide otro inventario", tope)
+                return False
+            self.dormir(min(PERIODO_CONSULTA_HORA, restante))
+
     def arrancar(self) -> None:
         """Imprime el inventario inicial (con reintentos) y deja todo listo."""
         log.info("Ruleta arrancando. Premios: %s", ", ".join(self.inv.premios))
@@ -102,12 +173,13 @@ class Ruleta:
         if pendientes:
             log.warning("Hay %d boleto(s) sin confirmar en la bitácora: %s",
                         len(pendientes), ", ".join(p.folio_texto for p in pendientes))
+        aviso_hora = not self.esperar_hora_sincronizada()
         if self.cfg.juego.imprimir_inventario_al_arrancar:
             intentos = max(1, self.cfg.juego.intentos_inventario_arranque)
             for i in range(1, intentos + 1):
                 if self._detener:
                     break
-                if self.imprimir_inventario("arranque"):
+                if self.imprimir_inventario("arranque", aviso_hora=aviso_hora):
                     break
                 log.error("Inventario de arranque: intento %d/%d falló", i, intentos)
                 if i < intentos and not self._detener:
@@ -195,12 +267,15 @@ class Ruleta:
         else:
             self.entradas.led("listo" if habilitado else "apagado")
 
-    def _terminar_accion(self, exito: bool, con_espera: bool) -> None:
+    def _terminar_accion(self, exito: bool, con_espera: bool, contar_error: bool = True) -> None:
         t = self.monotonico()
         if con_espera:
             self._fin_espera = t + self.cfg.juego.espera_entre_jugadas_seg
         if not exito:
-            self.errores += 1
+            # `contar_error` en False: el LED avisa, pero no es una avería. Lo
+            # usa la jugada rechazada por estar fuera del horario del evento.
+            if contar_error:
+                self.errores += 1
             self._error_hasta = t + SEGUNDOS_LED_ERROR
         self._actualizar_led(t, self._leer_habilitar(t))
 
@@ -212,6 +287,16 @@ class Ruleta:
         """Sortea, emite e imprime un boleto. Devuelve True si se imprimió."""
         self.entradas.led("ocupado")
         ahora = self.reloj()
+        horario = self.cfg.juego.horario
+        fuera_de_horario = not self.inv.dentro_del_horario(ahora)
+        if fuera_de_horario and horario is not None and horario.fuera_de_horario == "no_jugar":
+            # Ruta prevista por el documento del evento y NO usada por el evento
+            # de septiembre de 2026, que eligió "consuelo": no se gasta ni papel
+            # ni folio, y lo único que avisa es el LED de error.
+            log.warning("Jugada fuera del horario del evento (%s a %s): no se imprime nada",
+                        horario.abre, horario.cierra)
+            self._terminar_accion(exito=False, con_espera=True, contar_error=False)
+            return False
         premio = self.inv.sortear(ahora)
 
         try:
@@ -226,7 +311,14 @@ class Ruleta:
                 # Desde la Fase 4c el consuelo tiene peso propio: que salga es lo
                 # normal, no un aviso. Lo que sí importa al operador es el otro
                 # caso, cuando ya NO queda ningún premio que pudiera salir.
-                if self.inv.disponibles(ahora):
+                espera = self.inv.espera_separacion(ahora)
+                if fuera_de_horario:
+                    log.info("Boleto %s: fuera del horario del evento, boleto de consuelo",
+                             boleto.folio_texto)
+                elif espera > 0:
+                    log.info("Boleto %s: consuelo obligado, faltan %.1f min de separación "
+                             "desde el último premio", boleto.folio_texto, espera)
+                elif self.inv.disponibles(ahora):
                     log.info("Boleto %s: el sorteo cayó en el consuelo (peso %d)",
                              boleto.folio_texto, self.inv.peso_consuelo)
                 else:
@@ -264,13 +356,13 @@ class Ruleta:
             self._terminar_accion(exito, con_espera=True)
         return exito
 
-    def imprimir_inventario(self, motivo: str = "") -> bool:
+    def imprimir_inventario(self, motivo: str = "", aviso_hora: bool = False) -> bool:
         self.entradas.led("ocupado")
         ahora = self.reloj()
         exito = False
         try:
             resumen = self.inv.resumen(ahora)
-            datos = ticket.boleto_inventario(self.cfg, resumen, motivo)
+            datos = ticket.boleto_inventario(self.cfg, resumen, motivo, aviso_hora=aviso_hora)
             self.impresora.imprimir(datos)
             self.reportes_impresos += 1
             exito = True

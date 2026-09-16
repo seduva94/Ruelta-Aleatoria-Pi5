@@ -373,7 +373,7 @@ class TestInventarioDeProduccion(unittest.TestCase):
     """
 
     @staticmethod
-    def config_con(carpeta: Path, peso=None):
+    def config_con(carpeta: Path, peso=None, juego=None):
         crudo = {
             "negocio": {"nombre": "Asadero 33", "logo": None},
             "impresora": {"tipo": "vista"},
@@ -382,7 +382,50 @@ class TestInventarioDeProduccion(unittest.TestCase):
         }
         if peso is not None:
             crudo["juego"] = {"consuelo": {"peso": peso}}
+        if juego is not None:
+            crudo["juego"] = {**crudo.get("juego", {}), **juego}
         return configmod.desde_dict(crudo)
+
+    def test_abrir_inventario_pasa_el_horario_y_la_separacion(self):
+        """Piezas B, C y D (Fase 4d): el motor tiene que recibir el reloj del evento.
+
+        Sin esto el kiosco arrancaría repartiendo sobre el día entero y jugando
+        a cualquier hora, con el `config.json` correcto y sin una sola queja.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = self.config_con(Path(tmp) / "con", juego={
+                "horario": {"abre": "12:00", "cierra": "23:00", "fuera_de_horario": "consuelo"},
+                "separacion_min_entre_premios": 3})
+            inventario = cli.abrir_inventario(cfg)
+            self.assertEqual(inventario.horario, cfg.juego.horario)
+            self.assertEqual(inventario.separacion_min_entre_premios, 3)
+            # Y con OTROS valores, otro motor: si estuvieran quemados en el
+            # código en vez de derivarse del cfg, esto pasaría igual.
+            otro_cfg = self.config_con(Path(tmp) / "otro", juego={
+                "horario": {"abre": "08:30", "cierra": "14:00", "fuera_de_horario": "no_jugar"},
+                "separacion_min_entre_premios": 7})
+            otro = cli.abrir_inventario(otro_cfg)
+            self.assertEqual((otro.horario.abre, otro.horario.cierra, otro.horario.fuera_de_horario),
+                             ("08:30", "14:00", "no_jugar"))
+            self.assertEqual(otro.separacion_min_entre_premios, 7)
+            # Sin las llaves, el motor queda como antes de la Fase 4d.
+            vacio = cli.abrir_inventario(self.config_con(Path(tmp) / "sin"))
+            self.assertIsNone(vacio.horario)
+            self.assertEqual(vacio.separacion_min_entre_premios, 0.0)
+
+    def test_el_config_json_de_produccion_llega_entero_al_motor(self):
+        """Vector real: lo que el kiosco va a cargar en la Pi, sin retocar nada."""
+        cfg = configmod.cargar(RAIZ / "config.json")
+        with tempfile.TemporaryDirectory() as tmp:
+            crudo = json.loads((RAIZ / "config.json").read_text(encoding="utf-8"))
+            crudo["carpeta_datos"] = tmp
+            inventario = cli.abrir_inventario(configmod.desde_dict(crudo))
+        self.assertEqual(
+            (inventario.hora_inicio_dia, inventario.peso_consuelo,
+             inventario.separacion_min_entre_premios, inventario.horario),
+            (cfg.juego.hora_inicio_dia, cfg.juego.consuelo.peso,
+             cfg.juego.separacion_min_entre_premios, cfg.juego.horario))
+        self.assertEqual(sorted(inventario.premios), sorted(p.id for p in cfg.premios))
 
     def test_abrir_inventario_pasa_el_peso_del_consuelo(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -406,8 +449,9 @@ class TestInventarioDeProduccion(unittest.TestCase):
         self.assertEqual(
             sitios, {"__main__.py": 1},
             "Apareció otro sitio en ruleta/ que construye un Inventario. Si es legítimo, "
-            "compruébalo: tiene que pasar hora_inicio_dia y juego.consuelo.peso, como hace "
-            "abrir_inventario. Después actualiza este censo.")
+            "compruébalo: tiene que pasar hora_inicio_dia, juego.consuelo.peso, juego.horario y "
+            "juego.separacion_min_entre_premios, como hace abrir_inventario. Después actualiza "
+            "este censo.")
 
 
 class TestVersionModulo(unittest.TestCase):

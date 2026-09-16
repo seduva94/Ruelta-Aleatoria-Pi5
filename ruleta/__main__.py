@@ -76,9 +76,16 @@ def cargar_config(args) -> Config:
 
 
 def abrir_inventario(cfg: Config, exclusivo: bool = False) -> Inventario:
-    """Abre el inventario; con exclusivo=True toma el candado (falla si el servicio corre)."""
+    """Abre el inventario; con exclusivo=True toma el candado (falla si el servicio corre).
+
+    Es el ÚNICO sitio de producción que construye un `Inventario`: todo lo que el
+    motor necesita de `config.json` —la hora en que cambia el día, el peso del
+    consuelo y, desde la Fase 4d, el horario del evento y la separación mínima
+    entre premios— se cablea aquí y en ningún otro lado.
+    """
     inv = Inventario(cfg.premios, cfg.carpeta_datos, hora_inicio_dia=cfg.juego.hora_inicio_dia,
-                     peso_consuelo=cfg.juego.consuelo.peso)
+                     peso_consuelo=cfg.juego.consuelo.peso, horario=cfg.juego.horario,
+                     separacion_min_entre_premios=cfg.juego.separacion_min_entre_premios)
     if exclusivo:
         try:
             inv.bloquear()

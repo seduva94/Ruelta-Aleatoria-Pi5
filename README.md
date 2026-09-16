@@ -258,10 +258,16 @@ por línea.
 
 ## 5. Operación diaria
 
-1. **Encender la Pi y la impresora.** A los pocos segundos se imprime solo el
-   **inventario** (restantes de cada premio, entregados hoy, probabilidades y,
-   si los hay, boletos pendientes de revisar). Si la impresora aún no responde
-   lo reintenta unas veces; luego queda lista y sigue reintentando en cada jugada.
+1. **Encender la Pi y la impresora.** Primero el kiosco **espera hasta 2 minutos
+   a que la Pi tenga la hora buena** (`juego.espera_hora_seg`), porque de la hora
+   dependen los premios de cada momento (§7). Después imprime solo el
+   **inventario**: restantes de cada premio, entregados hoy, **cuántas piezas
+   lleva abiertas el reloj y a qué hora se abre la siguiente**, probabilidades y,
+   si los hay, boletos pendientes de revisar. Si la impresora aún no responde lo
+   reintenta unas veces; luego queda lista y sigue reintentando en cada jugada.
+   **Si ese boleto trae la línea `HORA SIN CONFIRMAR: revisar fecha`**, la Pi
+   arrancó sin hora buena: no la reinicies, espera un par de minutos a que agarre
+   internet y pide otro inventario (punto 4).
 2. El mesero **mantiene presionado HABILITAR** y el cliente **presiona JUGAR**.
    Se imprime el boleto y se corta. Durante 5 segundos se ignoran más pulsaciones.
    Da igual si el cliente lo toca o lo sostiene: su botón solo sirve para jugar.
@@ -272,10 +278,12 @@ por línea.
    segundos, el gesto se cancela (suelta y vuelve a intentar). Se ajusta o
    desactiva con `gpio.pulsacion_larga_seg`.
 5. **La mayoría de las jugadas no dan premio**: se imprime un boleto de
-   "SIGUE PARTICIPANDO" (texto configurable). El folio también avanza. Con los
-   números cargados hoy gana **1 de cada 7 u 8** (§7); lo decide
-   `juego.consuelo.peso`, y también sale así cuando ya no queda ningún premio
-   disponible.
+   "SIGUE PARTICIPANDO" (texto configurable). El folio también avanza. **Cuánta
+   gente gana no es un número fijo**: depende de qué piezas tenga abiertas el
+   reloj en ese momento (§7). Sale consuelo, además, en cuatro casos claros:
+   **fuera del horario** del evento (antes de las 12:00 y desde las 23:00), en
+   los **3 minutos siguientes a un premio**, cuando **todavía no se ha abierto**
+   ninguna pieza, y cuando ya **no queda ningún premio** disponible.
 6. **No salió boleto y el LED parpadea rápido.** Antes de imprimir, el programa
    le pregunta a la impresora si tiene papel y está en línea (por USB y por
    Bluetooth); si contesta que no, o si no logra abrirla, **el premio regresa al
@@ -325,7 +333,7 @@ por línea.
 
 | Archivo | Contenido |
 |---|---|
-| `estado.json` | folio actual, entregados por premio (total y por día). Se escribe de forma atómica: un apagón no lo corrompe |
+| `estado.json` | folio actual, entregados por premio (total y por día) y el instante del **último premio impreso** (para la separación mínima del §7). Se escribe de forma atómica: un apagón no lo corrompe |
 | `boletos.csv` | bitácora: folio, fecha, día operativo, premio, evento (`emitido`, `impreso`, `error_conexion`, `incierto`, `liberado`). Ábrelo en Excel |
 | `ruleta.log` | log técnico (rotativo, 1 MB × 3) |
 
@@ -414,6 +422,10 @@ inventario de arranque (`juego.intentos_inventario_arranque`).
 | `intentos_inventario_arranque` | `3` | reintentos de ese inventario si la impresora tarda en estar lista |
 | `consuelo.titulo` / `consuelo.texto` | `"SIGUE PARTICIPANDO"` / … | lo que dice el boleto cuando la jugada no da premio |
 | `consuelo.peso` | `0` | papelitos del consuelo en la tómbola (§7). **`0` = el consuelo solo sale cuando ya no queda ningún premio** |
+| `horario.abre` / `horario.cierra` | sin horario | `"HH:MM"` de apertura y cierre del evento. **El cierre es exclusivo**: a las 23:00 en punto ya no se juega. Sin el bloque `horario` se juega a cualquier hora |
+| `horario.fuera_de_horario` | `"consuelo"` | qué pasa si alguien juega fuera del horario: `consuelo` (imprime el boleto de «gracias por participar», gasta folio) o `no_jugar` (no imprime nada; solo avisa el LED) |
+| `separacion_min_entre_premios` | `0` | minutos que tienen que pasar entre dos boletos **con premio**. Dentro de ese rato toda jugada sale de consuelo. `0` = sin regla |
+| `espera_hora_seg` | `0` | segundos que el kiosco espera **al arrancar** a que la hora del sistema esté sincronizada (§7). Si se agota, arranca igual y lo escribe en el boleto. `0` = no esperar |
 
 ### `premios` (lista)
 | Llave | Obligatoria | Qué es |
@@ -422,105 +434,153 @@ inventario de arranque (`juego.intentos_inventario_arranque`).
 | `nombre` | sí | lo que sale en grande en el boleto (se imprime en MAYÚSCULAS) |
 | `peso` | sí | número > 0; la probabilidad es proporcional (ver abajo) |
 | `stock` | no | unidades para todo el evento; `null` = ilimitado |
-| `tope_diario` | no | máximo por día operativo; `null` = sin tope |
+| `tope_diario` | no | máximo por día operativo **y cupo que se reparte por horas** (§7); `null` = sin tope y sin reparto |
 | `desde` / `hasta` | no | fechas `"AAAA-MM-DD"` (día operativo) en que el premio puede salir |
 | `detalle` | no | texto chico bajo el premio ("Orden de tacos", "Canjeable en barra") |
+| `franjas` | no | lista de ventanas de horas en que ese premio existe: `{ "desde_hora": "HH:MM", "hasta_hora": "HH:MM", "tope": 1 }`. **Con franjas, el premio no sale fuera de ellas** |
 
 ---
 
 ## 7. Premios y probabilidades
 
-En cada jugada participan los premios **disponibles** (con stock, sin llegar a
-su tope del día y dentro de sus fechas) **y el boleto de consuelo**. Se hace
-**un solo sorteo** entre todos ellos:
+En cada jugada participan los premios **disponibles** y el **boleto de consuelo**.
+Se hace **un solo sorteo** entre todos ellos:
 
 ```
 probabilidad = peso de ese participante / suma de los pesos de todos los que participan
 ```
 
-Piénsalo como una tómbola: cada participante mete un puñado de papelitos, y a
-ese puñado se le llama **peso**. **El boleto de consuelo también mete los
-suyos**: los que digas en `juego.consuelo.peso`. Cuantos más papelitos tenga el
-consuelo, **menos gente gana**.
+Piénsalo como una tómbola: cada participante mete un puñado de papelitos, y a ese
+puñado se le llama **peso**. **El boleto de consuelo también mete los suyos**:
+los que digas en `juego.consuelo.peso`. Cuantos más papelitos tenga el consuelo,
+**menos gente gana**.
 
-Cuando un premio se agota o llega a su tope, sus papelitos **salen** de la
-tómbola y los demás pasan a valer más. Por eso la probabilidad "real" cambia
-durante el día; el inventario impreso muestra la probabilidad vigente **en ese
-momento**.
+### Lo que decide quién está en la tómbola: el reloj
 
-*(Corregido el 2026-09-16, Fase 4c: el boleto de consuelo ya tiene **peso
-propio**. Hasta ese día salía **solo** cuando no quedaba ningún premio, y por eso
-en las pruebas del usuario «ganaba todo el mundo». Antes, el 2026-09-15, la Fase
-4b había cambiado los premios `TEST 1`…`TEST 7` por **los siete premios reales
-del evento**.)*
+**Esto es lo importante desde el 2026-09-16.** Un premio no está disponible por
+el hecho de tener stock: tiene que estar **abierto por el reloj**. Su cupo del
+día (`tope_diario`) **no se puede ganar entero desde el primer minuto**: se abre
+poco a poco entre `juego.horario.abre` y `juego.horario.cierra`. La pieza número
+**k** se abre en el **punto medio** de su tramo:
 
-Con lo que este `config.json` trae hoy —los siete premios del evento del 21 al 25
-de septiembre de 2026, con pesos 1, 2, 2, 4, 4, 10 y 11 (**suma 34**), más el
-consuelo con **217**, o sea **251 papelitos** en la tómbola—:
+```
+abre + (k - 0.5) x (cierra - abre) / tope_diario
+```
 
-| Participante | Stock | Tope/día | Peso | Probabilidad inicial |
-|---|---|---|---|---|
-| HIELERA IGLOO (mayor) | 2 | 1 | 1 | 0.40 % |
-| SILLA DE PLAYA (grande) | 10 | 2 | 2 | 0.80 % |
-| SET BBQ (grande) | 10 | 2 | 2 | 0.80 % |
-| 3 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 1.59 % |
-| 2 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 1.59 % |
-| CERVEZA (chico) | 50 | 10 | 10 | 3.98 % |
-| AGUA FRESCA (chico) | 55 | 11 | 11 | 4.38 % |
-| **SIGUE PARTICIPANDO (consuelo)** | — | — | **217** | **86.45 %** |
-| **Total** | | | **251** | **100 %** |
+Con el `config.json` de hoy (11 aguas al día, de 12:00 a 23:00) las aguas se
+abren a las **12:30, 13:30, 14:30 … 22:30**. Entre una y otra **no puede salir
+una segunda agua**, jueguen las personas que jueguen.
 
-*(Tabla **calculada por el programa** el 2026-09-16, no a mano: es lo que
-devuelve `Inventario.resumen` con este mismo `config.json`. Lo mismo se ve, sin
-imprimir, con `python3 -m ruleta reporte`.)*
+Cuatro reglas más, todas configurables:
 
-Léelo así: **gana algo el 13.55 % de las jugadas, más o menos 1 de cada 7 u 8
-personas.** El resto se lleva su boleto de "SIGUE PARTICIPANDO".
+- **Lo que se abre y no se gana, no se pierde**: sigue esperando hasta el cierre.
+  Pero **tampoco adelanta** la siguiente pieza.
+- Un premio con **`franjas`** solo existe dentro de ellas, con el `tope` de cada
+  franja. La pieza de una franja de una sola pieza se abre **al empezar la
+  franja**.
+- **Fuera del horario del evento** no hay ningún premio disponible: la jugada
+  sale de consuelo (o no imprime nada, si pones `"fuera_de_horario": "no_jugar"`).
+- **Dos premios no salen seguidos**: entre dos boletos premiados tienen que pasar
+  `juego.separacion_min_entre_premios` minutos. El instante del último premio se
+  guarda en `datos/estado.json`, así que **sobrevive a un reinicio**.
 
-El peso de cada premio es **su cupo diario** y el del consuelo es **N − 33**,
-donde **N** son las jugadas que esperas en un día: es la regla que el documento
-del evento explica en su §2 («el peso es el cupo»). Con **N = 250** sale
-**217**, que es lo que está cargado.
+Un premio **sin `tope_diario` y sin `franjas`** no se reparte: está disponible
+siempre que le quede stock, como antes.
 
-**Para cambiar cuánta gente gana, se toca un solo número**: `juego.consuelo.peso`.
-Más alto = gana menos gente. (150 → 117 · 200 → 167 · **250 → 217** · 300 → 267 ·
-400 → 367.) Con `0` el consuelo **no participa** y vuelve el comportamiento
-viejo: gana **todo el mundo** hasta que se acaban los premios del día.
+*(Cambiado el 2026-09-16, Fase 4d. Antes, el reparto se hacía solo con pesos
+fijos y el cupo diario estaba disponible entero desde la mañana, así que en un
+día movido los premios se acababan temprano y había que adivinar cuántas jugadas
+iba a haber. **Ojo si tienes una instalación SIN `juego.horario`:** el reparto se
+sigue haciendo, sobre el día operativo completo —de `hora_inicio_dia` a 24 horas
+después—, así que un premio con `tope_diario` ya no está disponible desde el
+primer minuto del día.)*
 
-> **Dos avisos que hay que leer antes de abrir el evento:**
->
-> 1. **N todavía no lo confirmó el dueño.** El 217 es la **propuesta por
->    omisión** del documento del evento (su §4, pregunta 1, sigue sin marcar).
->    Cuando responda, se cambia ese número en el documento y en `config.json`, y
->    nada más (ficha **F-263**).
-> 2. **Los premios se cargaron sin `desde`/`hasta`**, a propósito, para poder
->    probarlos antes del evento. Hay que ponerlas **antes del lunes 21** o la
->    hielera podrá salir cualquier día (ficha **F-259**).
+### Las probabilidades ya no son fijas: dependen de qué esté abierto
 
-Consejos:
-- **Para que el premio mayor no salga el primer día**, ponle `"desde": "2026-09-24"`
-  (el día en que quieres que empiece a salir) o dale un peso muy bajo y confía en
-  la suerte.
+No hay una tabla única. Con los siete premios del evento (pesos 1, 2, 2, 4, 4, 10
+y 11) y el consuelo en **10**, esto es lo que **calcula el programa** a distintas
+horas del **jueves 24**, suponiendo que **nadie ha ganado nada todavía**:
+
+| Hora | Qué está abierto | Gana | Consuelo |
+|---|---|---|---|
+| 11:30 | nada: el evento no ha abierto | **0 %** | 100 % |
+| 12:00 | nada: la primera pieza abre a las 12:30 | **0 %** | 100 % |
+| **12:30** | **1 agua (peso 11)** contra el consuelo (10) | **52.4 %** | 47.6 % |
+| 13:00 | agua, cerveza, silla y set BBQ | 71.4 % | 28.6 % |
+| 19:00 | los siete, con la hielera recién abierta | 77.3 % | 22.7 % |
+| 22:30 | ya sin silla ni set BBQ (su franja cerró a las 22:00) | 75.0 % | 25.0 % |
+| 23:30 | nada: el evento cerró | **0 %** | 100 % |
+
+*(Tabla **calculada por el programa**, no a mano: es lo que devuelve
+`Inventario.probabilidades` con este mismo `config.json`. Lo mismo, con la hora
+de ahora, se ve sin imprimir con `python3 -m ruleta reporte`.)*
+
+Léelo así: **a las 12:30, con una sola agua abierta, gana poco más de la mitad de
+la gente que juegue en ese momento**; en cuanto esa agua sale, no hay nada abierto
+hasta las 12:33 y todo es consuelo. Los porcentajes altos de la tabla suponen que
+nadie ha ganado: en cuanto se llevan lo que está abierto, bajan a cero hasta la
+siguiente hora de apertura.
+
+### Lo que de verdad importa: cuántos premios salen al día
+
+Esta es la ventaja de repartir por horas. Simulado por el programa con un día
+completo del jueves 24 (30 corridas por renglón, con los premios, las franjas y
+la separación reales):
+
+| Si se juega… | Jugadas en el día | Premios que salen | Gana |
+|---|---|---|---|
+| una cada 20 segundos (muy lleno) | 1 980 | **34 de 34** | 1.7 % (1 de cada 58) |
+| una cada minuto | 660 | **34 de 34** | 5.2 % (1 de cada 19) |
+| una cada 3 minutos | 220 | **34 de 34** | 15.5 % (1 de cada 6) |
+| una cada 10 minutos (flojo) | 66 | 31.7 de 34 | 48 % (1 de cada 2) |
+
+**Salga la gente que salga, se entrega el cupo del día casi completo.** Lo que
+cambia es cada cuántas jugadas toca premio.
+
+### La hora tiene que estar bien (pieza D)
+
+Todo lo anterior cuelga del reloj de la Pi, **que no tiene batería RTC**: la hora
+le llega por internet al arrancar. Por eso, al encender, el kiosco espera hasta
+`juego.espera_hora_seg` segundos (hoy **120**) preguntando cada 2 segundos si el
+sistema ya sincronizó. Si lo consigue, sigue normal. Si **no**, arranca igual
+—nunca se queda colgado— e imprime en el boleto de inventario de arranque:
+
+```
+HORA SIN CONFIRMAR: revisar fecha
+```
+
+Si ves esa línea: **no reinicies**. Espera un par de minutos a que la Pi agarre
+la red y pide otro inventario con el gesto del botón HABILITAR. Ninguna jugada
+espera nada: esto ocurre una sola vez, al encender.
+
+### Consejos
+
+- **Para que el premio mayor no salga el primer día**, ponle `"desde": "2026-09-24"`.
+- **Para que un premio salga solo a ciertas horas**, dale `franjas` en vez de
+  bajarle el peso: es exacto y se explica solo al personal.
 - **Para repartir los grandes en la semana**, usa `tope_diario`: con stock 10 y
   tope 2, salen máximo 2 al día durante 5 días.
-- Si quieres que **nunca se acaben los premios**, deja al menos un premio chico
-  con `"stock": null`; el `tope_diario` lo sigue limitando cada día.
 - **Para que gane más o menos gente**, mueve `juego.consuelo.peso`: es el único
-  número que hace falta tocar.
-- Los porcentajes exactos —los de los premios **y el del consuelo**— los ves sin
-  imprimir con `python3 -m ruleta reporte`.
+  número que hace falta tocar. Más alto = gana menos gente.
+- **Para que no salgan dos premios seguidos**, sube
+  `juego.separacion_min_entre_premios`.
+- Los porcentajes exactos, las piezas ya abiertas y la hora de la siguiente los
+  ves sin imprimir con `python3 -m ruleta reporte`.
 
 **La fuente de verdad de los premios no es este `config.json`**: es
-`docs/evento-2026-09-asadero-33.md` (su §1 y su §5.1), que es el archivo que el
-dueño edita a mano. Si los dos dicen cosas distintas, **gana el documento** y el
-`config.json` se rehace. Una prueba automática compara `config.json` campo por campo contra el **bloque
-JSON del §5.1** (`tests/test_config.py`, `TestPremiosOficialesDelEvento`); **la
-tabla del §1 no la vigila ninguna prueba**, así que un cambio hecho solo ahí deja
-la suite en verde (ficha **F-260**).
+`docs/evento-2026-09-asadero-33.md` (su §1, su §3 y su §5.1), que es el archivo
+que el dueño edita a mano. Si los dos dicen cosas distintas, **gana el documento**
+y el `config.json` se rehace. Varias pruebas automáticas comparan `config.json`
+campo por campo contra los **bloques JSON del §5.1** —premios con sus franjas, y
+el bloque `juego` con el horario, la separación y el consuelo—
+(`tests/test_config.py`, `TestPremiosOficialesDelEvento`); **la tabla del §1 no la
+vigila ninguna prueba**, así que un cambio hecho solo ahí deja la suite en verde
+(ficha **F-260**).
 
-Antes del evento, con los premios ya definitivos: detén el servicio, corre
-`python3 -m ruleta reiniciar --si` y vuelve a arrancarlo, para que los boletos de
-las pruebas no cuenten como premios entregados (ficha **F-262**).
+Antes del evento, con los premios ya definitivos: **carga las fechas
+`desde`/`hasta`** del §5.1 del documento (ficha **F-259**), detén el servicio,
+corre `python3 -m ruleta reiniciar --si` y vuelve a arrancarlo, para que los
+boletos de las pruebas no cuenten como premios entregados (ficha **F-262**).
 
 ---
 

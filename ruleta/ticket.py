@@ -13,9 +13,13 @@ from datetime import datetime
 from . import __version__
 from .config import Config
 from .escpos import CODECS_TABLA, Documento
-from .inventario import Boleto, Resumen
+from .inventario import Boleto, Resumen, ResumenPremio
 
 FORMATO_FECHA = "%d/%m/%Y %H:%M"
+# Lo que se imprime cuando el kiosco arrancó sin poder confirmar la hora
+# (pieza D, Fase 4d): la Pi no tiene batería RTC y del día dependen los topes
+# diarios, las fechas de los premios y el reparto por horas.
+AVISO_HORA = "HORA SIN CONFIRMAR: revisar fecha"
 
 
 # --------------------------------------------------------------------------- #
@@ -51,6 +55,21 @@ def _dos_columnas(izq: str, der: str, ancho: int) -> str:
         izq = izq[: max(0, ancho - len(der) - 1)]
         espacio = 1
     return izq + " " * espacio + der
+
+
+def renglones_de_liberacion(fila: ResumenPremio, ancho: int) -> list[str]:
+    """Las líneas del reparto por horas de un premio, ya sangradas y partidas.
+
+    Lista vacía si ese premio no se reparte (sin `tope_diario` y sin `franjas`).
+    Función pura: todo lo que necesita ya viene calculado en la fila del
+    resumen, incluida la hora, que nunca se lee aquí del reloj del sistema.
+    """
+    if fila.liberadas is None:
+        return []
+    partes = [f"hoy {fila.hoy}", f"liberadas {fila.liberadas}"]
+    partes.append(f"sig {fila.proxima.strftime('%H:%M')}" if fila.proxima is not None
+                  else "sin más hoy")
+    return ["  " + l for l in envolver(" · ".join(partes), max(1, ancho - 2))]
 
 
 def _cargar_logo(cfg: Config):
@@ -152,7 +171,8 @@ def boleto_consuelo(cfg: Config, boleto: Boleto) -> bytes:
     return _cierre(doc, cfg)
 
 
-def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "") -> bytes:
+def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "",
+                      aviso_hora: bool = False) -> bytes:
     """Reporte de inventario: se imprime al arrancar y bajo pedido."""
     doc = _nuevo_documento(cfg)
     ancho = cfg.impresora.chars_por_linea
@@ -162,6 +182,11 @@ def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "") -> bytes:
     doc.linea(cfg.negocio.nombre)
     doc.linea(resumen.momento.strftime(FORMATO_FECHA) + (f"  ({motivo})" if motivo else ""))
     doc.linea(f"Día operativo: {resumen.dia.strftime('%d/%m/%Y')}")
+    if aviso_hora:
+        doc.negrita(True)
+        for l in envolver(AVISO_HORA, doc.chars_linea_actual):
+            doc.linea(l)
+        doc.negrita(False)
     doc.separador()
 
     doc.alinear("izq")
@@ -183,6 +208,11 @@ def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "") -> bytes:
         doc.linea(f"{nombre:<{col_nombre}} {rest:>{col_rest}} {hoy:>{col_hoy}} {prob:>{col_prob}}")
         if not fila.disponible:
             doc.linea(f"  > no disponible: {fila.motivo}")
+        # Renglón del reparto por horas (Fase 4d): entregadas hoy, piezas que el
+        # reloj ya abrió y a qué hora se abre la siguiente. Solo para los premios
+        # que se reparten; los que no tienen tope diario ni franjas no lo llevan.
+        for l in renglones_de_liberacion(fila, ancho):
+            doc.linea(l)
     # El boleto de consuelo compite como uno más cuando tiene peso (Fase 4c).
     # Sin peso no se menciona: solo sale cuando ya no queda ningún premio.
     if resumen.peso_consuelo > 0:

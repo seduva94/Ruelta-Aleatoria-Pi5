@@ -224,27 +224,79 @@ class TestBoletos(unittest.TestCase):
             [o.rstrip() for _, _, o in lineas_vista(datos) if "(consuelo)" in o],
             ["SIGUE PARTICIPANDO (consuelo)  peso 117 -> 94.4%"])
 
+    def inventario_del_config_real(self, momento=None, aviso_hora=False, emitir=None):
+        """El boleto de inventario con el `config.json` real, cableado como en producción."""
+        cfg = configmod.cargar(Path(__file__).resolve().parent.parent / "config.json")
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = Inventario(cfg.premios, tmp, hora_inicio_dia=cfg.juego.hora_inicio_dia,
+                             peso_consuelo=cfg.juego.consuelo.peso, horario=cfg.juego.horario,
+                             separacion_min_entre_premios=cfg.juego.separacion_min_entre_premios)
+            if emitir:
+                inv.confirmar(inv.emitir(inv.premios[emitir], momento or self.ahora))
+            resumen = inv.resumen(momento or self.ahora)
+            datos = ticket.boleto_inventario(cfg, resumen, "arranque", aviso_hora=aviso_hora)
+        lineas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, cfg.impresora.chars_por_linea)]
+        return cfg, resumen, lineas
+
     def test_inventario_del_config_real_cabe_entero(self):
         """Vector real: el `config.json` del repositorio, con sus siete premios y su consuelo.
 
-        La línea del consuelo con el título real ocupa **las 48 columnas justas**
-        (29 + 2 + 17). Se ancla entera: si alguien alarga `juego.consuelo.titulo`,
-        `_dos_columnas` lo recortaría **en silencio** y esta igualdad cae.
+        La línea del consuelo ocupa **las 48 columnas justas**, con los espacios
+        que reparte `_dos_columnas`. Se ancla entera y con el relleno recalculado
+        aquí: si alguien alarga `juego.consuelo.titulo` o cambia el peso, la
+        columna derecha se movería **en silencio** y esta igualdad cae.
         """
-        cfg = configmod.cargar(Path(__file__).resolve().parent.parent / "config.json")
+        cfg, resumen, lineas = self.inventario_del_config_real()
         ancho = cfg.impresora.chars_por_linea
-        with tempfile.TemporaryDirectory() as tmp:
-            inv = Inventario(cfg.premios, tmp, hora_inicio_dia=cfg.juego.hora_inicio_dia,
-                             peso_consuelo=cfg.juego.consuelo.peso)
-            resumen = inv.resumen(self.ahora)
-            datos = ticket.boleto_inventario(cfg, resumen, "arranque")
-        lineas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, ancho)]
         self.assertEqual([l for l in lineas if len(l) > ancho], [])
+        izquierda = f"{cfg.juego.consuelo.titulo} (consuelo)"
+        derecha = f"peso {cfg.juego.consuelo.peso} -> {resumen.probabilidad_consuelo:.1f}%"
         fila = next(l for l in lineas if "(consuelo)" in l)
-        self.assertEqual(fila,
-                         f"{cfg.juego.consuelo.titulo} (consuelo)  "
-                         f"peso {cfg.juego.consuelo.peso} -> {resumen.probabilidad_consuelo:.1f}%")
+        self.assertEqual(fila, izquierda + " " * (ancho - len(izquierda) - len(derecha)) + derecha)
         self.assertEqual(len(fila), ancho)
+
+    def test_inventario_del_config_real_trae_el_reparto_por_horas(self):
+        """Pieza D5 (Fase 4d): entregadas hoy, piezas abiertas y la hora de la siguiente.
+
+        Vector real a las 20:05, con un agua ya entregada. Las líneas se anclan
+        **enteras y por igualdad**: los números y las horas salen del reparto que
+        calcula el motor, no de constantes del `ticket.py`.
+        """
+        cfg, _, lineas = self.inventario_del_config_real(emitir="agua")
+        ancho = cfg.impresora.chars_por_linea
+        self.assertEqual([l for l in lineas if len(l) > ancho], [])
+        nuevas = [l for l in lineas if l.startswith("  hoy ")]
+        self.assertEqual(nuevas, [
+            "  hoy 0 · liberadas 1 · sin más hoy",      # HIELERA IGLOO, franja de las 19:00
+            "  hoy 0 · liberadas 2 · sin más hoy",      # SILLA DE PLAYA, sus dos franjas
+            "  hoy 0 · liberadas 2 · sin más hoy",      # SET BBQ, igual
+            "  hoy 0 · liberadas 3 · sig 21:37",        # 3 TACOS DE PASTOR
+            "  hoy 0 · liberadas 3 · sig 21:37",        # 2 TACOS DE PASTOR
+            "  hoy 0 · liberadas 7 · sig 20:15",        # CERVEZA
+            "  hoy 1 · liberadas 8 · sig 20:30",        # AGUA FRESCA, la entregada
+        ])
+        # Y cada premio lleva exactamente una: ni de más ni de menos.
+        self.assertEqual(len(nuevas), len(cfg.premios))
+
+    def test_inventario_avisa_cuando_la_hora_no_se_confirmo(self):
+        """Pieza D (Fase 4d): la línea entera, por igualdad, y solo si toca."""
+        _, _, con_aviso = self.inventario_del_config_real(aviso_hora=True)
+        self.assertEqual([l.strip() for l in con_aviso if "HORA" in l],
+                         ["HORA SIN CONFIRMAR: revisar fecha"])
+        self.assertEqual([l.strip() for l in con_aviso if "HORA" in l], [ticket.AVISO_HORA])
+        _, _, sin_aviso = self.inventario_del_config_real(aviso_hora=False)
+        self.assertEqual([l for l in sin_aviso if "HORA" in l], [])
+        # El aviso va arriba del todo, junto a la fecha: es lo que hay que mirar.
+        i_aviso = next(i for i, l in enumerate(con_aviso) if "HORA" in l)
+        i_fecha = next(i for i, l in enumerate(con_aviso) if "Día operativo" in l)
+        self.assertEqual(i_aviso, i_fecha + 1)
+
+    def test_un_premio_sin_reparto_no_lleva_renglon_de_liberacion(self):
+        """Los premios de prueba no tienen tope diario: el boleto sale como antes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = Inventario(self.cfg.premios, tmp)
+            datos = ticket.boleto_inventario(self.cfg, inv.resumen(self.ahora), "reporte")
+        self.assertEqual([o for _, _, o in lineas_vista(datos) if o.startswith("  hoy ")], [])
 
     def test_inventario_sin_peso_de_consuelo_no_menciona_el_consuelo(self):
         """Con peso 0 el boleto sale exactamente como antes de la Fase 4c."""
