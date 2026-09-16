@@ -14,7 +14,22 @@ kiosco en vivo hoy 2026-09-16** y el evento abre el **lunes 21**. Los eslabones
 de revisión (lentes, escéptico, commit compuertado, deploy y verificación) **no
 se saltan**: van después, como siempre.
 
-**ESTADO GLOBAL (2026-09-16, tras el paso del ejecutor).** **PLAN, DOCUMENTO DEL
+**ESTADO GLOBAL (2026-09-16). FASE 4d CERRADA.** Las **catorce** casillas del
+plan (0 a 13) están marcadas, y se añadió una **fila 14** para anotar lo que se
+hizo **fuera de él**. Commit **`613f87552afefe5daaf5c1aa20bf5bbf1e811af3`** (base
+`d01a0ca`, **18** commits en `main`), con los archivos del §7 —`hardware.py`
+estaba permitido y **no hizo falta tocarlo**, ficha **F-272**—; push verificado
+contra el remoto por un agente distinto del que commiteó. Desplegado en la Pi a
+las **12:42:46**, con `NTPSynchronized=yes`: **268 pruebas OK allá**, `active`,
+`NRestarts=0`, **PID 3560**, journal con los siete premios y `Lista. Esperando
+jugadas.`, **0 ERROR**. A las **12:46** un agente reinició el inventario a
+**folio 00000** (respaldos `datos/estado_20260916_124629.json` y
+`datos/boletos_20260916_124629.csv`) y **a eso de las 13:00 el usuario probó en
+vivo: «ya probé, salieron consuelos y una cerveza, funciona bien»**. Acta:
+`docs/actas/2026-09-16-fase-4bcd.md` (una sola acta para las Fases 4b, 4c y 4d);
+hechos medidos: `docs/actas/2026-09-16-hechos-medidos-fase-4bcd.md`.
+
+**ESTADO GLOBAL (2026-09-16, tras el paso del ejecutor; se conserva).** **PLAN, DOCUMENTO DEL
 EVENTO, CÓDIGO, GOLDENS, MUTACIONES, FICHAS Y DOCS HECHOS; SIN COMMITEAR Y SIN
 DESPLEGAR.** Las casillas **0 a 8** de la §0 están marcadas con su evidencia; las
 **9 a 13** son de otros eslabones de la cadena. La suite pasó de **232** a
@@ -92,11 +107,12 @@ comando pegadas, nunca de memoria.**
 | 6 | **D9** Goldens nuevos, **por igualdad**, incluidos los **derivados del documento** | ejecutor | `[x]` 2026-09-16 (**232 → 268** pruebas OK) |
 | 7 | **D9** Mutaciones **sobre copia**, mínimo 8, **todas en rojo** | ejecutor | `[x]` 2026-09-16 (**catorce**, las catorce en rojo: §5) |
 | 8 | **D9** `README.md` §6 y §7 recalculados **por el programa**; fichas nuevas | ejecutor | `[x]` 2026-09-16 |
-| 9 | Revisores en paralelo, correctivo y escéptico | revisores | `[ ]` |
-| 10 | Commit compuertado (conjunto de archivos del §7 de este plan) | agente de commit | `[ ]` |
-| 11 | Deploy en la Pi, **sin reiniciar el inventario y sin jugar** | agente de deploy | `[ ]` |
-| 12 | Verificación en vivo contra lo desplegado | verificador | `[ ]` |
-| 13 | Acta, fichas de cierre y memoria | escriba / orquestador | `[ ]` |
+| 9 | Revisores en paralelo, correctivo y escéptico | revisores | `[x]` 2026-09-16 (lentes **7** + **3** correcciones, con **2 sin converger** aplicadas **por orden del orquestador**; escéptico **2**: el comentario y el mensaje de error de `config.py` que llamaban al `tope` «el máximo de esa franja ese día», falso con la lectura elegida) |
+| 10 | Commit compuertado (conjunto de archivos del §7 de este plan) | agente de commit | `[x]` 2026-09-16 (**`613f875`**; `ruleta/hardware.py` permitido y **no tocado**, **F-272**; push verificado: `HEAD` = `origin/main`, árbol limpio) |
+| 11 | Deploy en la Pi, **sin reiniciar el inventario y sin jugar** | agente de deploy | `[x]` 2026-09-16 12:42:46 (`date` «Wed 16 Sep 12:42:39 MST 2026», `NTPSynchronized=yes`; `pull` → `613f875`; **268 OK** en la Pi; `restart --no-block`; **no** se reinició el inventario ni se jugó en el deploy) |
+| 12 | Verificación en vivo contra lo desplegado | verificador | `[x]` 2026-09-16 (`active`, `NRestarts=0`, **PID 3560**; journal con los siete premios, `Inventario impreso (arranque). Folio actual 00005` y `Lista. Esperando jugadas.`; **0 ERROR**; `hora_pi` 12:45:11, `NTP yes`) |
+| 13 | Acta, fichas de cierre y memoria | escriba / orquestador | `[x]` 2026-09-16 (`docs/actas/2026-09-16-fase-4bcd.md`, una acta para las tres fases) |
+| 14 | **Fuera de plan:** reinicio del inventario a folio 00000 y **prueba en vivo del usuario** | agente / usuario | `[x]` 2026-09-16 12:46 y ~13:00 (antes del reinicio: folio **6**, entregados agua 3, bbq 1, cerveza 1, más el consuelo 00006 de las 12:46:12; respaldos `datos/estado_20260916_124629.json` y `datos/boletos_20260916_124629.csv`; `start` 12:46:48 → `Folio actual 00000`, 0 ERROR/WARNING. Después: **«ya probé, salieron consuelos y una cerveza, funciona bien»**) |
 
 ---
 
@@ -334,6 +350,46 @@ modifique.
 ---
 
 ## 4. Pasos, cada uno con su criterio de aceptación
+
+> **Nota fechada (2026-09-16, al cerrar la fase). Los siete criterios de esta
+> sección se cumplieron, y esto es lo que se midió de cada uno.** **Paso 1:** el
+> §5.1 del documento trae los siete premios con sus `franjas` y sus detalles
+> nuevos y el bloque `"juego"`; el §4 tiene marcadas las preguntas **1 a 6** y
+> solo queda la **7**; el §2 explica el reparto por horas y conserva la nota
+> histórica del modelo N. **Paso 2:** `cargar('config.json')` trae horario
+> **12:00–23:00**, separación **3**, espera **120**, consuelo **10** y las
+> **cinco** franjas; los mensajes de error se anclan **diez** para el horario y
+> **nueve** para las franjas, todos nombrando la llave. **Paso 3:** los instantes
+> salen **por igualdad** de listas `HH:MM` —recalculados por el escriba sobre el
+> `config.json` committeado: agua 12:30…22:30, cerveza 12:33…22:27, tacos
+> 13:22:30 · 16:07:30 · 18:52:30 · 21:37:30, silla y bbq 13:00 y 19:00, hielera
+> 19:00—; a las 12:29 hay **0** aguas y a las 12:30 hay **1**; un `estado.json`
+> **sin** la llave `ultimo_premio` carga sin restricción. **Paso 4:** con
+> `"no_jugar"` la app **no imprime nada** y **no cuenta el error**; con el
+> comprobador falso **no/no/sí** el arranque sigue a la tercera **sin** la línea
+> de aviso. **Paso 5:** las líneas nuevas por igualdad y **ninguna** pasa de 48
+> columnas con el `config.json` real. **Paso 6:** suite de **232** a **268** OK
+> (por módulo: `test_escpos` 85, `test_inventario` 46, `test_instalacion` 42,
+> `test_app` 37, `test_config` 30, `test_ticket` 28) y **catorce** mutaciones,
+> **las catorce en rojo**, cada una con el test que la tabla del §5 predecía.
+> **Paso 7:** la tabla del §7 del `README.md` la calculó el programa, y las
+> fichas subieron de **266** a **272** sin repetidos.
+>
+> **Lo que el §8 de este plan avisó y pasó igual:** su punto **6** decía «**NO**
+> `python3 -m ruleta reiniciar`», y a las **12:46** un agente **sí** lo corrió,
+> por decisión del orquestador, para que el usuario probara el reparto por horas
+> desde cero. Queda anotado como desviación, con sus dos respaldos, en la casilla
+> 14 de la §0 y en el §9 del acta.
+>
+> **Lo que sigue SIN medirse en hardware:** la **pieza D** nunca ha mordido en la
+> Pi —de los **cuatro** arranques del servicio del 2026-09-16 solo los **dos
+> últimos** (12:42:46 y 12:46:48) la llevaban dentro, porque antes de `613f875`
+> no existía, y en los dos la hora ya estaba sincronizada, así que la espera
+> devolvió `True` de inmediato y la línea
+> `HORA SIN CONFIRMAR: revisar fecha` **no se ha impreso nunca en papel**—, y la
+> **separación de 3 minutos** tampoco se ha visto morder en el journal. Lo que
+> hay de las dos son goldens con el comprobador y el reloj inyectados. Evidencia
+> y dudas completas: `docs/actas/2026-09-16-fase-4bcd.md`, §11.
 
 **Paso 1 · Documento del evento (D7, D8).** Se escribe **antes** que el código,
 porque el código **deriva** de él.

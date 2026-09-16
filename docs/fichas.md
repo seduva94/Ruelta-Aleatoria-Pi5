@@ -4851,6 +4851,28 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   Conviene hacerlo **junto con** la carga de los premios reales, no antes, para
   no tener que repetirlo.
 - **Estado:** abierta (pendiente, con fecha límite: el lunes 21 de septiembre).
+- **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
+  **El folio ya no es 16, y el inventario se reinició DOS veces el 2026-09-16,
+  pero esta ficha SIGUE ABIERTA.** Primero en el deploy de la Fase 4b, a las
+  **00:10**, con los premios reales ya cargados: la salida literal fue «Folio
+  actual: 00016. Premios entregados registrados: 0. Respaldo:
+  `datos/estado_20260916_001053.json` / `datos/boletos_20260916_001053.csv`.
+  Inventario reiniciado. Folio en 00000.». Y otra vez a las **12:46**, ya con
+  la Fase 4d desplegada, para que el usuario probara limpio el reparto por
+  horas: antes iba en **folio 6** —agua 3, bbq 1, cerveza 1 y el consuelo
+  00006 de las 12:46:12—, con respaldos
+  `datos/estado_20260916_124629.json` y `datos/boletos_20260916_124629.csv`.
+  **Después de ese segundo reinicio el usuario volvió a jugar** («salieron
+  consuelos y una cerveza»), así que el inventario **no está en cero** y
+  **hay que reiniciarlo otra vez el lunes 21 antes de abrir**, en la misma
+  pasada que carga las fechas de la **F-259**. Lo que sí se puede tachar de
+  esta ficha es el número: **los premios de prueba `test1`…`test7` ya no
+  existen** y los diez boletos que esta ficha contaba **ya no cuentan como
+  premios entregados**. **Ojo:** `reiniciar` respalda `estado.json` y
+  `boletos.csv`, **no `ruleta.log`**, y `boletos.csv` se **mueve** al
+  respaldo y se vuelve a crear con el primer boleto. La continuación con
+  fecha límite vive en **F-262**. Evidencia:
+  `docs/actas/2026-09-16-fase-4bcd.md` §3.4 y §5.6.
 
 ---
 
@@ -5516,6 +5538,17 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   regla:** el golden compara `config.json` contra el **bloque del §5.1**, no
   contra la tabla del §1, así que un nombre corregido solo en el §1 deja la suite
   en verde.
+- **Nota fechada (2026-09-16, cierre documental).** **Confirmado contra el diff
+  real de `613f875`, no contra el informe del ejecutor:** en `config.json` el
+  `detalle` de `cerveza` pasó de «Una cerveza» a **«Tecate Light, Tecate Roja o
+  Indio»** y el de `agua`, de «Vaso de 1/2 litro» a **«Horchata, Jamaica o
+  Cebada»**; los otros cinco nombres y detalles quedaron **idénticos** a los que
+  la Fase 4b había cargado. Los siete siguen anclados **campo por campo y en
+  orden** contra el bloque del §5.1 por
+  `test_config_json_lleva_exactamente_los_premios_del_documento`. **Lo que esta
+  ficha deja vivo como regla permanente** —el golden **no** vigila la tabla del
+  §1— no caduca con el cierre. Evidencia: `docs/actas/2026-09-16-fase-4bcd.md`
+  §5.1.
 
 ---
 
@@ -5575,6 +5608,22 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   no el mecanismo: ver **F-263**. Hermanas todavía abiertas: **piezas B**
   (franjas), **C** (horario) y **D** (**F-241**, esperar a que la hora esté
   sincronizada).
+- **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
+  **El mecanismo que cerró esta ficha se construyó en `d01a0ca` y quedó SUPERADO
+  el mismo día por `613f875`.** El peso del consuelo dejó de ser el único freno:
+  desde la Fase 4d **el cupo diario ya no está disponible entero desde el primer
+  minuto**, sino que se abre por horas, así que lo que esta ficha temía —«las
+  primeras 34 jugadas del día entregan premio, una tras otra»— **ya no puede
+  pasar aunque el peso fuera 0**: a las 12:30 solo hay **una** pieza abierta. Por
+  eso `juego.consuelo.peso` **bajó de 217 a 10** en el mismo commit: con el
+  reparto por horas el consuelo compite contra **una o dos piezas abiertas**, no
+  contra los 34 papelitos del día. Las **tres piezas hermanas que esta ficha
+  dejaba abiertas** —**B** (franjas), **C** (horario) y **D** (la hora,
+  **F-241**)— quedaron **construidas** en `613f875`. Medido por el programa: con
+  el modelo de esta ficha, y **acertando N**, se entregaba el **84 %** del cupo;
+  con el reparto por horas se entrega **34 de 34** con 1 980, 660 o 220 jugadas
+  al día, y **31.7 de 34** con solo 66. Evidencia:
+  `docs/actas/2026-09-16-fase-4bcd.md` §5.
 
 ---
 
@@ -5610,6 +5659,22 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   de abrir.** Es la continuación de **F-243** (que anotó el mismo pendiente
   cuando el folio iba en 3, y luego en 16); **F-243 sigue abierta** por la misma
   razón.
+- **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
+  **Lo que esta ficha anunciaba pasó, y sigue abierta.** El inventario se
+  reinició **dos** veces el 2026-09-16 y **las dos veces el usuario volvió a
+  jugar después**: a las **00:10** (deploy de la Fase 4b, de folio 16 a
+  00000, respaldos `datos/estado_20260916_001053.json` y
+  `datos/boletos_20260916_001053.csv`) y a las **12:46** (ya con la Fase 4d
+  desplegada, de folio 6 a 00000, respaldos
+  `datos/estado_20260916_124629.json` y `datos/boletos_20260916_124629.csv`).
+  Entre el primero y el segundo el usuario jugó y se llevó **agua 3, bbq 1 y
+  cerveza 1**, todos **premios reales**; después del segundo volvió a jugar
+  («salieron consuelos y una cerveza»). **Nadie ha contado cuántos boletos
+  salieron después de las 12:46:48**, así que el estado exacto del inventario
+  al cerrar la sesión **no está medido**. Por eso la fecha límite no se
+  mueve: **lunes 21 de septiembre, antes de abrir**, con el servicio parado, y
+  en la **misma pasada** que carga las fechas de la **F-259**. Evidencia:
+  `docs/actas/2026-09-16-fase-4bcd.md` §3.4, §5.6, §6 y §10.
 
 ---
 
@@ -5806,7 +5871,20 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   y lo anotó aquí. Si algún día se prefiere la otra, el cambio es de una línea en
   `instantes_del_dia()` y el golden que se pone en rojo es ese mismo.
 - **Estado:** **abierta como confirmación del orquestador.** Técnicamente hecho,
-  probado y documentado.
+  probado y documentado. **Cerrada el 2026-09-16 como confirmación del
+  orquestador: ver la nota fechada al pie de esta ficha.**
+- **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
+  **CONFIRMADA: el orquestador ACEPTÓ la lectura del ejecutor.** El reparto se
+  hace sobre el **día operativo completo** cuando no hay `juego.horario`, tal y
+  como manda la decisión **D3** del plan; **no se cambia nada**. La razón de la
+  aceptación es la que la propia ficha escribe: **en el Asadero 33 no cambia
+  nada**, porque su `config.json` sí trae horario, y **no hay ninguna otra
+  instalación de este programa**. Queda vivo el aviso para el día en que la
+  haya, que ya está en el `README.md` §7 con su fecha. **Esta ficha se cierra
+  como confirmación**; si algún día se prefiere la conducta contraria, el cambio
+  es de una línea en `instantes_del_dia()` y el golden que se pone en rojo es
+  `test_stock_y_tope_diario`. Evidencia:
+  `docs/actas/2026-09-16-fase-4bcd.md` §7.
 
 ---
 
@@ -5842,6 +5920,17 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   pendientes y de stock, no de separación). Hoy este comportamiento se puede
   cambiar **sin que la suite se ponga en rojo**; si el orquestador lo confirma tal
   cual está, hace falta el golden que lo fije.
+- **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
+  **La CONDUCTA queda confirmada: el orquestador ACEPTÓ la lectura del
+  ejecutor** —la separación la marca **solo un boleto impreso con premio**, que
+  es lo que dice la decisión **D4** al pie de la letra—; `marcar_incierto()`
+  **no** apunta el instante y **no se toca**. **Pero la ficha SIGUE ABIERTA por
+  la otra mitad:** falta el golden que fije esa conducta. Mientras no exista,
+  alguien puede cambiarla sin que la suite se ponga en rojo, que es justo lo que
+  el §5 del protocolo llama «un assert que no muerde». **Lo que falta, en una
+  línea:** una prueba que llame a `marcar_incierto()` y compruebe que
+  `espera_separacion()` sigue en `0.0`. Evidencia:
+  `docs/actas/2026-09-16-fase-4bcd.md` §7.
 
 ---
 
@@ -5880,7 +5969,22 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   migración de estados viejos.
 - **Estado:** **abierta como confirmación del orquestador.** Documentado en el §2
   del documento del evento («si nadie juega en un buen rato, se juntan varias
-  piezas abiertas»).
+  piezas abiertas»). **Cerrada el 2026-09-16 como confirmación del orquestador:
+  ver la nota fechada al pie de esta ficha.**
+- **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
+  **CONFIRMADA: el orquestador ACEPTÓ la lectura del ejecutor.** El arrastre
+  dentro del día **es lo querido** y **no se cambia**: lo que una franja abre y
+  nadie gana sigue disponible hasta el cierre, aunque eso signifique que a las
+  19:00 puedan quedar **dos sillas** y que las dos salgan esa noche. Las dos
+  razones de la aceptación son las que la propia ficha escribe: **no se regala
+  ninguna pieza de más** —lo que corta el día sigue siendo el `tope_diario`— y
+  la alternativa exigiría un **contador por franja y por día en `estado.json`**,
+  es decir, estado nuevo y persistido con su migración, **en la semana en que el
+  evento abre**. En el mismo commit se corrigieron el comentario y el mensaje de
+  error de `ruleta/config.py` que llamaban al `tope` «el máximo de esa franja ese
+  día», porque con esta lectura **era falso**: los encontró el escéptico.
+  **Esta ficha se cierra como confirmación.** Evidencia:
+  `docs/actas/2026-09-16-fase-4bcd.md` §7.
 
 ---
 
@@ -5968,5 +6072,84 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Propuesta:** que el orquestador lo dé por bueno. Queda anotado aquí para que
   el acta de la fase no tenga que reconstruirlo de memoria.
 - **Estado:** **abierta como confirmación del orquestador.**
+
+---
+
+## F-273 · Cuando la hora SÍ se sincroniza, la pieza D no deja ni una línea en el journal
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · cierre documental; lo señaló el verificador en vivo del
+  deploy de las 12:42:46
+- **Dónde:** `ruleta/app.py`, `esperar_hora_sincronizada()` y
+  `hora_sincronizada_del_sistema()`
+  (`grep -n "esperar_hora_sincronizada" ruleta/app.py`).
+- **Qué pasa:** la pieza D **solo registra el fallo**. Si la hora está
+  sincronizada —o si no hay ninguna señal que preguntar, como en una PC—, la
+  función devuelve `True` **en silencio**: no hay `log.info`, no hay nada. Los
+  únicos rastros que deja son el `log.warning` **«HORA SIN CONFIRMAR: el sistema
+  no sincronizó la hora en %.0f s…»** cuando se agota el tope, el
+  `log.warning` de `timedatectl` inalcanzable y el `log.exception` del
+  comprobador que revienta. Medido el 2026-09-16 en el arranque de las 12:42:46,
+  con `NTPSynchronized=yes`: el journal trae `Ruleta arrancando. Premios: …`,
+  `Inventario impreso (arranque). Folio actual 00005` y `Lista. Esperando
+  jugadas.`, y **ninguna línea sobre la hora**.
+- **Por qué es residual:** **no es un defecto de conducta.** El programa hace
+  exactamente lo que el plan pedía, y el boleto de inventario **sí** lleva la
+  fecha impresa, que es la señal que el personal mira. Un `log.info` de más en
+  cada arranque es ruido para quien lee el journal buscando errores.
+- **Riesgo si no se toca:** que nadie pueda distinguir, leyendo el journal, entre
+  «la hora se confirmó a la primera», «se confirmó a los 90 segundos» y «el
+  programa ni siquiera preguntó porque `espera_hora_seg` estaba en 0». En una Pi
+  **sin batería RTC**, y el día que un boleto salga con la fecha mal, esa
+  distinción es justo lo primero que alguien va a querer saber. Hoy hay que
+  deducirlo de la ausencia de líneas, que es la peor forma de evidencia.
+- **Propuesta:** un `log.info` de una línea al final de
+  `esperar_hora_sincronizada()` cuando devuelve `True`, diciendo **cuántos
+  segundos costó** (por ejemplo, «Hora del sistema confirmada en 0.0 s» o «Hora
+  no comprobada: juego.espera_hora_seg = 0»), con su golden; o, si se prefiere no
+  añadir ruido, dejarlo como está **por decisión escrita**. **Lo decide el
+  orquestador**, que es quien lee los journals de los deploys.
+- **Estado:** **abierta** (decisión pendiente). Hermanas: **F-241** (la pieza D
+  nació de ahí) y la duda §11.5 del acta: **la pieza D nunca se ha visto morder
+  en la Pi**, porque de los **cuatro** arranques del servicio del 2026-09-16
+  solo los **dos últimos** (12:42:46 y 12:46:48) llevaban ya esta pieza —antes
+  de `613f875` no existía— y en los dos la hora ya estaba sincronizada, así que
+  la línea `HORA SIN CONFIRMAR: revisar fecha` **no se ha impreso nunca en
+  papel**.
+
+---
+
+## F-274 · El acta del 2026-09-16 cubre TRES fases en un solo documento
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4d · cierre documental; decisión del orquestador (C1 del brief
+  del escriba)
+- **Dónde:** `docs/actas/2026-09-16-fase-4bcd.md` y
+  `docs/actas/2026-09-16-hechos-medidos-fase-4bcd.md`.
+- **Qué pasa:** las Fases 1, 2, 3 y 4a tienen **un acta por fase**
+  (`docs/actas/2026-09-11-fase-1.md`, `…-fase-2.md`, `2026-09-15-fase-3.md`,
+  `…-fase-4a.md`). Las Fases **4b**, **4c** y **4d** comparten **una sola**, con
+  una sección por fase, y **un solo** archivo de hechos medidos para las tres.
+  Es una desviación de la convención del `CLAUDE.md`, que pide
+  `docs/actas/<AAAA-MM-DD>-<fase>.md`.
+- **Por qué es residual:** las tres fases se hicieron **el mismo día**, sobre el
+  **mismo archivo de hechos**, con el **mismo usuario probando en vivo** entre
+  una y otra, y cada una **deshace o supera** algo de la anterior: la 4c corrige
+  lo que la 4b hizo visible, y la 4d cambia el peso que la 4c acababa de cargar.
+  Contadas por separado, las tres actas se pasarían la mitad del texto
+  remitiéndose entre sí. El nombre del archivo lo dice (`fase-4bcd`) y el
+  encabezado nombra los tres commits, así que **nada queda sin dirección**.
+- **Riesgo si no se toca:** que alguien busque `docs/actas/2026-09-16-fase-4c.md`
+  y crea que esa fase no tiene acta; y que un índice futuro que cuente actas por
+  fase salga descuadrado. También pierde granularidad: los tres planes remiten a
+  la **misma** acta, así que hay que leerla entera para encontrar lo de una fase.
+- **Propuesta:** dejarlo como está —partirla ahora obligaría a triplicar el
+  contexto común y a decidir dónde vive la prueba en vivo del usuario, que cierra
+  las tres— y, si alguien quiere el índice limpio, añadir tres archivos de una
+  línea (`2026-09-16-fase-4b.md`, `…-4c.md`, `…-4d.md`) que apunten a la acta
+  única. **No se hizo aquí** para no inventar documentos que nadie pidió.
+- **Estado:** **abierta como confirmación del orquestador.** Hermana: **F-258**
+  (la nota de pausa que entró en un commit de código), la otra desviación de
+  convención documental de esta serie de fases.
 
 ---

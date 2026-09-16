@@ -7,7 +7,18 @@ sola línea de código. Esta fase **sí programa**: toca el motor del sorteo
 (`ruleta/ticket.py`). Todo lo que este plan da por cierto está **medido** o
 citado de un archivo del repositorio; lo que no, lo dice.
 
-**ESTADO GLOBAL (2026-09-16, tras el paso del ejecutor).** **CÓDIGO, GOLDENS,
+**ESTADO GLOBAL (2026-09-16). FASE 4c CERRADA.** Las **trece** casillas de la §0
+están marcadas. Commit **`d01a0ca61a531f90b70a20fb6042db8e295a6d38`** (base
+`f810bc4`, **17** commits en `main`), con los **quince** archivos del §7 y ni uno
+más; push verificado contra el remoto por un agente distinto del que commiteó.
+Desplegado en la Pi a las **10:47:25**: **232 pruebas OK allá**, servicio
+`active` con `NRestarts=0`, `Inventario impreso (arranque). Folio actual 00005`
+—el usuario había jugado cinco veces esa mañana— y **0 ERROR / 0 WARNING**. La
+pieza A quedó construida y **F-261 cerrada**. Acta:
+`docs/actas/2026-09-16-fase-4bcd.md` (una sola acta para las Fases 4b, 4c y 4d);
+hechos medidos: `docs/actas/2026-09-16-hechos-medidos-fase-4bcd.md`.
+
+**ESTADO GLOBAL (2026-09-16, tras el paso del ejecutor; se conserva).** **CÓDIGO, GOLDENS,
 MUTACIONES, FICHAS Y DOCUMENTOS HECHOS; SIN COMMITEAR Y SIN DESPLEGAR.** Las
 casillas **0 a 7** de la §0 están marcadas con su evidencia; las **8 a 12** son
 de otros eslabones de la cadena. La suite pasó de **216** a **232** pruebas en
@@ -89,11 +100,11 @@ comando pegadas, nunca de memoria.**
 | 5 | **D4** Mutaciones **sobre copia**, mínimo 6, **todas en rojo** | ejecutor | `[x]` 2026-09-16 (**doce**, las doce en rojo: §5) |
 | 6 | **D5** Fichas nuevas y cierre con nota fechada de las que quedaron falsas | ejecutor | `[x]` 2026-09-16 (262 → **266**; F-261 **resuelta**, F-220 con nota fechada) |
 | 7 | **D5** `README.md` §6 y §7; documento del evento §5.1, §5.2 y bitácora §7 | ejecutor | `[x]` 2026-09-16 |
-| 8 | Revisores en paralelo, correctivo y escéptico | revisores | `[ ]` |
-| 9 | Commit compuertado (conjunto de archivos del §7 de este plan) | agente de commit | `[ ]` |
-| 10 | **D6** Deploy en la Pi, **sin reiniciar el inventario y sin jugar** | agente de deploy | `[ ]` |
-| 11 | Verificación en vivo contra lo desplegado | verificador | `[ ]` |
-| 12 | Acta, fichas de cierre y memoria | escriba / orquestador | `[ ]` |
+| 8 | Revisores en paralelo, correctivo y escéptico | revisores | `[x]` 2026-09-16 (lentes **6** + **5** correcciones, con **3 sin converger** aplicadas **por orden del orquestador**; escéptico **1**) |
+| 9 | Commit compuertado (conjunto de archivos del §7 de este plan) | agente de commit | `[x]` 2026-09-16 (**`d01a0ca`**, los **quince** archivos y ni uno más; push verificado: `HEAD` = `origin/main`, árbol limpio) |
+| 10 | **D6** Deploy en la Pi, **sin reiniciar el inventario y sin jugar** | agente de deploy | `[x]` 2026-09-16 10:47:25 (`pull` → `d01a0ca`; **232 OK** en la Pi; `restart`; **no** se reinició el inventario y **no** se jugó, como mandaba D6) |
+| 11 | Verificación en vivo contra lo desplegado | verificador | `[x]` 2026-09-16 (`active`, `NRestarts=0`; `Inventario impreso (arranque). Folio actual 00005`; **0 ERROR / 0 WARNING**) |
+| 12 | Acta, fichas de cierre y memoria | escriba / orquestador | `[x]` 2026-09-16 (`docs/actas/2026-09-16-fase-4bcd.md`, una acta para las tres fases) |
 
 ---
 
@@ -206,6 +217,36 @@ probando: el folio sigue) y **NO se juega**.
 ---
 
 ## 4. Pasos, cada uno con su criterio de aceptación
+
+> **Nota fechada (2026-09-16, al cerrar la fase). Los seis criterios de esta
+> sección se cumplieron, y esto es lo que se midió de cada uno.** **Paso 1:**
+> `cargar('config.json').juego.consuelo.peso` = **217**; una config sin la llave
+> da **0**; `"217"` y `-1` dan `ErrorConfig` con «juego.consuelo.peso» en el
+> mensaje (`test_peso_de_consuelo_con_tipos_malos`,
+> `test_consuelo_sin_peso_vale_cero`). **Paso 2:** con `RngEspia`, `sortear`
+> pasa **exactamente** `disponibles + [None]` y `[…pesos, 217]`, y con peso 0 no
+> pasa ni el `None` ni el 217, anclado **por igualdad**
+> (`test_sortear_con_peso_de_consuelo_mete_none_en_la_tombola`,
+> `test_sin_peso_de_consuelo_la_tombola_es_solo_de_premios`). **Paso 3:**
+> `test_abrir_inventario_pasa_el_peso_del_consuelo` **deriva** el peso de dos
+> `cfg` distintos, y `test_solo_hay_un_sitio_de_produccion_que_construye_el_inventario`
+> fija que ese sitio es `__main__.py` (ficha **F-265**). **Paso 4:** la línea del
+> consuelo sale por igualdad a **48** y a **32** columnas, y con el `config.json`
+> real ocupa **las 48 justas** (`len(fila) == ancho`); con peso 0 **no aparece**.
+> **Paso 5:** suite de **216** a **232** OK y **doce** mutaciones sobre copia,
+> **las doce en rojo**, cada una con el test que la tabla del §5 predecía; la
+> **M8** muta **solo el documento** y cae igual. **Paso 6:** las probabilidades
+> del `README.md` §7 las calculó el programa (tómbola de **251** papelitos,
+> **13.55 %** de jugadas ganadoras), la pieza A quedó marcada **CONSTRUIDA** en
+> el §5.2 sin borrar la propuesta, y las fichas subieron de **262** a **266** sin
+> repetidos.
+>
+> **Lo que quedó fuera del criterio:** el **Paso 6** pedía cerrar lo que quedara
+> falso, y **`CLAUDE.md` no estaba en el alcance de esta fase** (lo prohíbe el
+> §6). El agente de deploy de esta misma fase señaló que `CLAUDE.md` y la ficha
+> **F-243** seguían diciendo «folio 16» y ya no era cierto; se corrigió en el
+> cierre documental del 2026-09-16, no aquí. Evidencia:
+> `docs/actas/2026-09-16-fase-4bcd.md`.
 
 **Paso 1 · `ruleta/config.py` y `config.json` (D1).**
 Campo `peso: int = 0` en `ConfigConsuelo`; en `validar()`, un `if` que rechace el

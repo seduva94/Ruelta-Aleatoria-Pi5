@@ -6,7 +6,18 @@ nada**: cambia **configuración** y los documentos que la describen. Todo lo que
 da por cierto está medido o citado de un archivo del repositorio; lo que no,
 este plan dice que no.
 
-**ESTADO GLOBAL (2026-09-15, tras el paso del ejecutor).** **CONFIGURACIÓN,
+**ESTADO GLOBAL (2026-09-16). FASE 4b CERRADA.** Las **doce** casillas de la §0
+están marcadas. Commit **`f810bc4d039b97127670b46f9aa6b8371a8db22a`** (base
+`9afdd9c`, **16** commits en `main`), con las **seis** rutas del Paso 8 y ni una
+más; push verificado contra el remoto por un agente distinto del que commiteó.
+Desplegado en la Pi entre las **00:10** y las **00:11** del 2026-09-16: **216
+pruebas OK allá**, inventario reiniciado de **folio 16 a 00000** con sus dos
+respaldos, servicio `active` con `NRestarts=0`, el journal con los **siete
+premios reales** y **cero avisos de poco papel**. Acta:
+`docs/actas/2026-09-16-fase-4bcd.md` (una sola acta para las Fases 4b, 4c y 4d);
+hechos medidos: `docs/actas/2026-09-16-hechos-medidos-fase-4bcd.md`.
+
+**ESTADO GLOBAL (2026-09-15, tras el paso del ejecutor; se conserva).** **CONFIGURACIÓN,
 GOLDENS, MUTACIONES, FICHAS Y DOCUMENTOS HECHOS; SIN COMMITEAR Y SIN
 DESPLEGAR.** Las casillas **0 a 6** de la §0 están marcadas con su evidencia; las
 **7 a 11** son de otros eslabones de la cadena. La suite pasó de **214** a
@@ -78,11 +89,11 @@ comando pegadas, nunca de memoria.**
 | 4 | Fichas nuevas (F-259 a F-262) | ejecutor | `[x]` 2026-09-15 (258 → **262**, sin repetidos) |
 | 5 | `README.md` §7, §6 y §4 (paso 6): corregir lo que ya es falso | ejecutor | `[x]` 2026-09-15 (**el §4 quedó fuera del alcance literal de D5**: se corrigió porque su paso 6 decía en presente «cambia los `test1`…`test7` por tus premios reales» y apuntaba al §7 ya corregido; se anota aquí para que el orquestador lo confirme o lo revierta) |
 | 6 | Documento del evento: una línea de bitácora §7 y la cabecera | ejecutor | `[x]` 2026-09-15 |
-| 7 | Revisores en paralelo, correctivo y escéptico | revisores | `[ ]` |
-| 8 | Commit compuertado (conjunto de archivos del Paso 8) | agente de commit | `[ ]` |
-| 9 | Deploy en la Pi y reinicio del inventario | agente de deploy | `[ ]` |
-| 10 | Verificación en vivo contra lo desplegado | verificador | `[ ]` |
-| 11 | Acta, fichas de cierre y memoria | escriba / orquestador | `[ ]` |
+| 7 | Revisores en paralelo, correctivo y escéptico | revisores | `[x]` 2026-09-15 (lentes **9** + **2** correcciones; escéptico **2**, las dos por sobreafirmar que el documento y `config.json` «no se pueden desincronizar») |
+| 8 | Commit compuertado (conjunto de archivos del Paso 8) | agente de commit | `[x]` 2026-09-16 (**`f810bc4`**, las **seis** rutas y ni una más; push verificado: `HEAD` = `origin/main`, árbol limpio) |
+| 9 | Deploy en la Pi y reinicio del inventario | agente de deploy | `[x]` 2026-09-16 00:10–00:11 (`pull` `2a0aba3` → `f810bc4`, **17** archivos según el agente de deploy —el **diff real** entre esos dos commits toca **12**, ver §3.4 del acta—; **216 OK** en la Pi; `reiniciar --si`: «Folio actual: 00016 … Respaldo: `datos/estado_20260916_001053.json` / `datos/boletos_20260916_001053.csv` … Folio en 00000.») |
+| 10 | Verificación en vivo contra lo desplegado | verificador | `[x]` 2026-09-16 00:11:02 (`active`, `NRestarts=0`; journal con los siete premios reales y `Inventario impreso (arranque). Folio actual 00000`; **0** avisos de poco papel) |
+| 11 | Acta, fichas de cierre y memoria | escriba / orquestador | `[x]` 2026-09-16 (`docs/actas/2026-09-16-fase-4bcd.md`, una acta para las tres fases) |
 
 ---
 
@@ -226,6 +237,30 @@ inventario de arranque.
 
 Cada paso dice **QUIÉN**, **QUÉ HACER**, **CRITERIO DE ACEPTACIÓN** y **SI
 FALLA**.
+
+> **Nota fechada (2026-09-16, al cerrar la fase). Los doce criterios de esta
+> sección se cumplieron, y esto es lo que se midió de cada uno.** **Paso 1:**
+> `git diff config.json` tocó **solo** la lista `premios`; el validador real
+> carga **7** premios, con suma de `stock` **167** y suma de `tope_diario`
+> **34**. **Paso 2:** suite de **214** a **216** OK, el conteo que el propio
+> criterio pedía anotar. **Paso 3:** **siete** mutaciones sobre copia limpia,
+> **las siete en rojo**, con el test que cae anotado en el §5; **M6 y M7 mutan el
+> DOCUMENTO**, que es lo que demuestra que el golden deriva. **Paso 4:**
+> `grep -c "^## F-" docs/fichas.md` subió de **258** a **262**, exactamente 4 y
+> sin repetidos. **Paso 5:** ninguna afirmación en presente del `README.md` dice
+> ya que el `config.json` traiga premios de prueba (re-grepeado el 2026-09-16 al
+> cerrar: `TEST 1`, `test1` y `folio 16` **no aparecen**, salvo la nota fechada
+> del §4 que documenta la corrección). **Paso 6:** el diff del documento del
+> evento tocó **solo** la cabecera y la bitácora del §7. **Pasos 7 a 11:** lo que
+> dicen las casillas 7 a 11 de la §0, con su hora y su salida.
+>
+> **Lo que NO se cumplió tal y como está escrito:** el **Paso 9** de este plan
+> reinició el inventario a **folio 00000**, y el **Paso 10** lo verificó allí;
+> pero **el usuario siguió jugando el 2026-09-16**, así que ese cero duró lo que
+> duró. Cuando se desplegó la Fase 4c el folio iba en **5**. **No es un fallo del
+> plan**: es el precio conocido de probar en vivo, y por eso existen las fichas
+> **F-262** y **F-243**, que siguen abiertas con fecha límite el **lunes 21**.
+> Evidencia de todo esto: `docs/actas/2026-09-16-fase-4bcd.md`.
 
 ### Paso 0 · Este plan · QUIÉN: ejecutor
 

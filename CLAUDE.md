@@ -108,11 +108,13 @@ Cada eslabón que produce commit espera un «listo» explícito de los revisores
 Ruleta de premios para el restaurante Asadero 33: Raspberry Pi 5, botón arcade
 JUGAR más botón HABILITAR del mesero, impresora térmica de 80 mm y sin pantalla.
 
-*(Actualizado el 2026-09-15 con lo medido y decidido en las Fases 3 y 4a
-—botones, papel, red y hora—. Antes, el 2026-09-11, ya se había corregido lo de
-«impresora Bluetooth» y «valores sin confirmar». Evidencia:
-`docs/actas/2026-09-11-fase-2.md`, `docs/actas/2026-09-15-fase-3.md` y
-`docs/actas/2026-09-15-fase-4a.md`.)*
+*(Actualizado el 2026-09-16 con lo medido y decidido en las Fases 4b, 4c y 4d
+—los premios reales, el consuelo con peso propio y el reparto por horas, con sus
+franjas, su horario y la espera de la hora al arrancar—. Antes, el 2026-09-15,
+con las Fases 3 y 4a (botones, papel, red y hora); y el 2026-09-11 se había
+corregido lo de «impresora Bluetooth» y «valores sin confirmar». Evidencia:
+`docs/actas/2026-09-11-fase-2.md`, `docs/actas/2026-09-15-fase-3.md`,
+`docs/actas/2026-09-15-fase-4a.md` y `docs/actas/2026-09-16-fase-4bcd.md`.)*
 
 - **La impresora es una AOMU My-A1, que es un clon POS-80** (ESC/POS). Medido en
   la Pi: USB `0418:5011` e `ieee1284_id` =
@@ -154,21 +156,80 @@ JUGAR más botón HABILITAR del mesero, impresora térmica de 80 mm y sin pantal
   los **primeros minutos tras encender** —unos tres, medidos el 2026-09-15— la Pi
   **cree que es otro día**, y de la fecha dependen los topes diarios, las fechas
   `desde`/`hasta` y el boleto de inventario de arranque. La mitigación es la
-  **pieza D**, que **todavía no existe**: esperar a que la hora esté sincronizada
-  antes de imprimir y de aceptar jugadas (ficha **F-241**). Regla práctica
-  mientras tanto: encender la Pi unos minutos antes de abrir y **mirar la fecha
-  del boleto de inventario**; si está mal, **no reiniciar**, esperar y pedir otro
-  inventario. *(Nota fechada: hasta el 2026-09-15 este párrafo decía que **en
-  producción la Pi va sin red** y que **por eso la batería RTC es necesaria**. La
+  **pieza D**, que **ya existe desde `613f875`** (2026-09-16, Fase 4d): al
+  arrancar, el kiosco espera hasta `juego.espera_hora_seg` segundos —hoy
+  **120**, preguntando cada 2 s— a que el sistema sincronice la hora, y si no lo
+  consigue **arranca igual** pero deja un WARNING en el journal e imprime la
+  línea **`HORA SIN CONFIRMAR: revisar fecha`** en el boleto de inventario.
+  **F-241 queda resuelta en lo esencial.** Dos avisos: **esto solo pasa al
+  arrancar** —ninguna jugada vuelve a esperar— y **la pieza D nunca se ha visto
+  morder en la Pi**: de los **cuatro** arranques del servicio del 2026-09-16, solo
+  los **dos últimos** (12:42:46 y 12:46:48) llevaban ya la pieza D —antes de
+  `613f875` no existía— y en los dos la hora ya estaba sincronizada, así que esa
+  línea **no se ha impreso nunca en papel**. **La regla práctica sigue en pie, y es la que manda:** encender la Pi
+  unos minutos antes de abrir y **mirar la fecha del boleto de inventario**; si
+  está mal, **no reiniciar**, esperar y pedir otro inventario. *(Nota fechada:
+  hasta el 2026-09-15 este párrafo decía que **en producción la Pi va sin red**
+  y que **por eso la batería RTC es necesaria**. La
   decisión del usuario lo derogó; se conserva aquí porque hay fichas viejas que
   todavía razonan desde esa premisa. Ficha **F-242**.)* La red de **laboratorio**
   sigue siendo el **punto de acceso móvil de Windows** de la laptop del usuario,
   con el mismo nombre y contraseña que el Wi-Fi del asadero; la Pi entra sola.
-- **El inventario real NO está en cero:** las pruebas de hardware del 2026-09-15
-  lo dejaron en el **folio 16**, con premios de prueba ya contados como
-  entregados. **Hay que correr `python3 -m ruleta reiniciar --si` antes del lunes
-  21 de septiembre** o esos boletos contarán como premios entregados (ficha
-  **F-243**).
+- **El inventario real NO está en cero, y el folio 16 ya es historia.** El
+  2026-09-16 se reinició **dos veces**, siempre con el servicio parado y con
+  respaldo fechado en `datos/`: a las **00:10** al desplegar los premios reales
+  (de folio 16 a 00000; `datos/estado_20260916_001053.json` y
+  `datos/boletos_20260916_001053.csv`) y a las **12:46** para probar limpio el
+  reparto por horas (de folio 6 a 00000;
+  `datos/estado_20260916_124629.json` y `datos/boletos_20260916_124629.csv`).
+  **Las dos veces el usuario volvió a jugar después**, y esas jugadas descuentan
+  **premios reales**. **Si se sigue probando, hay que correr
+  `python3 -m ruleta reiniciar --si` otra vez el lunes 21 antes de abrir**
+  (fichas **F-262** y **F-243**), en la misma pasada que carga las fechas
+  `desde`/`hasta` (**F-259**). **Ojo:** `reiniciar` respalda `estado.json` y
+  `boletos.csv`, **no `ruleta.log`**, y `boletos.csv` se **mueve** al respaldo y
+  se vuelve a crear con el primer boleto.
+- **Cómo se reparten los premios (Fases 4b, 4c y 4d, 2026-09-16).** Es el modelo
+  con el que abre el evento, y está probado en vivo: después del reinicio de las
+  12:46 el usuario jugó y dijo «ya probé, salieron consuelos y una cerveza,
+  funciona bien».
+  - **Siete premios reales**, 167 piezas y **34 de cupo diario sumado** (33 sin
+    la hielera): `hielera` HIELERA IGLOO «Premio mayor» (2/1/1), `silla` SILLA DE
+    PLAYA «Premio grande» (10/2/2), `bbq` SET BBQ «Premio grande» (10/2/2),
+    `tacos3` 3 TACOS DE PASTOR «Plato de 3 tacos de pastor» (20/4/4), `tacos2`
+    2 TACOS DE PASTOR «Plato de 2 tacos de pastor» (20/4/4), `cerveza` CERVEZA
+    **«Tecate Light, Tecate Roja o Indio»** (50/10/10) y `agua` AGUA FRESCA
+    **«Horchata, Jamaica o Cebada»** (55/11/11), en `stock`/`tope_diario`/`peso`.
+    Los siete nombres y detalles los **confirmó el usuario el 2026-09-16**
+    (ficha **F-260**).
+  - **Horario del evento 12:00–23:00**, con el **cierre exclusivo** (a las 23:00
+    en punto ya no se juega). **Fuera de él no hay ningún premio disponible y la
+    jugada sale de consuelo**, que es lo que el usuario eligió; la otra opción,
+    `"fuera_de_horario": "no_jugar"`, existe y **no se usa**.
+  - **Franjas:** la **hielera** solo de **19:00 a 23:00**; la **silla** y el
+    **set BBQ**, una pieza de **13:00 a 16:00** y otra de **19:00 a 22:00**. Un
+    premio con franjas **no existe fuera de ellas**.
+  - **Tacos, cerveza y agua se reparten por los PUNTOS MEDIOS del cupo diario:**
+    la pieza *k* se abre en `abre + (k − 0.5) × (cierra − abre) / tope_diario`.
+    Con el `config.json` de hoy: agua a las 12:30, 13:30 … 22:30; cerveza a las
+    12:33, 13:39 … 22:27; los dos platos de tacos a las 13:22:30, 16:07:30,
+    18:52:30 y 21:37:30. **Lo que se abre y no se gana no se pierde, pero
+    tampoco adelanta la siguiente pieza.**
+  - **El consuelo compite con peso 10** contra lo que esté abierto en ese
+    momento (no contra el cupo del día entero: por eso bajó de 217 a 10).
+  - **Separación mínima de 3 minutos** entre dos boletos **con premio**. El
+    instante del último se guarda en `datos/estado.json`, así que **sobrevive a
+    un reinicio**; un reloj que se va hacia atrás **no** bloquea el juego.
+  - **Al arrancar, el kiosco espera hasta 120 s** a que la hora esté
+    sincronizada, y si no lo consigue imprime **`HORA SIN CONFIRMAR: revisar
+    fecha`** en el boleto de inventario.
+  - **Las fechas `desde`/`hasta` TODAVÍA NO están cargadas** (ficha **F-259**):
+    hasta que se carguen, los siete premios están disponibles **todos los días**,
+    no solo del 21 al 25, y la hielera entra todos los días mientras le queden
+    sus dos piezas. **Hay que cargarlas antes del lunes 21.**
+  - Evidencia de todo lo anterior: `docs/actas/2026-09-16-fase-4bcd.md`, y el
+    documento que manda sobre `config.json`,
+    `docs/evento-2026-09-asadero-33.md`.
 
 Ver `README.md` para operación e instalación, y `docs/actas/` para la evidencia
 medida de cada uno de estos valores.
