@@ -202,7 +202,11 @@ está dañado, el boleto sale sin logo (lo avisa `python3 -m ruleta diagnostico`
 
 **Paso 6 · Premios y textos.** Edita `config.json` en la Pi (`nano config.json`)
 o en la PC y cópialo con `scp config.json asadero@ruleta.local:~/ruleta/`.
-Cambia los `test1`…`test7` por tus premios reales (ver §7). Comprueba cómo se
+*(Corregido el 2026-09-15, Fase 4b: aquí decía «cambia los `test1`…`test7` por
+tus premios reales», y desde entonces el `config.json` **ya trae los siete
+premios reales del evento**.)* Los premios salen de
+`docs/evento-2026-09-asadero-33.md`, que es la fuente: se edita **ese**
+documento y de ahí se rehace el `config.json` (ver §7). Comprueba cómo se
 verán los boletos sin gastar papel:
 ```bash
 python3 -m ruleta vista-previa --todos
@@ -410,7 +414,7 @@ inventario de arranque (`juego.intentos_inventario_arranque`).
 ### `premios` (lista)
 | Llave | Obligatoria | Qué es |
 |---|---|---|
-| `id` | sí | identificador corto sin espacios (`test1`). Con él se llevan los contadores: **no lo cambies a media semana** |
+| `id` | sí | identificador corto sin espacios (`hielera`). Con él se llevan los contadores: **no lo cambies a media semana** |
 | `nombre` | sí | lo que sale en grande en el boleto (se imprime en MAYÚSCULAS) |
 | `peso` | sí | número > 0; la probabilidad es proporcional (ver abajo) |
 | `stock` | no | unidades para todo el evento; `null` = ilimitado |
@@ -433,27 +437,65 @@ Cuando un premio se agota o llega a su tope, su peso se reparte entre los
 demás. Por eso la probabilidad "real" cambia durante el día; el inventario
 impreso muestra la probabilidad vigente en ese momento.
 
-Con la configuración de prueba incluida (pesos 4, 4, 1, 25, 25, 25, 25 → suma 109):
+*(Corregido el 2026-09-15, Fase 4b. Hasta ese día esta sección describía «la
+configuración de prueba incluida», con los premios `TEST 1`…`TEST 7` y pesos 4,
+4, 1, 25, 25, 25, 25. Ya no: este `config.json` trae **los siete premios reales
+del evento**.)*
+
+Con los premios que este `config.json` trae hoy —los del evento del 21 al 25 de
+septiembre de 2026, pesos 1, 2, 2, 4, 4, 10 y 11 → **suma 34**—:
 
 | Premio | Stock | Tope/día | Peso | Probabilidad inicial |
 |---|---|---|---|---|
-| TEST 1 (grande) | 10 | 2 | 4 | 3.7 % |
-| TEST 2 (grande) | 10 | 2 | 4 | 3.7 % |
-| TEST 3 (mayor) | 1 | 1 | 1 | 0.9 % |
-| TEST 4 · 5 · 6 · 7 (chicos) | 50 c/u | 10 c/u | 25 c/u | 22.9 % c/u |
+| HIELERA IGLOO (mayor) | 2 | 1 | 1 | 2.9 % |
+| SILLA DE PLAYA (grande) | 10 | 2 | 2 | 5.9 % |
+| SET BBQ (grande) | 10 | 2 | 2 | 5.9 % |
+| 3 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 11.8 % |
+| 2 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 11.8 % |
+| CERVEZA (chico) | 50 | 10 | 10 | 29.4 % |
+| AGUA FRESCA (chico) | 55 | 11 | 11 | 32.4 % |
+
+El peso de cada premio es **su cupo diario**: es la regla que el documento del
+evento explica en su §2 («el peso es el cupo»).
+
+> **Dos avisos que hay que leer antes de abrir el evento:**
+>
+> 1. **Esos porcentajes se reparten solo entre los premios.** El boleto de
+>    consuelo **todavía no tiene peso propio**: sale únicamente cuando ya no
+>    queda **ningún** premio disponible. Dicho en claro: **mientras haya cupo,
+>    gana el 100 % de las jugadas** —con este `config.json`, que va **sin
+>    fechas**, son las primeras **34** de cada uno de los dos primeros días que se
+>    juegue (la hielera entra todos los días mientras le queden sus dos piezas) y
+>    **33** de ahí en adelante— y después de esas, todo es consuelo. *(Medido el
+>    2026-09-15 corriendo el sorteo real con este `config.json`: 34, 34, 33, 33 y
+>    33.)*
+>    Lo arregla la «pieza A» del §5.2 del documento del evento, que **no está
+>    construida** (ficha **F-261**).
+> 2. **Los premios se cargaron sin `desde`/`hasta`**, a propósito, para poder
+>    probarlos antes del evento. Hay que ponerlas **antes del lunes 21** o la
+>    hielera podrá salir cualquier día (ficha **F-259**).
 
 Consejos:
-- **Para que el premio mayor no salga el primer día**, ponle `"desde": "2026-09-20"`
-  (el último día del evento) o dale un peso muy bajo y confía en la suerte.
+- **Para que el premio mayor no salga el primer día**, ponle `"desde": "2026-09-24"`
+  (el día en que quieres que empiece a salir) o dale un peso muy bajo y confía en
+  la suerte.
 - **Para repartir los grandes en la semana**, usa `tope_diario`: con stock 10 y
   tope 2, salen máximo 2 al día durante 5 días.
 - Si quieres que **siempre haya premio**, deja al menos un premio chico con
   `"stock": null`. Si prefieres que se acaben, el boleto de consuelo se encarga.
 - Los porcentajes exactos los ves sin imprimir con `python3 -m ruleta reporte`.
 
-Los ids `test1`…`test7` son de prueba. Antes del evento: detén el servicio,
-cámbialos por los premios reales, corre `python3 -m ruleta reiniciar --si` y
-vuelve a arrancar el servicio.
+**La fuente de verdad de los premios no es este `config.json`**: es
+`docs/evento-2026-09-asadero-33.md` (su §1 y su §5.1), que es el archivo que el
+dueño edita a mano. Si los dos dicen cosas distintas, **gana el documento** y el
+`config.json` se rehace. Una prueba automática compara `config.json` campo por campo contra el **bloque
+JSON del §5.1** (`tests/test_config.py`, `TestPremiosOficialesDelEvento`); **la
+tabla del §1 no la vigila ninguna prueba**, así que un cambio hecho solo ahí deja
+la suite en verde (ficha **F-260**).
+
+Antes del evento, con los premios ya definitivos: detén el servicio, corre
+`python3 -m ruleta reiniciar --si` y vuelve a arrancarlo, para que los boletos de
+las pruebas no cuenten como premios entregados (ficha **F-262**).
 
 ---
 

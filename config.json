@@ -62,12 +62,12 @@
   "carpeta_datos": "datos",
 
   "premios": [
-    { "id": "test1", "nombre": "TEST 1", "detalle": "Premio grande",  "stock": 10,  "tope_diario": 2,  "peso": 4 },
-    { "id": "test2", "nombre": "TEST 2", "detalle": "Premio grande",  "stock": 10,  "tope_diario": 2,  "peso": 4 },
-    { "id": "test3", "nombre": "TEST 3", "detalle": "PREMIO MAYOR",   "stock": 1,   "tope_diario": 1,  "peso": 1 },
-    { "id": "test4", "nombre": "TEST 4", "detalle": "Orden de tacos", "stock": 50,  "tope_diario": 10, "peso": 25 },
-    { "id": "test5", "nombre": "TEST 5", "detalle": "Bebida gratis",  "stock": 50,  "tope_diario": 10, "peso": 25 },
-    { "id": "test6", "nombre": "TEST 6", "detalle": "Postre",         "stock": 50,  "tope_diario": 10, "peso": 25 },
-    { "id": "test7", "nombre": "TEST 7", "detalle": "Refresco",       "stock": 50,  "tope_diario": 10, "peso": 25 }
+    { "id": "hielera", "nombre": "HIELERA IGLOO",     "detalle": "Premio mayor",               "stock": 2,  "tope_diario": 1,  "peso": 1  },
+    { "id": "silla",   "nombre": "SILLA DE PLAYA",    "detalle": "Premio grande",              "stock": 10, "tope_diario": 2,  "peso": 2  },
+    { "id": "bbq",     "nombre": "SET BBQ",           "detalle": "Premio grande",              "stock": 10, "tope_diario": 2,  "peso": 2  },
+    { "id": "tacos3",  "nombre": "3 TACOS DE PASTOR", "detalle": "Plato de 3 tacos de pastor", "stock": 20, "tope_diario": 4,  "peso": 4  },
+    { "id": "tacos2",  "nombre": "2 TACOS DE PASTOR", "detalle": "Plato de 2 tacos de pastor", "stock": 20, "tope_diario": 4,  "peso": 4  },
+    { "id": "cerveza", "nombre": "CERVEZA",           "detalle": "Una cerveza",                "stock": 50, "tope_diario": 10, "peso": 10 },
+    { "id": "agua",    "nombre": "AGUA FRESCA",       "detalle": "Vaso de 1/2 litro",          "stock": 55, "tope_diario": 11, "peso": 11 }
   ]
 }

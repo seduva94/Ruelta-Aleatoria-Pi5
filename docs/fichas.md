@@ -5396,3 +5396,159 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   título. Lo que queda es la lección para la próxima, no una acción pendiente.
 
 ---
+
+## F-259 · Los siete premios se cargaron SIN `desde`/`hasta`: hay que ponerlos antes del lunes 21
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4b · decisión **D1** del plan
+  `docs/planes/fase-4b-config-oficial.md`
+- **Dónde:** `config.json`, lista `premios` (los siete objetos, ninguno con
+  `desde` ni `hasta`), contra el bloque `"premios"` del §5.1 de
+  `docs/evento-2026-09-asadero-33.md`, que **sí** las trae.
+- **Qué pasa:** el bloque del documento fija `"desde": "2026-09-21"` y
+  `"hasta": "2026-09-25"` para seis premios, y `2026-09-24` / `2026-09-25` para
+  la `hielera`. **Esta fase las omitió a propósito.** La razón es de calendario:
+  el usuario iba a probar el kiosco el **2026-09-16** y el evento abre el **21**.
+  Con el `desde` puesto, **ningún premio estaría disponible** el día 16: el
+  filtro de fechas los sacaría a todos de la tómbola y **el usuario solo habría
+  visto boletos de consuelo** en todas sus pruebas —exactamente lo contrario de
+  lo que pidió, que era ver en papel los nombres y los detalles reales para
+  corregirlos—.
+- **Por qué es residual:** no es un defecto ni una afirmación falsa. Es una
+  decisión cerrada, escrita en el plan (**D1**), anclada por un golden
+  (`tests/test_config.py`,
+  `TestPremiosOficialesDelEvento.test_los_premios_del_config_todavia_no_traen_fechas`)
+  y con fecha límite conocida. El programa se comporta correctamente sin fechas:
+  un premio sin `desde`/`hasta` está disponible todos los días.
+- **Riesgo si no se toca:** **alto, y con fecha.** Sin `desde`, **la hielera
+  puede salir el lunes 21**, cuando el dictado del usuario dice que es del
+  **jueves 24 y el viernes 25**. Son dos piezas, las más caras del evento, y una
+  vez impreso el boleto el premio está comprometido.
+- **Propuesta:** en la **pasada final antes del lunes 21**, copiar `desde` y
+  `hasta` del §5.1 del documento a los siete premios de `config.json`. El golden
+  está escrito para **caerse** en ese momento y lo dice en su propio docstring:
+  se **borra** ese test y se añaden `"desde"` y `"hasta"` a
+  `CLAVES_DEL_DOCUMENTO`, con lo que la comparación por igualdad pasa a cubrir
+  también las fechas. **No se relaja la comparación.**
+- **Estado:** **abierta.** Fecha límite: **antes del lunes 21 de septiembre de
+  2026.** Relacionadas: **F-241** (si la hora de la Pi está mal, las fechas
+  tampoco sirven) y **F-262** (el otro pendiente con la misma fecha límite).
+
+---
+
+## F-260 · Los siete nombres y detalles cargados llevan asterisco en el documento: son propuesta, no confirmación
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4b · decisión **D1** del plan; tabla del §1 y pregunta **6**
+  del §4 de `docs/evento-2026-09-asadero-33.md`
+- **Dónde:** `config.json`, llaves `nombre` y `detalle` de los siete premios.
+- **Qué pasa:** en la tabla del §1 del documento del evento, **los siete nombres
+  y los siete detalles llevan `*`**, y el propio documento explica qué significa
+  esa marca: «es **una propuesta mía** y está **a confirmar**». La pregunta 6 del
+  §4 sigue **sin marcar**. Es decir: `HIELERA IGLOO`, `SILLA DE PLAYA`,
+  `SET BBQ`, `3 TACOS DE PASTOR`, `2 TACOS DE PASTOR`, `CERVEZA`, `AGUA FRESCA`
+  y sus siete textos chicos **se cargaron tal cual**, sin que el usuario los haya
+  confirmado. Lo que **no** lleva asterisco —los stocks, los cupos y los ids— es
+  dictado del usuario del 2026-09-13 y se cargó igual de literal.
+- **Por qué es residual:** cargarlos era justo lo que el usuario pidió («cambiar
+  la Pi al programa oficial que usaremos; haré pruebas en ese mañana para hacer
+  algunos cambios»): los prueba en papel y decide. No es una invención del
+  ejecutor: está escrito, revisado y commiteado desde el 2026-09-13.
+- **Riesgo si no se toca:** que la semana del evento se imprima un nombre que el
+  dueño no eligió. El `id` **no** puede cambiarse a media semana (lleva los
+  contadores, `README.md` §6), pero el `nombre` y el `detalle` sí: son solo
+  texto del boleto.
+- **Propuesta:** que el usuario, tras ver los boletos del **2026-09-16**, corrija
+  **la tabla del §1 del documento** (no `config.json`: lo dice el §6, paso 1) y
+  avise. La regla para que quepan está medida y escrita en el §1: **ninguna
+  palabra de más de 12 letras** y como mucho 3 renglones de 12. Después basta
+  volver a derivar `config.json` del documento. **Ojo con qué mira el golden:**
+  `test_config_json_lleva_exactamente_los_premios_del_documento` compara
+  `config.json` contra el **bloque JSON del §5.1**, no contra la tabla del §1.
+  Medido el 2026-09-15 sobre una copia: cambiando **solo** la tabla del §1
+  (`CERVEZA` → `CHELA`) la suite sigue en **verde** (216 OK). Así que hay que
+  corregir **las dos cosas** —la tabla del §1 y el bloque del §5.1— y después
+  `config.json`: solo entonces el golden vigila el cambio y se pone en rojo
+  mientras los dos no coincidan.
+- **Estado:** **abierta. Requiere decisión del usuario** (pregunta 6 del §4 del
+  documento del evento). Con ella siguen abiertas las preguntas **1** (N, el peso
+  del consuelo), **2**, **3**, **4**, **5** y **7** del mismo §4.
+
+---
+
+## F-261 · Pieza A: mientras el consuelo no tenga peso propio, las primeras 33 jugadas del día ganan premio seguro
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4b · trampa 4 del plan, al cargar los premios reales
+- **Dónde:** `ruleta/inventario.py` (cabecera del módulo: «Si no hay ninguno
+  disponible, el sorteo devuelve None (boleto de consuelo)») y el §5.2,
+  **PENDIENTE A**, de `docs/evento-2026-09-asadero-33.md`.
+- **Qué pasa:** el motor **no tiene** un peso para el boleto de consuelo. El
+  consuelo sale **solo** cuando **ningún** premio está disponible. Con los
+  premios que esta fase acaba de cargar —`peso = cupo`, 34 de cupo diario
+  sumado y **sin `desde`/`hasta`** (D1)— eso significa que **las primeras 34
+  jugadas del día entregan premio, una tras otra** los dos primeros días en que
+  se juegue (la hielera entra todos los días mientras le queden sus dos piezas) y
+  **33** de ahí en adelante, y después todo es consuelo. Medido el 2026-09-15
+  corriendo el sorteo real con este mismo `config.json`: 34, 34, 33, 33, 33, y
+  las 167 piezas se agotan en cinco días de juego. Cuando se carguen las fechas
+  (**F-259**) vuelve a ser 33 al día y 34 el jueves 24 y el viernes 25, que es lo
+  que dice el documento. Está medido el 2026-09-13 corriendo el sorteo
+  real con estos mismos premios, y el documento lo marca como **«lo más
+  importante de este documento»**: «**no se debe abrir el evento sin la pieza
+  A**».
+- **Por qué es residual:** **no es un defecto nuevo ni un defecto de esta fase.**
+  El motor se comporta exactamente como está documentado desde el 2026-09-13, y
+  construir la pieza A es **programar**, que es justo lo que el §6 del plan de la
+  Fase 4b prohíbe hacer aquí. Se anota porque **cargar los premios reales es lo
+  que vuelve visible la consecuencia**: en las pruebas del 2026-09-16 el usuario
+  va a ver que **gana todo el mundo**, y eso es lo esperado, no una avería.
+- **Riesgo si no se toca:** si se abre el evento así, el lunes 21 se regalan
+  **los 33 premios del día en las primeras 33 jugadas**, probablemente en la
+  primera media hora, y las once horas restantes son puro consuelo. Se acaba el
+  inventario del día antes de la cena.
+- **Propuesta:** construir la **pieza A** en una fase de programación propia,
+  con la forma que el §5.2 ya propone: `"peso"` dentro de `juego.consuelo`, con
+  valor **N − 33** (N = jugadas esperadas por día; la propuesta por omisión del
+  documento es **N = 250**, o sea **217**). **Requiere antes la decisión del
+  usuario sobre N** (pregunta 1 del §4).
+- **Estado:** **abierta.** **Bloquea la apertura del evento** según el propio
+  documento del evento. Hermanas: **piezas B** (franjas), **C** (horario) y **D**
+  (**F-241**, esperar a que la hora esté sincronizada).
+
+---
+
+## F-262 · El inventario de pruebas se reinicia en esta fase, y hay que volver a reiniciarlo el lunes si el 16 se juega
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4b · decisión **D6** del plan (paso 5 del deploy)
+- **Dónde:** en la Pi, `/home/asadero/ruleta/datos/estado.json` y
+  `/home/asadero/ruleta/datos/boletos.csv`; el comando es
+  `python3 -m ruleta reiniciar --si` (`ruleta/__main__.py`, `cmd_reiniciar`).
+- **Qué pasa:** las pruebas de la Fase 4a (papel agotado) dejaron el inventario
+  real en **folio 16**, con premios `TEST 1`…`TEST 7` descontados. El deploy de
+  esta fase lo pone en cero **una vez**, para que el boleto de inventario de
+  arranque salga con los siete premios reales y **folio 00000**. Pero el usuario
+  va a **jugar el 2026-09-16** para revisar nombres y detalles: **cada boleto de
+  esas pruebas descuenta stock real y gasta folio**. Si nadie lo reinicia otra
+  vez, el lunes 21 el evento abre con piezas ya «entregadas» que están en la
+  bodega.
+- **Por qué es residual:** no es un defecto: el programa cuenta bien: cuenta
+  **todo**, que es lo que debe hacer. Es un paso de operación con fecha, igual
+  que el que ya está escrito en el §6, paso 5 del documento del evento.
+- **Riesgo si no se toca:** el inventario del lunes arranca corto, los cupos
+  diarios se agotan antes de tiempo y el reporte impreso no cuadra con la tabla
+  del §1 —lo que, según el propio §6 paso 6 del documento, significa que **no se
+  abre el evento**—.
+- **Propuesta:** el **lunes 21, antes de abrir**, con el servicio detenido:
+  `sudo systemctl stop ruleta`, `python3 -m ruleta reiniciar --si` (respalda
+  `estado.json` y `boletos.csv` con marca de tiempo; **no toca `ruleta.log`**),
+  `sudo systemctl start ruleta`, y comprobar con `python3 -m ruleta reporte` que
+  los stocks y los cupos son **exactamente** los de la tabla del §1. Conviene
+  hacerlo en la **misma pasada** que carga las fechas de la **F-259**.
+- **Estado:** **abierta.** Fecha límite: **lunes 21 de septiembre de 2026, antes
+  de abrir.** Es la continuación de **F-243** (que anotó el mismo pendiente
+  cuando el folio iba en 3, y luego en 16); **F-243 sigue abierta** por la misma
+  razón.
+
+---
