@@ -46,6 +46,10 @@ log = logging.getLogger(__name__)
 SEGUNDOS_LED_ERROR = 6.0
 # Cada cuánto se le vuelve a preguntar al sistema si ya tiene la hora (pieza D).
 PERIODO_CONSULTA_HORA = 2.0
+# Cada cuánto se anota en el registro que se SIGUE esperando la hora (Fase 4e).
+# No es la frecuencia de las consultas: solo la del aviso que deja rastro en el
+# journal, para que una espera larga no parezca silencio (ficha F-273).
+PERIODO_AVISO_HORA = 10.0
 MARCA_TIMESYNC = Path("/run/systemd/timesync/synchronized")
 
 
@@ -143,27 +147,45 @@ class Ruleta:
         """Espera hasta `juego.espera_hora_seg` a que el sistema ponga la hora.
 
         Devuelve True si la hora quedó confirmada. Con el tope en 0 (el valor
-        por omisión) no se espera nada y se da por buena, que es como se
-        comportaba el programa antes de la Fase 4d. Esto SOLO ocurre al
-        arrancar: una vez arriba, ninguna jugada vuelve a esperar.
+        por omisión) no se espera nada, no se registra nada y se da por buena,
+        que es como se comportaba el programa antes de la Fase 4d. Esto SOLO
+        ocurre al arrancar: una vez arriba, ninguna jugada vuelve a esperar.
+
+        Desde la Fase 4e la espera **se ve en el registro** (ficha F-273): una
+        línea al empezar, otra cada PERIODO_AVISO_HORA segundos mientras espera
+        y una última con lo que costó. Sin ellas, medio minuto de espera es
+        indistinguible en el journal de no haber esperado nada, y en una Pi sin
+        batería RTC eso es lo primero que hay que saber el día que un boleto
+        salga con la fecha mal. La política no cambia: mismo tope, mismas
+        consultas y el mismo aviso en el boleto de inventario.
         """
         tope = self.cfg.juego.espera_hora_seg
         if tope <= 0:
             return True
-        limite = self.monotonico() + tope
+        inicio = self.monotonico()
+        siguiente_aviso = PERIODO_AVISO_HORA
+        log.info("Esperando a que la hora se sincronice (hasta %.0f s)…", tope)
         while True:
             try:
                 if self.hora_sincronizada():
+                    log.info("Hora sincronizada tras %.0f s", self.monotonico() - inicio)
                     return True
             except Exception:
                 log.exception("Falló la consulta de la hora del sistema; se sigue sin confirmarla")
                 return False
-            restante = limite - self.monotonico()
+            transcurrido = self.monotonico() - inicio
+            restante = tope - transcurrido
             if restante <= 0 or self._detener:
                 log.warning("HORA SIN CONFIRMAR: el sistema no sincronizó la hora en %.0f s. "
                             "Revisa la fecha del boleto de inventario antes de abrir: si está "
                             "mal, NO reinicies, espera y pide otro inventario", tope)
                 return False
+            if transcurrido >= siguiente_aviso:
+                log.info("Sigo esperando la hora: llevo %.0f s de %.0f s", transcurrido, tope)
+                # El siguiente múltiplo que todavía no ha pasado: si una consulta
+                # se atasca, al volver no se sueltan de golpe los avisos que se
+                # saltó; se retoma la cadencia donde toca.
+                siguiente_aviso = (int(transcurrido // PERIODO_AVISO_HORA) + 1) * PERIODO_AVISO_HORA
             self.dormir(min(PERIODO_CONSULTA_HORA, restante))
 
     def arrancar(self) -> None:

@@ -267,6 +267,23 @@ Llave nueva **`juego.espera_hora_seg`**, por omisión **0** (= no esperar). En
   **WARNING**.
 - **Nada de esto bloquea las jugadas después del arranque.**
 
+> **Nota fechada (2026-09-16, Fase 4e). Dos cosas de esta D6 cambiaron después,
+> y se anotan aquí para que nadie lea este plan como si fuera lo vigente.**
+> (1) **El tope pasó de 120 a 300 segundos** en `config.json`: los 28.3 s que
+> costó la sincronización en el arranque en frío del 2026-09-16 se midieron en la
+> red de casa y contra un servidor NTP por **IPv6**; la red del asadero no está
+> medida, y el tope es margen, no coste. (2) **La espera ya no es muda**: deja
+> una línea al empezar, otra cada 10 s y una última con lo que costó (ficha
+> **F-273**, cerrada). Lo que **no** cambió: las dos señales que se consultan, la
+> cadencia de 2 s, el aviso en el boleto y que ninguna jugada espere nada. Plan:
+> `docs/planes/fase-4e-final.md`. **Lo que esta D6 dejaba sin medir —que la pieza
+> D mordiera en la Pi— quedó medido el 2026-09-16 en un arranque en frío real:**
+> el reloj arrancó **4 min 54 s atrasado** (lo restaura **systemd** desde
+> `/var/lib/systemd/timesync/clock`; `fake-hwclock` **no está instalado**), el
+> kiosco esperó y **el inventario salió con la fecha correcta**. Evidencia:
+> `docs/actas/2026-09-16-hechos-medidos-fase-4e.md`. Ficha **F-241**, cerrada en
+> hardware.
+
 ### D7 · Descripciones confirmadas
 
 En `config.json`, en la tabla del §1 y en el bloque del §5.1 del documento:

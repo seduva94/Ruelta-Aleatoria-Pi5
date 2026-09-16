@@ -13,11 +13,13 @@ RUTA_CONFIG = RAIZ / "config.json"
 RUTA_EVENTO = RAIZ / "docs" / "evento-2026-09-asadero-33.md"
 
 # Las llaves que la Fase 4b copió del documento del evento al config.json, más
-# 'franjas', que añadió la Fase 4d (pieza B). NO están 'desde' ni 'hasta': se
-# cargan en la pasada final antes del lunes 21 (ficha F-259). Lo ancla
-# TestPremiosOficialesDelEvento.test_los_premios_del_config_todavia_no_traen_fechas.
+# 'franjas', que añadió la Fase 4d (pieza B), y 'desde'/'hasta', que añadió la
+# Fase 4e (2026-09-16) al cargar las fechas de vigencia que faltaban: ahora la
+# comparación campo por campo contra el §5.1 las cubre también (ficha F-259,
+# cerrada). El censo de las fechas reales lo ancla, aparte,
+# TestPremiosOficialesDelEvento.test_los_premios_del_config_traen_las_fechas_del_evento.
 CLAVES_OBLIGATORIAS = ("id", "nombre", "detalle", "stock", "tope_diario", "peso")
-CLAVES_DEL_DOCUMENTO = CLAVES_OBLIGATORIAS + ("franjas",)
+CLAVES_DEL_DOCUMENTO = CLAVES_OBLIGATORIAS + ("franjas", "desde", "hasta")
 
 # Fila de la tabla de la tómbola del §2 del documento del evento, de la forma
 #   | Una pieza de AGUA FRESCA (peso 11) | 11 + 10 = 21 | **52.4 %** |
@@ -29,11 +31,19 @@ FILA_TOMBOLA = re.compile(
 
 
 def como_dict(valor):
-    """Las franjas del validador (objetos Franja) en la forma cruda del JSON."""
+    """Lo que carga el validador, en la forma CRUDA que tiene en el JSON.
+
+    Las franjas llegan como objetos `Franja` y las fechas como `datetime.date`,
+    mientras que el documento del evento las escribe como diccionarios y como
+    texto `"AAAA-MM-DD"`. Se normaliza aquí, en un solo sitio, para poder
+    comparar por IGUALDAD los dos lados sin aflojar ningún assert.
+    """
     if isinstance(valor, list):
         return [como_dict(v) for v in valor]
     if isinstance(valor, Franja):
         return {"desde_hora": valor.desde_hora, "hasta_hora": valor.hasta_hora, "tope": valor.tope}
+    if isinstance(valor, date):
+        return valor.isoformat()
     return valor
 
 
@@ -505,9 +515,12 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
         """Igualdad campo por campo y en orden, no «están todos los ids».
 
         Desde la Fase 4d se comparan también las `franjas` (pieza B), que es lo
-        que decide a qué horas puede salir cada premio grande.
+        que decide a qué horas puede salir cada premio grande, y desde la Fase 4e
+        las fechas `desde`/`hasta`, que deciden **qué días** existe cada premio.
+        Un premio al que le falte la fecha en un lado y no en el otro cae aquí:
+        se compara `None` contra la fecha, no se ignora la llave.
         """
-        del_documento = [{k: como_dict(p.get(k, [])) if k == "franjas" else p[k]
+        del_documento = [{k: como_dict(p.get(k, [] if k == "franjas" else None))
                           for k in CLAVES_DEL_DOCUMENTO}
                          for p in self.premios_del_documento()]
         cfg = configmod.cargar(RUTA_CONFIG)
@@ -518,35 +531,43 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
             "config.json y el §5.1 de docs/evento-2026-09-asadero-33.md dicen cosas "
             "distintas. Gana el DOCUMENTO (§6, paso 1): corrige config.json, no el golden.")
 
-    def test_los_premios_del_config_todavia_no_traen_fechas(self):
-        """Decisión D1 de la Fase 4b: `desde`/`hasta` se cargan en la pasada final.
+    def test_los_premios_del_config_traen_las_fechas_del_evento(self):
+        """Ficha **F-259**, cerrada el 2026-09-16 (Fase 4e): el censo de fechas.
 
-        El bloque del §5.1 **sí** trae las fechas (21 al 25 de septiembre de
-        2026), y por eso el golden de arriba compara solo las siete llaves de
-        `CLAVES_DEL_DOCUMENTO`. Se cargaron los premios **sin** fechas a
-        propósito, el 2026-09-15: con el `desde` puesto en el 21, **ningún premio
-        estaría disponible** en las pruebas del usuario del día 16 y solo saldrían
-        boletos de consuelo, que es lo contrario de lo que pidió.
+        Hasta esta pasada los siete premios se cargaron **a propósito sin**
+        `desde`/`hasta`: con el `desde` puesto en el 21, ningún premio habría
+        estado disponible en las pruebas del usuario del día 16. Aquí vivía el
+        test que anclaba esa ausencia, **escrito para caerse** el día en que
+        alguien cargara las fechas; ese día llegó, y en su lugar se ancla **por
+        igualdad el censo entero**, que es lo que de verdad importa antes del
+        lunes 21: **la hielera solo el jueves 24 y el viernes 25**, y los otros
+        seis del **lunes 21 al viernes 25**.
 
-        **Esta prueba está escrita para caerse** el día en que alguien cargue las
-        fechas, que es antes del lunes 21 (ficha **F-259**). Cuando eso pase: se
-        borra este test y se añaden "desde" y "hasta" a `CLAVES_DEL_DOCUMENTO`,
-        con lo que el golden de arriba pasa a compararlas también contra el
-        documento. Lo que NO se hace es relajar la comparación.
+        Es el censo REAL, no una comprobación de que «hay fechas»: un premio sin
+        fecha aparece como `None` y cae. La comparación contra el documento la
+        hace el golden de arriba, que desde esta fase incluye las dos llaves.
         """
-        crudo = json.loads(RUTA_CONFIG.read_text(encoding="utf-8"))
-        con_fechas = [p["id"] for p in crudo["premios"] if "desde" in p or "hasta" in p]
-        self.assertEqual(
-            con_fechas, [],
-            "Se cargaron fechas en config.json: lee el docstring de esta prueba y añade "
-            "'desde' y 'hasta' a CLAVES_DEL_DOCUMENTO en vez de borrar el assert.")
-        # …y el documento sí las trae: si dejara de traerlas, la ficha F-259 se
-        # quedaría sin fuente de dónde copiarlas.
+        cfg = configmod.cargar(RUTA_CONFIG)
+        fechas = {p.id: (p.desde and p.desde.isoformat(), p.hasta and p.hasta.isoformat())
+                  for p in cfg.premios}
+        self.assertEqual(fechas, {
+            "hielera": ("2026-09-24", "2026-09-25"),
+            "silla":   ("2026-09-21", "2026-09-25"),
+            "bbq":     ("2026-09-21", "2026-09-25"),
+            "tacos3":  ("2026-09-21", "2026-09-25"),
+            "tacos2":  ("2026-09-21", "2026-09-25"),
+            "cerveza": ("2026-09-21", "2026-09-25"),
+            "agua":    ("2026-09-21", "2026-09-25"),
+        }, "Las fechas de config.json ya no son las del evento (§1 y §5.1 del documento): "
+           "la hielera es del jueves 24 y el viernes 25; los otros seis, del 21 al 25.")
+        # …y el documento las trae las siete veces: si dejara de traerlas, el
+        # golden de arriba compararía la fecha contra None y también caería, pero
+        # el mensaje no diría dónde está el hueco.
         incompletos = [p["id"] for p in self.premios_del_documento()
                        if not p.get("desde") or not p.get("hasta")]
         self.assertEqual(incompletos, [],
                          "El §5.1 del documento del evento debe traer 'desde' y 'hasta' en los "
-                         "siete premios: son los que faltan por cargar (ficha F-259).")
+                         "siete premios: son la fuente de la que sale config.json.")
 
 
 if __name__ == "__main__":

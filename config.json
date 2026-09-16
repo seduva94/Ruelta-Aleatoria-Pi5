@@ -54,7 +54,7 @@
     "imprimir_inventario_al_arrancar": true,
     "intentos_inventario_arranque": 3,
     "separacion_min_entre_premios": 3,
-    "espera_hora_seg": 120,
+    "espera_hora_seg": 300,
     "horario": {
       "abre": "12:00",
       "cierra": "23:00",
@@ -70,17 +70,17 @@
   "carpeta_datos": "datos",
 
   "premios": [
-    { "id": "hielera", "nombre": "HIELERA IGLOO",     "detalle": "Premio mayor",                      "stock": 2,  "tope_diario": 1,  "peso": 1,
+    { "id": "hielera", "nombre": "HIELERA IGLOO",     "detalle": "Premio mayor",                      "stock": 2,  "tope_diario": 1,  "peso": 1,  "desde": "2026-09-24", "hasta": "2026-09-25",
       "franjas": [ { "desde_hora": "19:00", "hasta_hora": "23:00", "tope": 1 } ] },
-    { "id": "silla",   "nombre": "SILLA DE PLAYA",    "detalle": "Premio grande",                     "stock": 10, "tope_diario": 2,  "peso": 2,
+    { "id": "silla",   "nombre": "SILLA DE PLAYA",    "detalle": "Premio grande",                     "stock": 10, "tope_diario": 2,  "peso": 2,  "desde": "2026-09-21", "hasta": "2026-09-25",
       "franjas": [ { "desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1 },
                    { "desde_hora": "19:00", "hasta_hora": "22:00", "tope": 1 } ] },
-    { "id": "bbq",     "nombre": "SET BBQ",           "detalle": "Premio grande",                     "stock": 10, "tope_diario": 2,  "peso": 2,
+    { "id": "bbq",     "nombre": "SET BBQ",           "detalle": "Premio grande",                     "stock": 10, "tope_diario": 2,  "peso": 2,  "desde": "2026-09-21", "hasta": "2026-09-25",
       "franjas": [ { "desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1 },
                    { "desde_hora": "19:00", "hasta_hora": "22:00", "tope": 1 } ] },
-    { "id": "tacos3",  "nombre": "3 TACOS DE PASTOR", "detalle": "Plato de 3 tacos de pastor",        "stock": 20, "tope_diario": 4,  "peso": 4  },
-    { "id": "tacos2",  "nombre": "2 TACOS DE PASTOR", "detalle": "Plato de 2 tacos de pastor",        "stock": 20, "tope_diario": 4,  "peso": 4  },
-    { "id": "cerveza", "nombre": "CERVEZA",           "detalle": "Tecate Light, Tecate Roja o Indio", "stock": 50, "tope_diario": 10, "peso": 10 },
-    { "id": "agua",    "nombre": "AGUA FRESCA",       "detalle": "Horchata, Jamaica o Cebada",        "stock": 55, "tope_diario": 11, "peso": 11 }
+    { "id": "tacos3",  "nombre": "3 TACOS DE PASTOR", "detalle": "Plato de 3 tacos de pastor",        "stock": 20, "tope_diario": 4,  "peso": 4,  "desde": "2026-09-21", "hasta": "2026-09-25" },
+    { "id": "tacos2",  "nombre": "2 TACOS DE PASTOR", "detalle": "Plato de 2 tacos de pastor",        "stock": 20, "tope_diario": 4,  "peso": 4,  "desde": "2026-09-21", "hasta": "2026-09-25" },
+    { "id": "cerveza", "nombre": "CERVEZA",           "detalle": "Tecate Light, Tecate Roja o Indio", "stock": 50, "tope_diario": 10, "peso": 10, "desde": "2026-09-21", "hasta": "2026-09-25" },
+    { "id": "agua",    "nombre": "AGUA FRESCA",       "detalle": "Horchata, Jamaica o Cebada",        "stock": 55, "tope_diario": 11, "peso": 11, "desde": "2026-09-21", "hasta": "2026-09-25" }
   ]
 }

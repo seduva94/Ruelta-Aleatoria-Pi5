@@ -1,3 +1,5 @@
+import contextlib
+import logging
 import random
 import tempfile
 import unittest
@@ -15,6 +17,25 @@ from ruleta.inventario import Inventario
 # Horario que deja FUERA la hora del reloj de prueba (19:00): así una jugada cae
 # antes de la apertura sin tener que mover el reloj de todas las demás pruebas.
 HORARIO_CERRADO = {"abre": "20:00", "cierra": "23:00"}
+
+
+@contextlib.contextmanager
+def registro_activo():
+    """Vuelve a encender el registro mientras dura el bloque.
+
+    Mismo patrón que `tests/test_escpos.py` y por el mismo motivo (ficha F-253):
+    `tests/__init__.py` hace `logging.disable(logging.CRITICAL)` para que las
+    pruebas que provocan errores a propósito no ensucien la salida, y con eso
+    puesto `assertLogs` y `assertNoLogs` no ven absolutamente nada. Se replica
+    aquí —en vez de importarlo— para que este módulo de pruebas no dependa de
+    otro. Se enciende solo dentro del bloque y se vuelve a apagar al salir, pase
+    lo que pase.
+    """
+    logging.disable(logging.NOTSET)
+    try:
+        yield
+    finally:
+        logging.disable(logging.CRITICAL)
 
 
 class RngSiempreConsuelo:
@@ -479,6 +500,82 @@ class TestRuleta(unittest.TestCase):
         self.assertEqual(consultas, [])
         self.assertEqual(self.dormidas, [])
         self.assertNotIn(ticket.AVISO_HORA, self.trabajos_texto()[0])
+
+    # -- la espera de la hora, vista desde el journal (Fase 4e) -------------- #
+
+    def ruleta_que_espera_la_hora(self, respuestas, espera_hora_seg):
+        """Ruleta con comprobador de hora falso y un reloj que avanza al dormir.
+
+        No arranca nada: la espera se llama sola, para que lo que quede en el
+        registro sean SOLO sus líneas y se puedan anclar por igualdad de lista.
+        """
+        pendientes = list(respuestas)
+
+        def comprobador():
+            return pendientes.pop(0) if pendientes else False
+
+        cfg = config_prueba(juego={"espera_hora_seg": espera_hora_seg})
+        ruleta = self.nueva_ruleta(cfg, self.inv, hora_sincronizada=comprobador)
+        ruleta.dormir = self.reloj_que_avanza()
+        return ruleta
+
+    def test_la_espera_de_la_hora_se_ve_en_el_journal(self):
+        """Ficha F-273: cada línea, entera y en orden, con el reloj falso.
+
+        Doce consultas separadas 2 s: la hora llega a los **22 s**. Los avisos
+        periódicos caen a los **10** y a los **20**, ni uno más ni uno menos, y
+        el último dice **cuánto costó**. Se ancla la lista COMPLETA porque lo que
+        esta prueba defiende es justo eso: que una espera de medio minuto deje
+        rastro y no silencio.
+        """
+        ruleta = self.ruleta_que_espera_la_hora([False] * 11 + [True], 300)
+        with registro_activo(), self.assertLogs("ruleta.app", level="INFO") as cm:
+            self.assertTrue(ruleta.esperar_hora_sincronizada())
+        self.assertEqual(cm.output, [
+            "INFO:ruleta.app:Esperando a que la hora se sincronice (hasta 300 s)…",
+            "INFO:ruleta.app:Sigo esperando la hora: llevo 10 s de 300 s",
+            "INFO:ruleta.app:Sigo esperando la hora: llevo 20 s de 300 s",
+            "INFO:ruleta.app:Hora sincronizada tras 22 s",
+        ])
+        self.assertEqual(self.dormidas, [2.0] * 11)   # la cadencia de consulta no cambió
+
+    def test_la_hora_que_ya_estaba_puesta_tambien_deja_su_linea(self):
+        """El caso normal en la Pi: la hora ya está y la espera dura 0 s.
+
+        Es el que más se va a ver en el journal, y el que hoy no dejaba nada.
+        """
+        ruleta = self.ruleta_que_espera_la_hora([True], 300)
+        with registro_activo(), self.assertLogs("ruleta.app", level="INFO") as cm:
+            self.assertTrue(ruleta.esperar_hora_sincronizada())
+        self.assertEqual(cm.output, [
+            "INFO:ruleta.app:Esperando a que la hora se sincronice (hasta 300 s)…",
+            "INFO:ruleta.app:Hora sincronizada tras 0 s",
+        ])
+        self.assertEqual(self.dormidas, [])
+
+    def test_el_tope_agotado_se_ve_en_el_journal(self):
+        """Si la hora no llega: el aviso del principio y el WARNING de siempre."""
+        ruleta = self.ruleta_que_espera_la_hora([], 6)
+        with registro_activo(), self.assertLogs("ruleta.app", level="INFO") as cm:
+            self.assertFalse(ruleta.esperar_hora_sincronizada())
+        self.assertEqual(cm.output, [
+            "INFO:ruleta.app:Esperando a que la hora se sincronice (hasta 6 s)…",
+            "WARNING:ruleta.app:HORA SIN CONFIRMAR: el sistema no sincronizó la hora en 6 s. "
+            "Revisa la fecha del boleto de inventario antes de abrir: si está mal, NO reinicies, "
+            "espera y pide otro inventario",
+        ])
+        self.assertEqual(self.dormidas, [2.0, 2.0, 2.0])
+
+    def test_sin_espera_configurada_no_se_registra_nada(self):
+        """Con 0 s no se espera, así que tampoco se registra: sería ruido.
+
+        Cualquier instalación que no use la pieza D arranca con `espera_hora_seg`
+        en 0; una línea de log ahí saldría en **cada** arranque sin decir nada.
+        """
+        ruleta = self.ruleta_que_espera_la_hora([False], 0)
+        with registro_activo(), self.assertNoLogs("ruleta.app", level="DEBUG"):
+            self.assertTrue(ruleta.esperar_hora_sincronizada())
+        self.assertEqual(self.dormidas, [])
 
     def test_un_comprobador_de_hora_que_falla_no_tira_el_arranque(self):
         def revienta():

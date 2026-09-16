@@ -17,6 +17,7 @@ import stat
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 from types import SimpleNamespace
@@ -426,6 +427,45 @@ class TestInventarioDeProduccion(unittest.TestCase):
             (cfg.juego.hora_inicio_dia, cfg.juego.consuelo.peso,
              cfg.juego.separacion_min_entre_premios, cfg.juego.horario))
         self.assertEqual(sorted(inventario.premios), sorted(p.id for p in cfg.premios))
+
+    def test_las_fechas_del_evento_deciden_que_dias_hay_premios(self):
+        """D1 de la Fase 4e: el calendario del evento, con el motor de PRODUCCIÓN.
+
+        Vector real: `config.json` tal cual, cableado por `abrir_inventario`, a
+        las **19:00** de cinco días distintos. Se ancla el censo de ids
+        disponibles **por igualdad y en orden**, porque es la promesa que el §5.1
+        del documento del evento y el §5 del README le hacen al personal:
+
+        * **antes del lunes 21 no puede salir un solo premio** —toda jugada sale
+          de consuelo, y eso NO es una avería—;
+        * la **hielera** no existe hasta el **jueves 24**, aunque su franja de las
+          19:00 esté abierta y le sobre stock;
+        * **después del viernes 25** tampoco queda nada.
+
+        Sin las fechas cargadas, el lunes 21 saldrían los siete y la hielera —dos
+        piezas, las más caras del evento— podría irse el primer día (ficha F-259).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            crudo = json.loads((RAIZ / "config.json").read_text(encoding="utf-8"))
+            crudo["carpeta_datos"] = tmp
+            inventario = cli.abrir_inventario(configmod.desde_dict(crudo))
+            censo = {dia: [p.id for p in inventario.disponibles(datetime(2026, 9, dia, 19, 0))]
+                     for dia in (19, 21, 24, 25, 26)}
+        seis = ["silla", "bbq", "tacos3", "tacos2", "cerveza", "agua"]
+        self.assertEqual(censo, {
+            19: [],                          # sábado: el evento no ha empezado
+            21: seis,                        # lunes: los seis, SIN la hielera
+            24: ["hielera"] + seis,          # jueves: se suma el premio mayor
+            25: ["hielera"] + seis,          # viernes: último día
+            26: [],                          # sábado: fecha vencida
+        })
+        # Y el motivo es la FECHA, no la franja ni el stock: si algún día alguien
+        # mueve la franja de la hielera, este mensaje sigue diciendo la verdad.
+        hielera = inventario.premios["hielera"]
+        self.assertEqual(inventario.motivo_no_disponible(hielera, datetime(2026, 9, 21, 19, 0)),
+                         "desde 24/09")
+        self.assertEqual(inventario.motivo_no_disponible(hielera, datetime(2026, 9, 26, 19, 0)),
+                         "fecha vencida")
 
     def test_abrir_inventario_pasa_el_peso_del_consuelo(self):
         with tempfile.TemporaryDirectory() as tmp:

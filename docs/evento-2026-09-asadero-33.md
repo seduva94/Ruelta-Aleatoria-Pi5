@@ -22,6 +22,15 @@ y 4d: **lo único que se añadió fue la última línea de la bitácora del §7*
 tocó ninguna tabla, ningún cupo, ninguna probabilidad ni ninguna pregunta del §4.
 Acta: `docs/actas/2026-09-16-fase-4bcd.md`.)*
 
+*(2026-09-16, al cerrar el día · Claude (ejecutor), **Fase 4e**: **ya no falta
+nada por cargar.** Las **fechas `desde`/`hasta`** que el párrafo de arriba daba
+por pendientes **están en `config.json`** —hielera **24 y 25**, los otros seis
+**del 21 al 25**— y con ellas **hasta el lunes 21 toda jugada sale de consuelo**,
+que es lo correcto (ficha **F-259**, cerrada). También subió a **5 minutos** la
+espera de la hora al encender y esa espera **ya se ve en el journal**. Tampoco
+aquí se tocó ninguna tabla, ningún cupo, ninguna probabilidad ni ninguna pregunta
+del §4. Plan: `docs/planes/fase-4e-final.md`.)*
+
 ---
 
 ## Cómo usar este documento
@@ -47,10 +56,11 @@ que el evento saliera tal cual. **Las cuatro están hechas**:
 | ~~**A**~~ | ~~**Probabilidad propia del boleto de consuelo**~~ | **CONSTRUIDA** el 2026-09-16 (Fase 4c). El consuelo tiene `peso` propio y compite en cada jugada. |
 | ~~**B**~~ | ~~**Franjas horarias por premio, con cupo por franja**~~ | **CONSTRUIDA** el 2026-09-16 (Fase 4d). La hielera solo de 19:00 a 23:00; la silla y el set BBQ, una pieza en la comida y otra en la cena. |
 | ~~**C**~~ | ~~**Horario del evento (12:00–23:00)**~~ | **CONSTRUIDA** el 2026-09-16 (Fase 4d). Fuera de ese horario la ruleta imprime **boleto de consuelo**. |
-| ~~**D**~~ | ~~**Esperar a que la hora esté sincronizada al encender**~~ | **CONSTRUIDA** el 2026-09-16 (Fase 4d). Al arrancar, la Pi espera hasta 2 minutos a tener la hora buena; si no la consigue, **lo escribe en el boleto**. |
+| ~~**D**~~ | ~~**Esperar a que la hora esté sincronizada al encender**~~ | **CONSTRUIDA** el 2026-09-16 (Fase 4d). Al arrancar, la Pi espera hasta **5 minutos** a tener la hora buena; si no la consigue, **lo escribe en el boleto**. (El tope subió de 2 a 5 minutos el 2026-09-16, Fase 4e, tras probarlo con la Pi desenchufada; §5.1.) |
 
-**Lo que se puede cargar en la Pi es este documento entero**, menos las fechas
-`desde`/`hasta` del §5.1 (ficha **F-259**).
+**Lo que se puede cargar en la Pi es este documento entero**, y desde el
+**2026-09-16** (Fase 4e) **ya lo está, fechas incluidas**: las `desde`/`hasta` del
+§5.1 se cargaron en `config.json` (ficha **F-259**, cerrada).
 
 ---
 
@@ -308,11 +318,14 @@ programa a las 22:30 del jueves, con todo abierto sin ganar: la hielera va al
 
 Estos campos existen en el programa y funcionan. **Comprobado el 2026-09-16: los
 dos bloques cargan sin un solo error** en el validador del programa
-(`ruleta/config.py`). El bloque `"juego"` está cargado **entero** en
-`config.json`; del bloque de premios está cargado todo **menos `desde` y
-`hasta`**, que siguen sin poner a propósito para poder probar hoy 16 (ficha
-**F-259** y §6, paso 5(a)). **Mientras falten, la hielera puede salir cualquier
-día.**
+(`ruleta/config.py`). **Desde el 2026-09-16 (Fase 4e) los dos bloques están
+cargados ENTEROS en `config.json`, fechas incluidas** (ficha **F-259**, cerrada):
+la hielera solo puede salir el **jueves 24** y el **viernes 25**, y los otros seis
+del **lunes 21** al **viernes 25**.
+
+**Consecuencia de tener las fechas puestas, y es la correcta:** **hasta el lunes
+21 ninguna jugada puede dar premio**. Antes de esa fecha todos los premios están
+*fuera de fechas*, así que **todo sale boleto de consuelo**. No es una avería.
 
 **Los premios**, con sus descripciones confirmadas y sus franjas:
 
@@ -340,7 +353,7 @@ de la hora al encender y el peso del consuelo:
 "juego": {
   "horario": { "abre": "12:00", "cierra": "23:00", "fuera_de_horario": "consuelo" },
   "separacion_min_entre_premios": 3,
-  "espera_hora_seg": 120,
+  "espera_hora_seg": 300,
   "consuelo": { "titulo": "SIGUE PARTICIPANDO", "texto": "¡Gracias por jugar!", "peso": 10 }
 }
 ```
@@ -370,7 +383,7 @@ madrugada siguiente. Comprobado.
 **Sobre el reloj:** todo el reparto del §2 depende de la hora de la Pi. **Decisión
 tuya del 2026-09-15:** en el evento la Pi tendrá **el internet del asadero**, que
 es lo que le pone la hora al arrancar por NTP, y **no habrá batería RTC**. De ahí
-salió la **pieza D**, ya construida: al encender, el kiosco **espera hasta 2
+salió la **pieza D**, ya construida: al encender, el kiosco **espera hasta 5
 minutos** a que la hora esté sincronizada antes de imprimir nada, y si no lo
 consigue **escribe en el boleto de inventario** la línea
 `HORA SIN CONFIRMAR: revisar fecha`. Si ves esa línea: **no reinicies**, espera un
@@ -378,6 +391,19 @@ par de minutos y pide otro inventario con el gesto del botón HABILITAR.
 *(Hasta el 2026-09-16 este párrafo decía que la Pi iba **sin red** y que **por eso
 la batería RTC era necesaria**; lo derogó tu decisión del 2026-09-15. Ficha
 **F-266**, cerrada.)*
+
+*(Nota fechada, **2026-09-16**, Fase 4e: **probado en hardware, con la Pi
+desenchufada unos minutos**. Sin batería, el reloj arrancó en **1970** y encima le
+cayó la **hora vieja** que el sistema tenía guardada —**4 min 54 s atrasada**—; la
+restaura **systemd** desde la marca `/var/lib/systemd/timesync/clock`, y
+`fake-hwclock` **no está instalado** en esta Pi. El kiosco **esperó 28.3 s**, la
+hora llegó por NTP y **el inventario salió 0.6 s después, con la fecha correcta**:
+el orden Pi → internet → hora → inventario → listo se cumple. El tope subió de
+**2 a 5 minutos** por margen, no por coste —si la hora llega en 3 s, el kiosco
+arranca en 3 s—: esos 28 s se midieron en la red de casa, contra un servidor por
+IPv6, y la del asadero puede tardar distinto. Evidencia:
+`docs/actas/2026-09-16-hechos-medidos-fase-4e.md`. Ficha **F-241**, cerrada
+también en hardware.)*
 
 ### 5.2 Lo que hubo que CONSTRUIR
 
@@ -448,7 +474,7 @@ Reglas de ese campo, tal como quedaron:
 — **CONSTRUIDA el 2026-09-16, Fase 4d**:
 
 ```json
-"espera_hora_seg": 120
+"espera_hora_seg": 300
 ```
 
 - Al **arrancar**, el kiosco pregunta cada 2 segundos si el sistema ya puso la
@@ -460,6 +486,12 @@ Reglas de ese campo, tal como quedaron:
   registro.
 - **Ninguna jugada espera nada**: esto pasa una sola vez, al encender.
 - Con `0` no se espera nada, que es como se comportaba antes.
+- **Mientras espera lo dice en el registro** (desde el 2026-09-16, Fase 4e): una
+  línea al empezar, otra cada **10 segundos** y una última con **cuántos segundos
+  costó** («Hora sincronizada tras 28 s»). Sirve para saber, leyendo el journal,
+  si la hora llegó al instante o costó minutos. Ficha **F-273**, cerrada.
+- El tope pasó de **120** a **300 segundos** el 2026-09-16 (Fase 4e): ver la nota
+  fechada del §5.1.
 
 ---
 
@@ -475,14 +507,18 @@ Reglas de ese campo, tal como quedaron:
    con compuertas.
 4. **Se despliega a la Pi** (`git pull` y reinicio del servicio) y se verifica en
    vivo contra lo desplegado.
-5. **Antes del lunes 21, sin falta**, hay que hacer dos cosas:
+5. **Antes del lunes 21, sin falta**, había que hacer dos cosas. **Nota fechada
+   (2026-09-16, Fase 4e):**
 
    **(a) cargar las fechas `desde`/`hasta`** del bloque del §5.1 en `config.json`
-   (ficha **F-259**): hoy **no están puestas**, para que se pudieran probar los
-   premios el día 16. Sin ellas, la hielera puede salir cualquier día.
+   (ficha **F-259**): **HECHO el 2026-09-16.** Ya están puestas, así que la
+   hielera no puede salir antes del jueves 24 y **hasta el lunes 21 toda jugada
+   sale de consuelo**.
 
    **(b) poner el marcador en cero**, o los boletos de las pruebas contarán como
-   premios ya entregados:
+   premios ya entregados. Se hace en el **deploy de la Fase 4e**; si por lo que
+   fuera no se hubiera hecho, o si quieres abrir el lunes con el folio en
+   **00000**, se repite entonces (ficha **F-262**):
 
    ```bash
    sudo systemctl stop ruleta
@@ -513,4 +549,5 @@ Reglas de ese campo, tal como quedaron:
 | 2026-09-16 | Claude (ejecutor), Fase 4c | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo, ninguna probabilidad de las tablas ni ninguna pregunta del §4.** (1) **La pieza A quedó CONSTRUIDA**, que es lo que este documento llamaba «lo más importante»: el boleto de consuelo tiene **`peso` propio** y **compite en cada jugada**, con la forma exacta que proponía el §5.2 —`"peso"` dentro de `juego.consuelo`—, cargada en `config.json` con **217** (= N − 33 con **N = 250**, la propuesta por omisión de la **pregunta 1 del §4**). El §5.2 y la tabla del encabezado quedaron marcados, **sin borrar la propuesta**. (2) **Por qué ahora:** el **2026-09-16**, probando en vivo, el usuario reportó que «no ha salido ningún boleto de gracias por participar, solo premios». Era exactamente lo que este documento tenía escrito y lo que la ficha **F-261** anotaba: sin la pieza A ganaban las primeras **34** jugadas del día, una tras otra. **F-261 queda cerrada.** (3) **Cómo quedó, calculado por el programa** con el `config.json` real (todavía **sin `desde`/`hasta`**, así que la hielera entra todos los días): 34 papelitos de premio + 217 del consuelo = **251**; **gana el 13.55 % de las jugadas**, 1 de cada 7 u 8. (4) **Dos redes nuevas que muerden:** una prueba automática **deriva** el bloque `consuelo` **de este documento** (§5.2) y lo compara con `config.json`, y otra comprueba que el `peso` del §5.2 obedezca la regla **N − 33** del §2 y sea una de las N que ese §2 tabula. Si cambias N en un solo sitio, la suite se pone en rojo. (5) **Lo que sigue pendiente de ti:** las siete preguntas del §4, empezando por **N** (pregunta 1; el 217 es mi propuesta, no tu decisión: ficha **F-263**) y por los **nombres y detalles** (pregunta 6, **F-260**); y las piezas **B** (franjas), **C** (horario) y **D** (la hora, **F-241**). (6) **Recordatorios con fecha, sin cambios:** cargar `desde`/`hasta` antes del lunes 21 (**F-259**) y **reiniciar el inventario** antes de abrir (**F-243**, **F-262**) — esta fase **no** lo reinició, porque el usuario estaba probando. Plan: `docs/planes/fase-4c-consuelo-peso.md`. |
 | 2026-09-16 | Claude (ejecutor), Fase 4d | **Esta vez SÍ cambiaron tablas, y con tu permiso: «así va, apúntalo y lanza la cadena».** (1) **Se cayó el modelo de N.** Dijiste que **es imposible saber cuántas jugadas habrá**, y todo el §2 viejo colgaba de ese número. El §2 se reescribió entero: **los premios se reparten por HORAS**, el cupo del día se abre poco a poco de 12:00 a 23:00, y **N ya no existe**. La explicación vieja (peso = cupo, N − 33, el 84 % de entrega) se conserva como **nota histórica corta** al final del §2. La **pregunta 1 del §4** queda respondida: *ya no hace falta*. (2) **Se construyeron las tres piezas que faltaban: B (franjas), C (horario del evento) y D (esperar la hora al encender).** Con la A ya hecha, **las cuatro están construidas** y el encabezado lo dice. (3) **Se cargaron en `config.json`**: el `horario` 12:00–23:00 con `fuera_de_horario: "consuelo"` (tu respuesta a la **pregunta 5**), las **franjas** de la hielera, la silla y el set BBQ (**preguntas 2 y 3**), **3 minutos** de separación mínima entre premios («los premios no deben salir seguidos») y **120 s** de espera de la hora al arrancar. (4) **El peso del consuelo bajó de 217 a 10**, que es lo que tiene sentido cuando compite contra una o dos piezas abiertas y no contra los 34 papelitos del día: con un agua abierta se gana el **52.4 %** de las jugadas; con solo la hielera, el **9.1 %**. (5) **Se confirmaron los siete nombres y detalles** (**pregunta 6**) y se quitaron **todos los asteriscos** de la tabla del §1; los dos cambios tuyos son **CERVEZA → «Tecate Light, Tecate Roja o Indio»** y **AGUA FRESCA → «Horchata, Jamaica o Cebada»**. Ficha **F-260**, cerrada. (6) **Lo importante que esto arregla, medido por el programa:** simulando un día entero, **salga la gente que salga se entrega el cupo completo** (34 de 34 con 1 980, 660 o 220 jugadas; 31.7 con solo 66). Con el modelo viejo, acertando N, se entregaba el **84 %**. (7) **Lo que sigue pendiente de ti:** solo la **pregunta 7** (factor de holgura), que con este modelo casi no aplica. (8) **Recordatorios con fecha, sin cambios:** **cargar `desde`/`hasta` antes del lunes 21** (**F-259**) y **reiniciar el inventario** antes de abrir (**F-243**, **F-262**). Se cerró la **F-266** reescribiendo el párrafo «Sobre el reloj» del §5.1, que todavía decía que la Pi iba sin red. Plan: `docs/planes/fase-4d-horas.md`. |
 | 2026-09-16 | Claude (escriba), cierre de las Fases 4b, 4c y 4d | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo, ninguna probabilidad ni ninguna pregunta del §4.** (1) **Lo probaste tú y funciona.** Después de que un agente reiniciara el inventario a **folio 00000** a las **12:46** del 2026-09-16, con el reparto por horas ya desplegado, jugaste y dijiste: **«ya probé, salieron consuelos y una cerveza, funciona bien»**. Cuadra con lo que este documento promete: a esa hora estaban abiertas **el agua (12:30)** y **la cerveza (12:33)** —y, si ya habían dado las **13:00**, también **una silla** y **un set BBQ**; la hora exacta de esas jugadas no se midió—, con los **3 minutos** de separación entre premios. (2) **Las tres fases quedan CERRADAS** —`f810bc4` (premios reales), `d01a0ca` (pieza A) y `613f875` (piezas B, C y D más el reparto por horas)—, las tres desplegadas y verificadas en la Pi, con la suite en **268 pruebas en verde** allá y aquí. (3) **Lo único que falta antes del lunes 21, y no es programación:** **cargar las fechas `desde`/`hasta`** del §5.1 (ficha **F-259**) y **reiniciar el inventario antes de abrir** (fichas **F-262** y **F-243**) — después del reinicio de las 12:46 volviste a jugar, así que **no está en cero**. Además, el **perfil Wi-Fi del asadero** todavía no está en la Pi y **la contraseña la tecleas tú**. (4) **Dos avisos honestos sobre lo que aún no se ha visto en hardware:** la línea `HORA SIN CONFIRMAR: revisar fecha` **no se ha impreso nunca en papel** —las dos veces que el servicio arrancó ese día ya con esta pieza dentro, la Pi ya tenía la hora— y **la separación de 3 minutos tampoco se ha visto morder en el journal**; las dos están probadas con goldens, no con la Pi. (5) **De ti sigue sin respuesta solo la pregunta 7** del §4 (factor de holgura), que con el reparto por horas casi no aplica. Acta con todo lo medido: `docs/actas/2026-09-16-fase-4bcd.md`; hechos en crudo: `docs/actas/2026-09-16-hechos-medidos-fase-4bcd.md`. |
+| 2026-09-16 | Claude (ejecutor), Fase 4e | **No cambió ninguna tabla, ningún cupo, ninguna probabilidad ni ninguna pregunta del §4: esta pasada CARGA lo que ya decía este documento.** (1) **Las fechas `desde`/`hasta` del §5.1 ya están en `config.json`**: la hielera **24 y 25**, los otros seis **del 21 al 25**. Era el último pendiente con fecha límite (ficha **F-259**, cerrada). **Consecuencia escrita en el §5.1 y en el README: hasta el lunes 21 toda jugada sale de consuelo**, porque ningún premio está dentro de fechas. (2) **La espera de la hora al encender subió de 120 a 300 segundos** (§5.1 y §5.2 D). Motivo medido: en el arranque en frío del 2026-09-16 la hora tardó **34 s** en llegar por NTP **en la red de casa y por IPv6**; la del asadero puede tardar distinto, y el tope es margen, no coste. (3) **La pieza D quedó probada en hardware**, que era lo único que le faltaba: con la Pi desenchufada, el reloj arrancó **4 min 54 s atrasado** (lo restaura **systemd**, no `fake-hwclock`, que no está instalado), el kiosco **esperó 28.3 s** y **el inventario salió 0.6 s después con la fecha correcta**. Ficha **F-241**, cerrada en hardware. (4) **Ahora la espera se ve en el journal**: una línea al empezar, otra cada 10 s y una última con lo que costó (ficha **F-273**, cerrada). (5) **Lo que NO cambió:** premios, stocks, cupos, pesos, franjas, horario, separación y textos del boleto, todos idénticos. Plan: `docs/planes/fase-4e-final.md`; hechos medidos: `docs/actas/2026-09-16-hechos-medidos-fase-4e.md`. |
 |  |  |  |

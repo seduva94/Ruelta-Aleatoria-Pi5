@@ -85,6 +85,10 @@ que reiniciarla vuelve a imprimir un boleto con la fecha mal. **Espera unos
 minutos** con la Pi encendida y el internet funcionando y **pide otro boleto de
 inventario**: el mesero mantiene **HABILITAR 6 segundos sin que nadie toque
 JUGAR** (§5, punto 4). No abras hasta que ese boleto traiga la fecha de hoy.
+*(Al día, 2026-09-16: desde la pieza D el kiosco **espera él solo hasta 5
+minutos** a tener la hora antes de imprimir nada, así que un boleto con fecha
+vieja ya es raro; y si llega a pasar, ese boleto **lo dice** con la línea
+`HORA SIN CONFIRMAR: revisar fecha`. Probado con la Pi desenchufada: §7.)*
 
 **LED del botón arcade.** Muchos botones arcade traen un módulo LED de 5 V o
 12 V. Un pin GPIO da 3.3 V y muy poca corriente: conéctalo a través de un
@@ -258,7 +262,7 @@ por línea.
 
 ## 5. Operación diaria
 
-1. **Encender la Pi y la impresora.** Primero el kiosco **espera hasta 2 minutos
+1. **Encender la Pi y la impresora.** Primero el kiosco **espera hasta 5 minutos
    a que la Pi tenga la hora buena** (`juego.espera_hora_seg`), porque de la hora
    dependen los premios de cada momento (§7). Después imprime solo el
    **inventario**: restantes de cada premio, entregados hoy, **cuántas piezas
@@ -328,6 +332,23 @@ por línea.
 > de mandar un solo byte**, así que al reponer el rollo **no sale ningún boleto
 > solo** (antes sí salía). Lo de «no apagues la impresora» sigue valiendo por si
 > el fallo la pilla a media impresión, que es otro caso.
+
+> **Lo que el personal tiene que saber antes de abrir (2026-09-16).**
+>
+> 1. **Al encender, la Pi espera hasta 5 minutos a tener la hora por internet**
+>    antes de imprimir el inventario. Es normal que tarde: primero enciende,
+>    después agarra el internet del asadero y hasta entonces no sabe qué día es.
+>    **Enciende unos minutos antes de abrir.**
+> 2. **Mira la fecha del boleto de inventario.** Si trae la línea
+>    **`HORA SIN CONFIRMAR: revisar fecha`**, la Pi no consiguió la hora:
+>    **no la reinicies**. Revisa que el internet del asadero esté funcionando,
+>    espera un par de minutos y **pide otro inventario** (mantén **HABILITAR 6
+>    segundos** sin que nadie toque JUGAR). **Ese boleto tiene que salir con la
+>    fecha correcta antes de abrir**, porque de la fecha dependen los premios.
+> 3. **Los premios solo salen del lunes 21 al viernes 25 de septiembre, de 12:00
+>    a 23:00** (y la hielera, solo el jueves 24 y el viernes 25). **Fuera de esos
+>    días y de esas horas todas las jugadas dan boleto de consuelo**, y eso **no
+>    es una avería**: es como está configurado el evento.
 
 **Archivos que genera** (carpeta `datos/`):
 
@@ -541,9 +562,10 @@ cambia es cada cuántas jugadas toca premio.
 
 Todo lo anterior cuelga del reloj de la Pi, **que no tiene batería RTC**: la hora
 le llega por internet al arrancar. Por eso, al encender, el kiosco espera hasta
-`juego.espera_hora_seg` segundos (hoy **120**) preguntando cada 2 segundos si el
-sistema ya sincronizó. Si lo consigue, sigue normal. Si **no**, arranca igual
-—nunca se queda colgado— e imprime en el boleto de inventario de arranque:
+`juego.espera_hora_seg` segundos (hoy **300**, cinco minutos) preguntando cada 2
+segundos si el sistema ya sincronizó. Si lo consigue, sigue normal. Si **no**,
+arranca igual —nunca se queda colgado— e imprime en el boleto de inventario de
+arranque:
 
 ```
 HORA SIN CONFIRMAR: revisar fecha
@@ -552,6 +574,20 @@ HORA SIN CONFIRMAR: revisar fecha
 Si ves esa línea: **no reinicies**. Espera un par de minutos a que la Pi agarre
 la red y pide otro inventario con el gesto del botón HABILITAR. Ninguna jugada
 espera nada: esto ocurre una sola vez, al encender.
+
+**Medido en hardware el 2026-09-16** (Fase 4e), desenchufando la Pi unos minutos
+y volviéndola a enchufar: sin batería, el reloj arranca en **1970** y el sistema
+le pone encima la **última hora que guardó** —esa vez, **4 min 54 s atrasada**—;
+quien la restaura es **systemd**, desde `/var/lib/systemd/timesync/clock`
+(`fake-hwclock` **no está instalado** en esta Pi). Con esa hora falsa el kiosco
+**no imprimió nada**: esperó **28.3 s**, la hora llegó por internet y **el
+inventario salió 0.6 s después, con la fecha correcta**. El tope subió de 120 a
+**300 segundos** porque esos 28 s se midieron en la red de casa y **la del
+asadero no está medida**; es margen, no coste: si la hora llega en 3 segundos, el
+kiosco arranca en 3 segundos. Desde esa misma fecha, **la espera se ve en el
+registro** (`journalctl -u ruleta`): una línea al empezar, otra cada 10 segundos
+y una última que dice cuánto costó («Hora sincronizada tras 28 s»). Evidencia:
+`docs/actas/2026-09-16-hechos-medidos-fase-4e.md`.
 
 ### Consejos
 
@@ -577,10 +613,17 @@ el bloque `juego` con el horario, la separación y el consuelo—
 vigila ninguna prueba**, así que un cambio hecho solo ahí deja la suite en verde
 (ficha **F-260**).
 
-Antes del evento, con los premios ya definitivos: **carga las fechas
-`desde`/`hasta`** del §5.1 del documento (ficha **F-259**), detén el servicio,
-corre `python3 -m ruleta reiniciar --si` y vuelve a arrancarlo, para que los
-boletos de las pruebas no cuenten como premios entregados (ficha **F-262**).
+**Las fechas `desde`/`hasta` del §5.1 ya están cargadas** desde el 2026-09-16
+(ficha **F-259**, cerrada): la hielera del **24 al 25** y los otros seis del **21
+al 25**. Mientras no llegue el lunes 21, **ninguna jugada puede dar premio**:
+todas salen de consuelo, y es lo correcto. Si aun así quieres abrir el lunes con
+el **folio en 00000**, detén el servicio, corre `python3 -m ruleta reiniciar --si`
+y vuelve a arrancarlo (ficha **F-262**). **Ojo con el orden:** los boletos de
+estos días no gastan premios —con las fechas puestas todos salen de consuelo—,
+pero los premios que sí se entregaron en las pruebas del 15 y del 16 **siguen
+contados hasta que alguien reinicie**, y ese reinicio va en el despliegue de esta
+misma fase (§8, paso 4 de `docs/planes/fase-4e-final.md`). Si no consta que se
+hizo, **reinicia antes de abrir el lunes**.
 
 ---
 
@@ -706,7 +749,11 @@ imprimir otro boleto de inventario equivocado —lo medido el 2026-09-15 es que
 tardó **unos tres minutos**, de las 11:44:42 a las 11:47—. Déjala encendida con
 el internet funcionando, espera unos minutos y **pide otro boleto de inventario**
 (el mesero mantiene HABILITAR 6 segundos sin que nadie toque JUGAR, §5 punto 4)
-hasta que traiga la fecha de hoy.)* Si algún día sí se instala la batería RTC: fija la hora con
+hasta que traiga la fecha de hoy. **Al día, 2026-09-16:** el kiosco ya **espera
+hasta 5 minutos** a tener la hora antes de imprimir el inventario de arranque, y
+si no la consigue **escribe `HORA SIN CONFIRMAR: revisar fecha` en ese boleto**;
+en el journal (`journalctl -u ruleta`) la espera deja su propia línea y dice
+cuánto costó. §7.)* Si algún día sí se instala la batería RTC: fija la hora con
 `timedatectl` (paso 7) y activa su recarga agregando
 `dtparam=rtc_bbat_vchg=3000000` a `/boot/firmware/config.txt`.
 

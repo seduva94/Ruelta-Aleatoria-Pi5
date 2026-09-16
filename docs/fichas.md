@@ -4759,6 +4759,23 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   confirmada, solo la impresión del inventario de arranque; el kiosco arranca y
   juega igual. **Falta medirlo en la Pi**: hasta el despliegue, esto solo está
   probado en la PC.
+- **Nota fechada (2026-09-16, Fase 4e). YA ESTÁ MEDIDO EN LA PI, y en el caso
+  duro.** El usuario **desenchufó la Pi** unos minutos y la volvió a enchufar
+  —arranque en frío real, sin batería RTC—. Lo medido: el reloj arrancó en
+  `1970-01-01` y **systemd** le puso encima la última hora guardada en
+  `/var/lib/systemd/timesync/clock`, **4 min 54 s atrasada** (`fake-hwclock`
+  **no está instalado** en esta Pi, así que no es él quien la restaura). Con esa
+  fecha falsa el kiosco **no imprimió nada**: esperó **28.3 s**, NTP corrigió el
+  reloj a los **34.28 s** del arranque y **el inventario salió 0.6 s después, con
+  la fecha correcta** y **sin** la línea `HORA SIN CONFIRMAR`. `NRestarts=0`, 0
+  ERROR/WARNING de la ruleta, `estado.json` intacto (el inventario de arranque no
+  consume folio). **El riesgo que abrió esta ficha —que la Pi juegue e imprima
+  creyendo que es otro día— está cerrado en hardware.** Lo que esta ficha pedía y
+  **sigue sin hacerse** es bloquear también las **jugadas** mientras la hora no
+  esté confirmada: el kiosco acepta jugadas desde que arranca. Evidencia:
+  `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` (medición 2). En la misma
+  pasada el tope subió de **120 a 300 s** y la espera pasó a **verse en el
+  journal** (**F-273**).
 
 ---
 
@@ -5486,9 +5503,26 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   se **borra** ese test y se añaden `"desde"` y `"hasta"` a
   `CLAVES_DEL_DOCUMENTO`, con lo que la comparación por igualdad pasa a cubrir
   también las fechas. **No se relaja la comparación.**
-- **Estado:** **abierta.** Fecha límite: **antes del lunes 21 de septiembre de
-  2026.** Relacionadas: **F-241** (si la hora de la Pi está mal, las fechas
-  tampoco sirven) y **F-262** (el otro pendiente con la misma fecha límite).
+- **Estado:** **resuelta** el **2026-09-16** (Fase 4e; plan
+  `docs/planes/fase-4e-final.md`, decisión **D1**), **cuatro días antes de la
+  fecha límite**. Se copiaron del §5.1 del documento a `config.json` las siete
+  parejas de fechas: **hielera 2026-09-24 → 2026-09-25** y **silla, bbq, tacos3,
+  tacos2, cerveza y agua 2026-09-21 → 2026-09-25**. El golden que anclaba la
+  ausencia (`test_los_premios_del_config_todavia_no_traen_fechas`) **se cayó**,
+  como estaba escrito que pasara, y se sustituyó por
+  `test_los_premios_del_config_traen_las_fechas_del_evento`, que ancla **el censo
+  real por igualdad**; además `desde` y `hasta` entraron en
+  `CLAVES_DEL_DOCUMENTO`, así que la comparación campo por campo contra el §5.1
+  las cubre (mutaciones **M8** y **M9** del plan, las dos en rojo). **No se
+  relajó ninguna comparación.** El calendario se ancla también con el motor de
+  producción en
+  `tests/test_instalacion.py::test_las_fechas_del_evento_deciden_que_dias_hay_premios`:
+  el **19** no hay ningún premio, el **21** los seis sin hielera, el **24** y el
+  **25** los siete, el **26** ninguno. **Consecuencia aceptada y escrita** en el
+  §5.1 del documento y en el §5 del `README.md`: **hasta el lunes 21 toda jugada
+  sale de consuelo**, y eso no es una avería. Relacionadas: **F-241** (cerrada en
+  hardware el mismo día) y **F-262**, que gracias a esto **deja de ser
+  obligatoria**.
 
 ---
 
@@ -5675,6 +5709,21 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   mueve: **lunes 21 de septiembre, antes de abrir**, con el servicio parado, y
   en la **misma pasada** que carga las fechas de la **F-259**. Evidencia:
   `docs/actas/2026-09-16-fase-4bcd.md` §3.4, §5.6, §6 y §10.
+- **Nota fechada (2026-09-16, Fase 4e). Deja de ser obligatoria, y sigue siendo
+  decisión del usuario.** Dos cosas cambiaron. (1) **El inventario se reinicia en
+  el deploy de esta fase** (paso 4 del §8 del plan `docs/planes/fase-4e-final.md`:
+  servicio parado, `python3 -m ruleta reiniciar --si`, arranque y comprobación),
+  y esta vez **el usuario ya terminó de probar**: no va a haber jugadas detrás.
+  (2) **Con las fechas de la F-259 cargadas, ningún premio puede salir antes del
+  lunes 21**: cualquier boleto de estos días es de **consuelo**, y el consuelo
+  **no descuenta stock ni cupo**. Es decir: aunque alguien jugara el 17, el 18 o
+  el 20, **el inventario de premios del lunes no se movería**. Lo único que sí
+  avanzaría es el **folio**. **Qué queda para el lunes 21, entonces:** reiniciar
+  **solo si el usuario quiere abrir con el folio en 00000**; ya no hace falta
+  «para que las pruebas no cuenten como premios entregados», que era el motivo
+  original de esta ficha. Lo que **no** cambia: si se reinicia, se hace con el
+  servicio parado y se comprueba con `python3 -m ruleta reporte` que los stocks y
+  los cupos son los de la tabla del §1 (§6, paso 6 del documento del evento).
 
 ---
 
@@ -6109,13 +6158,29 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   no comprobada: juego.espera_hora_seg = 0»), con su golden; o, si se prefiere no
   añadir ruido, dejarlo como está **por decisión escrita**. **Lo decide el
   orquestador**, que es quien lee los journals de los deploys.
-- **Estado:** **abierta** (decisión pendiente). Hermanas: **F-241** (la pieza D
-  nació de ahí) y la duda §11.5 del acta: **la pieza D nunca se ha visto morder
-  en la Pi**, porque de los **cuatro** arranques del servicio del 2026-09-16
-  solo los **dos últimos** (12:42:46 y 12:46:48) llevaban ya esta pieza —antes
-  de `613f875` no existía— y en los dos la hora ya estaba sincronizada, así que
-  la línea `HORA SIN CONFIRMAR: revisar fecha` **no se ha impreso nunca en
-  papel**.
+- **Estado:** **resuelta** el **2026-09-16** (Fase 4e; plan
+  `docs/planes/fase-4e-final.md`, decisión **D3**). El orquestador decidió
+  **añadir el registro**, y decidió bien: en el arranque en frío de ese mismo día
+  la espera duró **28.3 s** y en el journal **no dejó ni una línea**, de modo que
+  esos 28 s de silencio **aparentaban 5 minutos** por el salto del reloj.
+  `esperar_hora_sincronizada()` ahora escribe: (1) `Esperando a que la hora se
+  sincronice (hasta 300 s)…` al empezar; (2) `Sigo esperando la hora: llevo 10 s
+  de 300 s` **cada 10 segundos** —`PERIODO_AVISO_HORA`, que **no** es la cadencia
+  de consulta, que sigue siendo de 2 s—; y (3) `Hora sincronizada tras 28 s` al
+  terminar, o el `WARNING` **HORA SIN CONFIRMAR** de siempre si se agota el tope.
+  **Con `espera_hora_seg` = 0 no registra nada**, porque no espera nada: un
+  `log.info` ahí sería ruido en cada arranque de cualquier instalación que no use
+  la pieza D. Goldens por **igualdad de lista** con el registro reencendido
+  (`registro_activo()`, ficha **F-253**) y el reloj falso:
+  `test_la_espera_de_la_hora_se_ve_en_el_journal` (0, 10, 20 y 22 s),
+  `test_la_hora_que_ya_estaba_puesta_tambien_deja_su_linea`,
+  `test_el_tope_agotado_se_ve_en_el_journal` y
+  `test_sin_espera_configurada_no_se_registra_nada`; siete mutaciones sobre copia
+  (M1 a M7 del plan), **las siete en rojo**. **Lo que esta ficha dejaba dicho y
+  ya no es cierto:** la pieza D **sí** se ha visto morder en la Pi (**F-241**,
+  cerrada en hardware). **Lo que sigue siendo cierto:** la línea
+  `HORA SIN CONFIRMAR: revisar fecha` **nunca se ha impreso en papel**, porque
+  hasta hoy la hora siempre llegó dentro del tope.
 
 ---
 
@@ -6151,5 +6216,84 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Estado:** **abierta como confirmación del orquestador.** Hermana: **F-258**
   (la nota de pausa que entró en un commit de código), la otra desviación de
   convención documental de esta serie de fases.
+
+---
+
+## F-275 · La Pi no tiene el Wi-Fi del asadero dado de alta: hay que hacerlo EN SITIO, y de él depende la fecha
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4e · brief del orquestador (inventario de perfiles de red de
+  la Pi hecho en la sesión del 2026-09-16, antes de lanzar la fase)
+- **Dónde:** en la Pi, los perfiles de red guardados (`nmcli connection show`);
+  hoy solo hay **dos**: `casa` (prioridad **20**) y `miltimex` (prioridad **10**).
+  **El perfil que apuntaba al Wi-Fi del asadero ya no existe.**
+- **Qué pasa:** el kiosco del evento **necesita internet para saber qué día es**.
+  La Pi **no tiene batería RTC** (decisión del usuario del 2026-09-15): al
+  encender arranca con la última hora que guardó y **la corrige por NTP en
+  cuanto entra a una red**. Si en el asadero no encuentra ninguna red conocida,
+  **no corrige nada**. En las pruebas la Pi se conecta a la red de casa
+  (`SL-Durazo`, medido el 2026-09-16), que es la que tiene el perfil `casa`.
+- **Por qué es residual:** **no es un defecto del programa ni una afirmación
+  falsa de ningún documento**: es un paso de instalación que solo se puede hacer
+  **en el lugar y con la contraseña del usuario**, y **ningún agente teclea
+  credenciales** (§6 de `CLAUDE.md`). El programa se comporta bien sin red:
+  espera sus 300 s, arranca igual e **imprime el aviso** en el boleto.
+- **Riesgo si no se toca:** **alto, y desde la Fase 4e es peor que antes.** Sin
+  red, la Pi cree que es **el día en que se apagó**. Y ahora que los premios
+  llevan `desde`/`hasta` (**F-259**), una fecha equivocada **saca de la tómbola a
+  los siete premios**: el kiosco no falla, no avisa —no hay LED (**F-240**,
+  **F-256**)— y simplemente **reparte consuelos toda la noche**. El boleto de
+  inventario de arranque lo delata de dos formas: la línea
+  `HORA SIN CONFIRMAR: revisar fecha` y, sobre todo, **la fecha impresa**.
+- **Propuesta:** el usuario, **en el asadero y antes del lunes 21**, da de alta
+  el Wi-Fi del restaurante en la Pi (por ejemplo con `nmcli device wifi connect`,
+  tecleando **él** la contraseña) y comprueba **en ese momento** dos cosas:
+  `timedatectl` dice `System clock synchronized: yes`, y **el boleto de
+  inventario sale con la fecha de hoy**. Alternativa, por si el Wi-Fi
+  del local se resiste: el **punto de acceso móvil de Windows** de la laptop, con
+  el mismo nombre y contraseña que el Wi-Fi del asadero. **Ojo: hoy la Pi tampoco
+  entra sola en ese punto de acceso.** Justamente por llevar el mismo nombre, el
+  perfil que servía para los dos es el que ya no existe: el punto de acceso hay
+  que darlo de alta igual, y la contraseña la teclea el usuario. **Requiere al
+  usuario.**
+- **Estado:** **abierta.** Fecha límite: **lunes 21 de septiembre de 2026, antes
+  de abrir.** Hermanas: **F-241** (de dónde sale la hora) y **F-257** (el alias
+  de SSH y la red del punto de acceso).
+
+---
+
+## F-276 · La Fase 4e deja tres afirmaciones de `CLAUDE.md` desfasadas, y `CLAUDE.md` no se toca
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4e · el ejecutor, al re-grepear la espera de la hora
+  (`grep -n "120" CLAUDE.md`)
+- **Dónde:** `CLAUDE.md`, sección «Contexto del producto», la viñeta **Red y
+  hora** y la lista de lo desplegado.
+- **Qué pasa:** esta fase cambió tres cosas que `CLAUDE.md` afirma con números:
+  1. «el kiosco espera hasta `juego.espera_hora_seg` segundos —hoy **120**…»
+     y «**Al arrancar, el kiosco espera hasta 120 s**»: desde esta fase son
+     **300**.
+  2. «**Las fechas `desde`/`hasta` TODAVÍA NO están cargadas** (ficha F-259):
+     hasta que se carguen, los siete premios están disponibles **todos los
+     días**»: **ya están cargadas** (F-259, cerrada), así que es al revés.
+  3. «**la pieza D nunca se ha visto morder en la Pi**»: se vio morder el
+     2026-09-16 en un **arranque en frío real** (F-241).
+- **Por qué es residual:** **el protocolo prohíbe que esta fase toque
+  `CLAUDE.md`** (§7 del plan `docs/planes/fase-4e-final.md`, y la misma
+  prohibición venía de la Fase 4d). No es un error de nadie: es el desfase normal
+  entre un documento de contexto y la fase que acaba de cambiar el código. Y
+  ninguna de las tres afirmaciones hace que el programa se comporte mal.
+- **Riesgo si no se toca:** que la **próxima sesión** —o el próximo agente sin
+  contexto— lea `CLAUDE.md` como fuente de verdad, dé por hecho que faltan las
+  fechas y **vuelva a cargarlas**, o que calcule con 120 s la espera del arranque
+  y crea que la Pi tardó de más. El riesgo es de **desinformación**, no de
+  conducta.
+- **Propuesta:** que **el orquestador** actualice esas tres frases de
+  `CLAUDE.md` al cerrar la fase, con la fórmula que ya se usó el 2026-09-15 y el
+  2026-09-16: **nota fechada**, sin borrar lo viejo, citando
+  `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` y el plan de esta fase.
+- **Estado:** **abierta para el orquestador.** Hermana: **F-242** (la vez
+  anterior que `CLAUDE.md` se quedó atrás, con lo de «producción sin red» y «la
+  batería RTC es necesaria»).
 
 ---
