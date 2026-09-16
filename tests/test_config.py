@@ -56,6 +56,14 @@ class TestTipos(unittest.TestCase):
         self.espera_error(base(gpio={"boton_jugar": None}), "gpio.boton_jugar")
         self.espera_error(base(juego={"hora_inicio_dia": None}), "juego.hora_inicio_dia")
 
+    def test_peso_de_consuelo_con_tipos_malos(self):
+        """El peso del consuelo es un entero como los demás; el mensaje nombra la llave."""
+        self.espera_error(base(juego={"consuelo": {"peso": "217"}}),
+                          "juego.consuelo.peso", "sin comillas")
+        self.espera_error(base(juego={"consuelo": {"peso": 2.5}}), "juego.consuelo.peso")
+        self.espera_error(base(juego={"consuelo": {"peso": True}}), "juego.consuelo.peso")
+        self.espera_error(base(juego={"consuelo": {"peso": None}}), "juego.consuelo.peso")
+
     def test_null_donde_si_va(self):
         cfg = configmod.desde_dict(base(gpio={"led": None, "pulsacion_larga_seg": None},
                                         impresora={"tipo": "vista", "lineas_antes_corte": None}))
@@ -114,6 +122,23 @@ class TestReglas(unittest.TestCase):
         self.espera_error(base(gpio={"modo_habilitar": "mantener", "boton_habilitar": None}), "modo_habilitar")
         self.espera_error(base(juego={"hora_inicio_dia": 24}), "hora_inicio_dia")
         self.espera_error(base(juego={"intentos_inventario_arranque": 0}), "intentos_inventario_arranque")
+        self.espera_error(base(juego={"consuelo": {"peso": -1}}), "juego.consuelo.peso")
+
+    def test_consuelo_sin_peso_vale_cero(self):
+        """Omitir la llave es el comportamiento de antes de la Fase 4c: consuelo sin papelitos.
+
+        Se ancla **por igualdad** y en los dos caminos —sin bloque `consuelo` y
+        con bloque pero sin `peso`— porque el valor por omisión del código es lo
+        único que separa un `config.json` viejo de uno nuevo: si alguien pusiera
+        217 como defecto, cualquier instalación sin la llave empezaría a repartir
+        consuelo sin que nadie lo decidiera.
+        """
+        self.assertEqual(configmod.desde_dict(base()).juego.consuelo.peso, 0)
+        con_bloque = base(juego={"consuelo": {"titulo": "SIGUE PARTICIPANDO",
+                                              "texto": "¡Gracias por jugar!"}})
+        self.assertEqual(configmod.desde_dict(con_bloque).juego.consuelo.peso, 0)
+        self.assertEqual(configmod.desde_dict(base(juego={"consuelo": {"peso": 0}})).juego.consuelo.peso, 0)
+        self.assertEqual(configmod.desde_dict(base(juego={"consuelo": {"peso": 217}})).juego.consuelo.peso, 217)
 
     def test_premios(self):
         self.espera_error(base(premios=[]), "al menos un premio")
@@ -172,6 +197,10 @@ class TestCargar(unittest.TestCase):
         # config.json lo devolvería sin que nada más se queje.
         self.assertEqual(cfg.juego.consuelo.titulo, "SIGUE PARTICIPANDO")
         self.assertEqual(cfg.juego.consuelo.texto, "¡Gracias por jugar!")
+        # El `peso` del consuelo (Fase 4c) NO se copia aquí a propósito: lo ancla
+        # TestPremiosOficialesDelEvento.test_config_json_lleva_el_peso_de_consuelo_del_documento,
+        # que lo DERIVA del §5.2 del documento del evento en vez de transcribirlo.
+        self.assertGreater(cfg.juego.consuelo.peso, 0)
 
     def test_config_json_del_proyecto_apunta_a_la_impresora_usb(self):
         """Lo medido en la Pi el 2026-09-11: USB por /dev/ruleta-impresora, con pitido.
@@ -228,6 +257,84 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
             self.assertEqual(faltan, [],
                              f"Al premio #{i} del §5.1 le faltan las llaves {faltan}.")
         return premios
+
+    def consuelo_del_documento(self):
+        """El bloque `consuelo` del §5.2 (PENDIENTE A), parseado del documento.
+
+        Es el bloque que la Fase 4c construyó: `titulo`, `texto` y el `peso`
+        nuevo. Se busca por contenido —el único bloque ```json que menciona
+        `"consuelo"`— y no por número de sección, porque las secciones se mueven.
+        """
+        texto = RUTA_EVENTO.read_text(encoding="utf-8")
+        bloques = re.findall(r"^```json\s*?\n(.*?)^```", texto, re.DOTALL | re.MULTILINE)
+        con_consuelo = [b for b in bloques if '"consuelo"' in b]
+        self.assertEqual(
+            len(con_consuelo), 1,
+            f"En {RUTA_EVENTO.name} debe haber EXACTAMENTE un bloque de código json con "
+            f"\"consuelo\" (el del §5.2, PENDIENTE A); se encontraron {len(con_consuelo)} entre "
+            f"{len(bloques)} bloques json. Si el documento cambió de forma, arregla este "
+            f"golden: NO lo borres.")
+        # Igual que el del §5.1, es un fragmento de objeto: se envuelve en llaves
+        # para parsearlo tal cual está escrito, sin retocarlo.
+        consuelo = json.loads("{" + con_consuelo[0] + "}")["consuelo"]
+        faltan = sorted({"titulo", "texto", "peso"} - set(consuelo))
+        self.assertEqual(faltan, [],
+                         f"Al bloque `consuelo` del §5.2 le faltan las llaves {faltan}.")
+        return consuelo
+
+    def test_config_json_lleva_el_peso_de_consuelo_del_documento(self):
+        """Pieza A (Fase 4c): el `peso` del consuelo se DERIVA del §5.2, no se copia.
+
+        Se comparan las tres llaves por igualdad y de una vez: si el usuario
+        cambia N en el documento (150 → 117, 250 → 217, 400 → 367) y nadie
+        rehace `config.json`, la suite se pone en rojo.
+        """
+        del_documento = self.consuelo_del_documento()
+        cfg = configmod.cargar(RUTA_CONFIG)
+        self.assertEqual(
+            {"titulo": cfg.juego.consuelo.titulo, "texto": cfg.juego.consuelo.texto,
+             "peso": cfg.juego.consuelo.peso},
+            {k: del_documento[k] for k in ("titulo", "texto", "peso")},
+            "config.json y el §5.2 (PENDIENTE A) de docs/evento-2026-09-asadero-33.md dicen "
+            "cosas distintas. Gana el DOCUMENTO (§6, paso 1): corrige config.json, no el golden.")
+
+    def test_el_peso_del_documento_obedece_la_regla_N_menos_33_del_su_propio_2(self):
+        """El documento tiene que estar de acuerdo consigo mismo: §5.2 contra §2.
+
+        El §2 («Cómo cambiar N») escribe la regla **N − 33** y su tabla de
+        equivalencias (150 → 117 · 200 → 167 · 250 → 217 · 300 → 267 · 400 →
+        367). Esto comprueba dos cosas por igualdad: (a) que esa tabla obedezca
+        la regla, y (b) que el `peso` del §5.2 sea una de sus entradas. Así un
+        peso tecleado a mano —218, 271— se pone en rojo, y a la vez el usuario
+        puede responder la **pregunta 1 del §4** con CUALQUIERA de las N
+        tabuladas sin que la suite se queje: es el cambio que el propio documento
+        manda hacer, y **no debe obligar a tocar la tabla de escenarios del §2**.
+        """
+        texto = RUTA_EVENTO.read_text(encoding="utf-8")
+        # Lista, NO diccionario: el documento escribe esa tabla DOS veces (§2 y
+        # §5.2), y con un dict la segunda tapaba a la primera, así que un error
+        # en la del §2 pasaba en verde.
+        pares = [(int(n), int(peso)) for n, peso in re.findall(r"(\d+)\s*→\s*(\d+)", texto)]
+        self.assertNotEqual(
+            pares, [], "No se encontró en el documento del evento la tabla de equivalencias "
+                       "«N → peso del consuelo» del §2. Si el documento cambió de forma, arregla "
+                       "este golden: NO lo borres.")
+        self.assertEqual([(n, peso) for n, peso in pares if peso != n - 33], [],
+                         f"La tabla «N → peso» del documento del evento no obedece su propia "
+                         f"regla N − 33: {pares}.")
+        # «Las N que el §2 tabula» hay que leerlas del §2 y de ningún otro sitio:
+        # leyéndolas de todo el documento, añadir la N solo al §5.2 bastaba para
+        # pasar en verde.
+        parrafo = re.search(r"\*\*Cómo cambiar N:\*\*(.*?)\n\n", texto, re.DOTALL)
+        self.assertIsNotNone(
+            parrafo, "No se encontró el párrafo «Cómo cambiar N» del §2 (Aviso 2) del documento "
+                     "del evento. Si el documento cambió de forma, arregla este golden: NO lo "
+                     "borres.")
+        del_2 = {int(peso) for _, peso in re.findall(r"(\d+)\s*→\s*(\d+)", parrafo.group(1))}
+        self.assertIn(self.consuelo_del_documento()["peso"], del_2,
+                      f"El `peso` del consuelo del §5.2 no es ninguna de las N tabuladas en el "
+                      f"§2 ({sorted(del_2)}). Si el usuario eligió otra N, añádela allí "
+                      f"con su N − 33; NO toques la tabla de escenarios del §2.")
 
     def test_config_json_lleva_exactamente_los_premios_del_documento(self):
         """Igualdad campo por campo y en orden, no «están todos los ids»."""

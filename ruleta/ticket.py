@@ -183,6 +183,12 @@ def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "") -> bytes:
         doc.linea(f"{nombre:<{col_nombre}} {rest:>{col_rest}} {hoy:>{col_hoy}} {prob:>{col_prob}}")
         if not fila.disponible:
             doc.linea(f"  > no disponible: {fila.motivo}")
+    # El boleto de consuelo compite como uno más cuando tiene peso (Fase 4c).
+    # Sin peso no se menciona: solo sale cuando ya no queda ningún premio.
+    if resumen.peso_consuelo > 0:
+        doc.linea(_dos_columnas(
+            f"{cfg.juego.consuelo.titulo} (consuelo)",
+            f"peso {resumen.peso_consuelo} -> {resumen.probabilidad_consuelo:.1f}%", ancho))
     doc.separador()
     total_stock = sum(p.premio.stock for p in resumen.premios if p.premio.stock is not None)
     total_entregados = sum(p.entregados for p in resumen.premios)

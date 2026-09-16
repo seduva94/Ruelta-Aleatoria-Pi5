@@ -77,7 +77,8 @@ def cargar_config(args) -> Config:
 
 def abrir_inventario(cfg: Config, exclusivo: bool = False) -> Inventario:
     """Abre el inventario; con exclusivo=True toma el candado (falla si el servicio corre)."""
-    inv = Inventario(cfg.premios, cfg.carpeta_datos, hora_inicio_dia=cfg.juego.hora_inicio_dia)
+    inv = Inventario(cfg.premios, cfg.carpeta_datos, hora_inicio_dia=cfg.juego.hora_inicio_dia,
+                     peso_consuelo=cfg.juego.consuelo.peso)
     if exclusivo:
         try:
             inv.bloquear()
@@ -192,7 +193,7 @@ def cmd_vista_previa(cfg: Config, args) -> int:
         print(f"\n=== Boleto de premio: {p.id} ===")
         vista.imprimir(ticket.boleto_premio(cfg, boleto))
     consuelo = Boleto(folio=folio, premio=None, momento=ahora, dia=inventario.dia_operativo(ahora))
-    print("\n=== Boleto de consuelo (sin premios disponibles) ===")
+    print("\n=== Boleto de consuelo (la jugada no dio premio) ===")
     vista.imprimir(ticket.boleto_consuelo(cfg, consuelo))
     print("\n=== Reporte de inventario ===")
     vista.imprimir(ticket.boleto_inventario(cfg, inventario.resumen(ahora), "vista previa"))

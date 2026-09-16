@@ -187,6 +187,79 @@ class TestBoletos(unittest.TestCase):
         for _, papel, _ in vista:
             self.assertLessEqual(len(papel.rstrip()), 48, papel)
 
+    def test_inventario_con_peso_de_consuelo(self):
+        """Pieza A (Fase 4c): el consuelo aparece con su peso y su probabilidad de AHORA.
+
+        La línea se ancla **entera y por igualdad**, y el porcentaje que lleva se
+        comprueba contra el que calcula el programa (`probabilidad_consuelo`), no
+        contra un número tecleado a mano.
+        """
+        anchos = {48: self.cfg, 32: config_base(impresora={"tipo": "vista", "chars_por_linea": 32})}
+        for ancho, cfg in anchos.items():
+            with self.subTest(ancho=ancho):
+                with tempfile.TemporaryDirectory() as tmp:
+                    inv = Inventario(cfg.premios, tmp, peso_consuelo=217)
+                    resumen = inv.resumen(self.ahora)
+                    datos = ticket.boleto_inventario(cfg, resumen, "reporte")
+                # Pesos de los tres premios de prueba: 5 + 1 + 1 = 7, más 217 papelitos.
+                self.assertAlmostEqual(resumen.probabilidad_consuelo, 100 * 217 / 224)
+                self.assertEqual(resumen.peso_consuelo, 217)
+                vista = lineas_vista(datos, ancho)
+                originales = [o.rstrip() for _, _, o in vista]
+                esperada = {48: "SIGUE PARTICIPANDO (consuelo)  peso 217 -> 96.9%",
+                            32: "SIGUE PARTICIP peso 217 -> 96.9%"}[ancho]
+                self.assertEqual([o for o in originales if "peso 217" in o], [esperada])
+                self.assertIn(f"{resumen.probabilidad_consuelo:.1f}%", esperada)
+                # Con el consuelo en el denominador, los premios bajan: 5/224 = 2.2 %.
+                fila_tacos = next(o for o in originales if o.startswith("Orden"))
+                self.assertIn("2.2%", fila_tacos)
+                for _, papel, _ in vista:
+                    self.assertLessEqual(len(papel.rstrip()), ancho, papel)
+        # Y con OTRO peso la línea tiene que cambiar sola: si el número saliera
+        # de una constante del código en vez del resumen, esto caería.
+        with tempfile.TemporaryDirectory() as tmp:
+            otro = Inventario(self.cfg.premios, tmp, peso_consuelo=117)
+            datos = ticket.boleto_inventario(self.cfg, otro.resumen(self.ahora), "reporte")
+        self.assertEqual(
+            [o.rstrip() for _, _, o in lineas_vista(datos) if "(consuelo)" in o],
+            ["SIGUE PARTICIPANDO (consuelo)  peso 117 -> 94.4%"])
+
+    def test_inventario_del_config_real_cabe_entero(self):
+        """Vector real: el `config.json` del repositorio, con sus siete premios y su consuelo.
+
+        La línea del consuelo con el título real ocupa **las 48 columnas justas**
+        (29 + 2 + 17). Se ancla entera: si alguien alarga `juego.consuelo.titulo`,
+        `_dos_columnas` lo recortaría **en silencio** y esta igualdad cae.
+        """
+        cfg = configmod.cargar(Path(__file__).resolve().parent.parent / "config.json")
+        ancho = cfg.impresora.chars_por_linea
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = Inventario(cfg.premios, tmp, hora_inicio_dia=cfg.juego.hora_inicio_dia,
+                             peso_consuelo=cfg.juego.consuelo.peso)
+            resumen = inv.resumen(self.ahora)
+            datos = ticket.boleto_inventario(cfg, resumen, "arranque")
+        lineas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, ancho)]
+        self.assertEqual([l for l in lineas if len(l) > ancho], [])
+        fila = next(l for l in lineas if "(consuelo)" in l)
+        self.assertEqual(fila,
+                         f"{cfg.juego.consuelo.titulo} (consuelo)  "
+                         f"peso {cfg.juego.consuelo.peso} -> {resumen.probabilidad_consuelo:.1f}%")
+        self.assertEqual(len(fila), ancho)
+
+    def test_inventario_sin_peso_de_consuelo_no_menciona_el_consuelo(self):
+        """Con peso 0 el boleto sale exactamente como antes de la Fase 4c."""
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = Inventario(self.cfg.premios, tmp)
+            resumen = inv.resumen(self.ahora)
+            datos = ticket.boleto_inventario(self.cfg, resumen, "reporte")
+        self.assertEqual(resumen.peso_consuelo, 0)
+        originales = [o for _, _, o in lineas_vista(datos)]
+        self.assertEqual([o for o in originales if "consuelo" in o.lower()], [])
+        self.assertEqual([o for o in originales if "PARTICIPANDO" in o], [])
+        # Y los premios se reparten el 100 % entre ellos: 5/7 = 71.4 %.
+        fila_tacos = next(o for o in originales if o.startswith("Orden"))
+        self.assertIn("71.4%", fila_tacos)
+
     def test_inventario_con_ancho_minimo(self):
         cfg = config_base(impresora={"tipo": "vista", "chars_por_linea": 32})
         with tempfile.TemporaryDirectory() as tmp:

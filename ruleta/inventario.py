@@ -11,8 +11,15 @@ Estado en disco (carpeta_datos/):
 Reglas del sorteo:
   * Solo participan los premios que aún tienen stock, no han llegado a su
     tope del día y están dentro de sus fechas 'desde'/'hasta'.
-  * Entre los disponibles se elige al azar proporcionalmente a su 'peso'.
-  * Si no hay ninguno disponible, el sorteo devuelve None (boleto de consuelo).
+  * El boleto de consuelo participa como uno más, con 'peso_consuelo'
+    papelitos (juego.consuelo.peso): una sola elección ponderada decide entre
+    los premios disponibles y el consuelo. El consuelo NO consume stock ni
+    tope diario, pero sí consume folio.
+  * Con peso_consuelo = 0 el consuelo no entra en la tómbola y se sortea solo
+    entre los premios, que es como se comportaba el programa antes de la
+    Fase 4c (2026-09-16).
+  * Si no hay ningún premio disponible, el sorteo devuelve None (boleto de
+    consuelo), tenga el consuelo peso o no.
 
 Ciclo de un boleto: emitir() consume folio y stock ANTES de imprimir (así un
 apagón nunca regala el mismo premio dos veces). Después:
@@ -101,11 +108,14 @@ class Resumen:
     folio_actual: int
     boletos_hoy: int
     pendientes: list[Pendiente]
+    peso_consuelo: int = 0          # papelitos del consuelo (0 = no entra en la tómbola)
+    probabilidad_consuelo: float = 0.0   # 0..100, probabilidad actual de que no salga premio
 
 
 class Inventario:
     def __init__(self, premios: Iterable[Premio], carpeta_datos: str | Path,
-                 hora_inicio_dia: int = 6, rng: random.Random | None = None):
+                 hora_inicio_dia: int = 6, rng: random.Random | None = None,
+                 peso_consuelo: int = 0):
         self.premios: dict[str, Premio] = {}
         for p in premios:
             if p.id in self.premios:
@@ -117,6 +127,7 @@ class Inventario:
         self.ruta_log = self.carpeta / "boletos.csv"
         self.ruta_candado = self.carpeta / "ruleta.lock"
         self.hora_inicio_dia = hora_inicio_dia
+        self.peso_consuelo = peso_consuelo
         self.rng = rng or random.SystemRandom()
         self._folio = 0
         self._entregados: dict[str, int] = {}
@@ -203,9 +214,22 @@ class Inventario:
         return [p for p in self.premios.values() if not self.motivo_no_disponible(p, momento)]
 
     def probabilidades(self, momento: datetime) -> dict[str, float]:
+        """Probabilidad (0..100) de cada premio disponible.
+
+        El boleto de consuelo entra en el DENOMINADOR con sus papelitos, así que
+        con peso_consuelo > 0 estos porcentajes ya no suman 100: lo que falta es
+        `probabilidad_consuelo()`.
+        """
         disp = self.disponibles(momento)
-        total = sum(p.peso for p in disp)
+        total = sum(p.peso for p in disp) + self.peso_consuelo
         return {p.id: (100.0 * p.peso / total if total else 0.0) for p in disp}
+
+    def probabilidad_consuelo(self, momento: datetime) -> float:
+        """Probabilidad (0..100) de que la jugada NO dé premio."""
+        total = sum(p.peso for p in self.disponibles(momento)) + self.peso_consuelo
+        if total <= 0:
+            return 100.0        # sin premios disponibles el consuelo es seguro
+        return 100.0 * self.peso_consuelo / total
 
     def resumen(self, momento: datetime) -> Resumen:
         dia = self.dia_operativo(momento)
@@ -224,18 +248,28 @@ class Inventario:
             ))
         return Resumen(momento=momento, dia=dia, premios=filas,
                        folio_actual=self._folio, boletos_hoy=self.boletos_en_dia(dia),
-                       pendientes=self.pendientes())
+                       pendientes=self.pendientes(),
+                       peso_consuelo=self.peso_consuelo,
+                       probabilidad_consuelo=self.probabilidad_consuelo(momento))
 
     # ------------------------------------------------------------------ #
     # Juego
     # ------------------------------------------------------------------ #
 
     def sortear(self, momento: datetime) -> Premio | None:
+        """UNA sola elección ponderada entre los premios disponibles y el consuelo.
+
+        Devuelve el premio que salió, o None si salió el boleto de consuelo.
+        """
         disp = self.disponibles(momento)
         if not disp:
             return None
-        pesos = [p.peso for p in disp]
-        return self.rng.choices(disp, weights=pesos, k=1)[0]
+        poblacion: list[Premio | None] = list(disp)
+        pesos: list[float] = [p.peso for p in disp]
+        if self.peso_consuelo > 0:
+            poblacion.append(None)
+            pesos.append(self.peso_consuelo)
+        return self.rng.choices(poblacion, weights=pesos, k=1)[0]
 
     def emitir(self, premio: Premio | None, momento: datetime) -> Boleto:
         """Consume folio y stock, guarda el estado y registra el evento 'emitido'.

@@ -11,6 +11,24 @@ from ruleta.config import Premio
 from ruleta.inventario import ErrorPersistencia, Inventario
 
 
+class RngEspia:
+    """`rng` falso que GUARDA la llamada a `choices` tal cual la recibió.
+
+    Así el golden compara la tómbola **por igualdad de listas** (población y
+    pesos, en orden) en vez de inferirla de la distribución de mil sorteos.
+    `indice` elige qué elemento devuelve: 0 = el primer premio, -1 = el último
+    de la población, que con peso de consuelo es el propio consuelo (None).
+    """
+
+    def __init__(self, indice: int = 0):
+        self.llamadas: list[tuple[list, list, int]] = []
+        self.indice = indice
+
+    def choices(self, population, weights=None, k=1):
+        self.llamadas.append((list(population), list(weights), k))
+        return [population[self.indice]]
+
+
 def premios_prueba():
     return [
         Premio(id="grande", nombre="Premio grande", peso=1, stock=2, tope_diario=1),
@@ -90,6 +108,96 @@ class TestInventario(unittest.TestCase):
         proporcion = conteo["b"] / 4000
         self.assertGreater(proporcion, 0.70)
         self.assertLess(proporcion, 0.80)
+
+    # -- peso propio del boleto de consuelo (pieza A, Fase 4c) ---------------- #
+
+    def test_sortear_con_peso_de_consuelo_mete_none_en_la_tombola(self):
+        """UNA sola elección ponderada: premios disponibles + [None], pesos + [peso].
+
+        Se ancla la llamada a `choices` **por igualdad de listas**, no por
+        presencia: si el consuelo se sorteara aparte (dos tiradas) o entrara con
+        otro peso, esta igualdad cae.
+        """
+        espia = RngEspia()
+        inv = Inventario(premios_prueba(), self.carpeta / "peso", hora_inicio_dia=6,
+                         rng=espia, peso_consuelo=217)
+        disponibles = inv.disponibles(self.t)
+        self.assertEqual([p.id for p in disponibles], ["grande", "mayor", "tacos"])
+        inv.sortear(self.t)
+        self.assertEqual(len(espia.llamadas), 1)
+        poblacion, pesos, k = espia.llamadas[0]
+        self.assertEqual(poblacion, disponibles + [None])
+        self.assertEqual(pesos, [p.peso for p in disponibles] + [217])
+        self.assertEqual(k, 1)
+        # Y si la elección cae en ese último papelito, el sorteo devuelve el consuelo.
+        espia.indice = -1
+        self.assertIsNone(inv.sortear(self.t))
+
+    def test_sin_peso_de_consuelo_la_tombola_es_solo_de_premios(self):
+        """Con `peso_consuelo` = 0 (el valor por omisión) nada cambia."""
+        espia = RngEspia()
+        inv = Inventario(premios_prueba(), self.carpeta / "sinpeso", hora_inicio_dia=6, rng=espia)
+        self.assertEqual(inv.peso_consuelo, 0)
+        disponibles = inv.disponibles(self.t)
+        inv.sortear(self.t)
+        poblacion, pesos, _ = espia.llamadas[0]
+        self.assertEqual(poblacion, disponibles)
+        self.assertEqual(pesos, [p.peso for p in disponibles])
+        self.assertTrue(all(p is not None for p in poblacion))
+
+    def test_sin_premios_disponibles_devuelve_consuelo_sin_sortear(self):
+        """Agotado todo, el consuelo es seguro y no se llama a `choices`."""
+        espia = RngEspia()
+        inv = Inventario([Premio(id="u", nombre="Único", peso=1, stock=1)],
+                         self.carpeta / "vacio", rng=espia, peso_consuelo=217)
+        self.assertEqual(inv.sortear(self.t).id, "u")
+        inv.emitir(inv.premios["u"], self.t)
+        self.assertIsNone(inv.sortear(self.t))
+        self.assertEqual(len(espia.llamadas), 1)        # la segunda no pasó por el rng
+        self.assertEqual(inv.probabilidad_consuelo(self.t), 100.0)
+
+    def test_el_consuelo_entra_en_el_denominador_de_las_probabilidades(self):
+        """Los pesos de los premios no cambian; el denominador sí, y suma 100 con el consuelo."""
+        inv = Inventario(premios_prueba(), self.carpeta / "probs", hora_inicio_dia=6,
+                         peso_consuelo=217)
+        probs = inv.probabilidades(self.t)                # pesos disponibles: 1 + 1 + 10 = 12
+        self.assertAlmostEqual(probs["tacos"], 100 * 10 / 229)
+        self.assertAlmostEqual(probs["grande"], 100 * 1 / 229)
+        self.assertAlmostEqual(inv.probabilidad_consuelo(self.t), 100 * 217 / 229)
+        self.assertAlmostEqual(sum(probs.values()) + inv.probabilidad_consuelo(self.t), 100.0)
+        # Lo mismo, visto desde el resumen que imprime el boleto de inventario.
+        r = inv.resumen(self.t)
+        self.assertEqual(r.peso_consuelo, 217)
+        self.assertAlmostEqual(r.probabilidad_consuelo, 100 * 217 / 229)
+        self.assertAlmostEqual(
+            sum(f.probabilidad for f in r.premios) + r.probabilidad_consuelo, 100.0)
+
+    def test_el_consuelo_no_toca_stock_ni_tope_pero_gasta_folio(self):
+        dia = self.inv.dia_operativo(self.t)
+        antes_restantes = {p.id: self.inv.restantes(p) for p in self.inv.premios.values()}
+        antes_hoy = {p.id: self.inv.entregados_en_dia(p.id, dia) for p in self.inv.premios.values()}
+        b = self.inv.emitir(None, self.t)
+        self.assertIsNone(b.premio)
+        self.assertEqual(b.folio, 1)
+        self.assertEqual({p.id: self.inv.restantes(p) for p in self.inv.premios.values()},
+                         antes_restantes)
+        self.assertEqual({p.id: self.inv.entregados_en_dia(p.id, dia) for p in self.inv.premios.values()},
+                         antes_hoy)
+        self.assertEqual(self.inv.boletos_en_dia(dia), 1)
+        # Y así queda en disco: un folio gastado y cero premios entregados.
+        otro = Inventario(premios_prueba(), self.carpeta)
+        self.assertEqual(otro.folio_actual, 1)
+        self.assertEqual({p.id: otro.entregados(p.id) for p in otro.premios.values()},
+                         {p.id: 0 for p in otro.premios.values()})
+        self.assertEqual(otro.boletos_en_dia(dia), 1)
+
+    def test_distribucion_aproximada_con_peso_de_consuelo(self):
+        """Con el rng de verdad: 3 papelitos de premio contra 7 de consuelo."""
+        inv = Inventario([Premio(id="a", nombre="A", peso=1), Premio(id="b", nombre="B", peso=2)],
+                         self.carpeta / "dist", rng=random.Random(7), peso_consuelo=7)
+        consuelos = sum(1 for _ in range(4000) if inv.sortear(self.t) is None)
+        self.assertGreater(consuelos / 4000, 0.66)
+        self.assertLess(consuelos / 4000, 0.74)
 
     def test_sorteo_nunca_da_premio_no_disponible(self):
         # El 'mayor' solo tiene 1: tras emitirlo, no debe volver a salir jamás.

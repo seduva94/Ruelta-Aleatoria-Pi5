@@ -223,7 +223,14 @@ class Ruleta:
 
         try:
             if premio is None:
-                log.warning("Sin premios disponibles: boleto de consuelo %s", boleto.folio_texto)
+                # Desde la Fase 4c el consuelo tiene peso propio: que salga es lo
+                # normal, no un aviso. Lo que sí importa al operador es el otro
+                # caso, cuando ya NO queda ningún premio que pudiera salir.
+                if self.inv.disponibles(ahora):
+                    log.info("Boleto %s: el sorteo cayó en el consuelo (peso %d)",
+                             boleto.folio_texto, self.inv.peso_consuelo)
+                else:
+                    log.warning("Sin premios disponibles: boleto de consuelo %s", boleto.folio_texto)
                 datos = ticket.boleto_consuelo(self.cfg, boleto)
             else:
                 datos = ticket.boleto_premio(self.cfg, boleto)

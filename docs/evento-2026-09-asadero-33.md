@@ -5,10 +5,11 @@
 no cambia de horario, así que es la misma hora todo el evento).
 **Días con nombre:** 21 lunes · 22 martes · 23 miércoles · **24 jueves** · **25 viernes**.
 
-**Última edición:** 2026-09-15 · Claude (ejecutor), y **solo la bitácora del §7**
-(Fase 4b: el bloque del §5.1 ya está cargado en `config.json`). Antes decía
-«cierre de la Fase 3»; desde entonces la bitácora ha crecido con el cierre de la
-Fase 4a y con esta línea, y **ninguna de las tres tocó una tabla**. Los premios,
+**Última edición:** 2026-09-16 · Claude (ejecutor), Fase 4c: la **pieza A**
+(peso propio del boleto de consuelo) quedó **construida**, así que se marcó como
+tal en el §5.2 y en la tabla de «Tres cosas que el programa TODAVÍA NO SABE
+HACER», se añadió una línea al §5.1 y otra a la bitácora del §7. **No se tocó
+ninguna tabla de premios, ningún cupo ni ninguna pregunta del §4.** Los premios,
 los cupos, las franjas y las probabilidades siguen siendo los del dictado de
 sdurazo del **2026-09-13**.
 
@@ -37,12 +38,13 @@ Este documento describe el evento que quieres. Hay tres piezas del programa que
 
 | # | Falta | Qué pasa hoy sin eso |
 |---|---|---|
-| **A** | **Probabilidad propia del boleto de consuelo** | Hoy el consuelo **solo** sale cuando ya no queda **ningún** premio disponible. Es decir: **las primeras 33 jugadas del día ganan premio, una tras otra**, y de la 34 en adelante todo es consuelo. (El 24 y el 25 son 34, y de la 35 en adelante.) *Medido el 2026-09-13 corriendo el sorteo real del programa con estos premios.* |
+| ~~**A**~~ | ~~**Probabilidad propia del boleto de consuelo**~~ · **CONSTRUIDA el 2026-09-16 (Fase 4c)** | ~~Hoy el consuelo **solo** sale cuando ya no queda **ningún** premio disponible. Es decir: **las primeras 33 jugadas del día ganan premio, una tras otra**, y de la 34 en adelante todo es consuelo. (El 24 y el 25 son 34, y de la 35 en adelante.) *Medido el 2026-09-13 corriendo el sorteo real del programa con estos premios.*~~ **Ya no es así:** el consuelo tiene `peso` propio y compite en cada jugada. Ver el §5.2, PENDIENTE A. |
 | **B** | **Franjas horarias por premio, con cupo por franja** | Hoy un premio solo se puede limitar por **día** (`tope_diario`) y por **fecha** (`desde`/`hasta`). **No hay forma de decir "de 7 a 11 de la noche".** La hielera saldría a cualquier hora del 24 y del 25. |
 | **C** | **Horario del evento (12:00–23:00)** | Hoy la ruleta juega a **cualquier hora** en que alguien apriete JUGAR con el mesero habilitando. No conoce la hora de apertura ni la de cierre. |
 
-Hasta que existan A, B y C, lo único que se puede cargar en la Pi es la parte
-del §5.1, «lo que YA se puede cargar hoy».
+**La pieza A ya está construida** (2026-09-16): lo que se puede cargar en la Pi
+es el §5.1 **más** el bloque `consuelo` del §5.2. Siguen faltando **B** y **C**
+(y la **D** de la hora, que nació en la bitácora del §7).
 
 ---
 
@@ -377,6 +379,11 @@ completo, con la propuesta para **N = 250** (peso = cupo diario). **Comprobado e
 2026-09-13: este bloque carga sin un solo error** en el validador del programa
 (`ruleta/config.py`).
 
+**Desde el 2026-09-16 también se puede cargar el `peso` del boleto de consuelo**
+(la pieza A, ya construida): es el bloque `"consuelo"` del §5.2, que se pone
+dentro de `"juego"`. Se describe allá para no repetirlo, y **ya está cargado** en
+`config.json` con **217**.
+
 ```json
 "premios": [
   { "id": "hielera", "nombre": "HIELERA IGLOO",     "detalle": "Premio mayor",               "stock": 2,  "tope_diario": 1,  "peso": 1,  "desde": "2026-09-24", "hasta": "2026-09-25" },
@@ -413,10 +420,13 @@ salir a la hora equivocada.
 
 ### 5.2 Lo que hay que CONSTRUIR
 
-Los tres bloques de abajo **no existen todavía**. Esta es la forma que propongo;
-la decide la fase que los programe.
+De los tres bloques de abajo, **el A ya está construido** (2026-09-16); **B y C
+no existen todavía**. Esta es la forma que propongo; la decide la fase que los
+programe.
 
-**PENDIENTE A · Peso propio del boleto de consuelo** (dentro de `"juego"`):
+**PENDIENTE A · Peso propio del boleto de consuelo** (dentro de `"juego"`)
+— **CONSTRUIDA el 2026-09-16, Fase 4c**, commit del cierre de esa fase; plan:
+`docs/planes/fase-4c-consuelo-peso.md`:
 
 ```json
 "consuelo": { "titulo": "SIGUE PARTICIPANDO", "texto": "¡Gracias por jugar!", "peso": 217 }
@@ -425,11 +435,46 @@ la decide la fase que los programe.
 `217` es **N − 33** con N = 250. `titulo` y `texto` ya existen y ya están así en
 `config.json` (decisión tuya del 2026-09-13); **lo nuevo es `peso`**.
 
-> **Lo más importante de este documento.** Mientras el `peso` del consuelo **no
-> exista**, el programa reparte **premio en cada jugada** mientras haya stock:
-> **las primeras 33 jugadas del día ganan seguidas** (34 el jueves y el viernes)
-> y solo después empieza el consuelo. Medido el 2026-09-13. Por eso **no se debe
-> abrir el evento sin la pieza A**.
+**Se construyó exactamente así** —la propuesta de arriba **no se tocó**— y el
+bloque **ya está cargado en `config.json`**. Una prueba automática lo **deriva de
+este mismo bloque** y lo compara con `config.json`, así que los dos archivos no
+se pueden desincronizar en silencio (`tests/test_config.py`,
+`test_config_json_lleva_el_peso_de_consuelo_del_documento`). Otra comprueba que
+el `peso` de aquí obedezca la regla **N − 33** del §2 y sea una de las N que ese
+§2 tabula, para que cambiar N no obligue a tocar la tabla de escenarios.
+
+Qué hace el programa desde el 2026-09-16:
+
+- El consuelo **compite en cada jugada** como uno más de la tómbola, con sus
+  `peso` papelitos. Una sola tirada decide entre premios y consuelo.
+- El consuelo **no descuenta stock ni cupo** (no es un premio), pero **sí gasta
+  folio**, como siempre.
+- El **inventario impreso** (`python3 -m ruleta reporte`) trae ahora una línea
+  con el peso del consuelo y su probabilidad de ese momento, y las de los
+  premios ya llevan al consuelo en el denominador.
+- Con `"peso": 0` —o si se borra la llave— el programa vuelve **exactamente** al
+  comportamiento viejo: consuelo solo cuando ya no queda ningún premio.
+
+**Para cambiar N basta con cambiar ese número**, aquí y en `config.json`
+(150 → 117 · 200 → 167 · **250 → 217** · 300 → 267 · 400 → 367). Sigue
+pendiente tu respuesta a la **pregunta 1 del §4**: 217 es la propuesta por
+omisión, no tu decisión.
+
+> **Cómo quedaron las probabilidades** (calculadas por el programa el
+> 2026-09-16 con el `config.json` real, que todavía va **sin `desde`/`hasta`**,
+> así que la hielera también entra): 34 papelitos de premio + 217 del consuelo =
+> **251**. **Gana el 13.55 % de las jugadas**, o sea 1 de cada 7 u 8; agua
+> 4.38 %, cerveza 3.98 %, tacos 1.59 % cada uno, silla y set 0.80 %, hielera
+> 0.40 %, consuelo **86.45 %**. Cuando se carguen las fechas (§5.1) la hielera
+> saldrá de la tómbola los días que no le tocan y el resto subirá solo.
+
+> **Lo que decía aquí hasta el 2026-09-16, y que ya NO es cierto** (se conserva
+> porque hay fichas viejas que razonan desde esta premisa, y porque el aviso
+> vuelve a valer si alguien pone el peso en `0`): «Mientras el `peso` del
+> consuelo **no exista**, el programa reparte **premio en cada jugada** mientras
+> haya stock: **las primeras 33 jugadas del día ganan seguidas** (34 el jueves y
+> el viernes) y solo después empieza el consuelo. Medido el 2026-09-13. Por eso
+> **no se debe abrir el evento sin la pieza A**.» Ficha **F-261**, **cerrada**.
 
 **PENDIENTE B · Franjas por premio, con cupo por franja** (dentro de cada premio):
 
@@ -472,8 +517,9 @@ Reglas que propongo para ese campo:
 2. **Avísame** («ya edité el documento del evento»).
 3. **Yo lo convierto** en `config.json` con la cadena de trabajo de siempre:
    ejecutor, dos revisores en paralelo, escéptico, pruebas automáticas y commit
-   con compuertas. Lo que está PENDIENTE DE CONSTRUIR (A, B y C) sale como una
-   fase de programación aparte, con su propio plan.
+   con compuertas. Lo que está PENDIENTE DE CONSTRUIR (B y C; la **A** quedó
+   construida el 2026-09-16) sale como una fase de programación aparte, con su
+   propio plan.
 4. **Se despliega a la Pi** (`git pull` y reinicio del servicio) y se verifica en
    vivo contra lo desplegado.
 5. **Antes del lunes 21, sin falta**, hay que poner el marcador en cero, o los
@@ -505,4 +551,5 @@ Reglas que propongo para ese campo:
 | 2026-09-15 | Claude (ejecutor), cierre de la Fase 3 | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo ni ninguna probabilidad.** (1) **Los botones quedaron cableados y probados** en hardware: tres jugadas reales imprimieron boleto (acta: `docs/actas/2026-09-15-fase-3.md`). (2) El usuario decidió que **no habrá batería RTC** y que **la Pi irá con el internet del asadero**, que es lo que le pondrá la hora al encender. (3) De ahí sale una **pieza D pendiente de construir**, además de la A, la B y la C: que el programa **espere a que la hora esté sincronizada** antes de imprimir el inventario y de aceptar jugadas, y lo **avise en el boleto** si no lo consigue. Importa para este documento porque durante los primeros minutos tras encender la Pi cree que es otro día —el 2026-09-15 se midieron unos tres, de las 11:44:42 a las 11:47—, y del día dependen los **topes diarios** y las fechas **`desde`/`hasta`** (ficha **F-241**). (4) Recordatorio con fecha límite, ya escrito en el §6 paso 5: **reiniciar el inventario antes del lunes 21**, porque las pruebas del día dejaron el folio en 10 (ficha **F-243**). (5) **Aviso que afecta a los premios de este documento:** una prueba deliberada con la impresora **sin papel** demostró que hoy, con el rollo agotado, el kiosco **emite el boleto, descuenta el premio y lo da por impreso aunque no salga papel**. Hasta que la Fase 4 lo arregle, la defensa es de procedimiento: **rollo de repuesto junto a la Pi** y cuadrar `boletos.csv` contra la caja al cerrar el día (fichas **F-091**, **F-190** y **F-250**). |
 | 2026-09-15 | Claude (escriba), cierre de la Fase 4a | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo ni ninguna probabilidad.** (1) **El papel agotado quedó RESUELTO y probado en hardware.** El aviso del 2026-09-15 que encabeza la línea de arriba —«con el rollo agotado el kiosco emite el boleto, descuenta el premio y lo da por impreso aunque no salga papel»— **ya no es cierto**: desde el commit `2a0aba3` el programa lee el estado real de la impresora y **se niega a jugar sin papel**, devolviendo el premio al inventario. Medido esa misma noche a las **21:32**, con el usuario sacando y reponiendo el rollo: dos jugadas rechazadas con el premio devuelto, **nada retenido en la impresora** y las dos siguientes impresas normales (ficha **F-250**, **resuelta**; **F-091** y **F-190**, cerradas **solo en su parte del papel**: de la **F-190** sigue abierta la **compra del rollo de repuesto** y de la **F-091**, las llaves de ritmo que por cable no tienen efecto; acta `docs/actas/2026-09-15-fase-4a.md`). **La defensa de procedimiento sigue siendo buena idea** —rollo de repuesto junto a la Pi—, pero ya no es lo único que hay. (2) **Lo que FALTA y afecta a la operación de estos cinco días:** **no hay ninguna señal perceptible** de que una jugada fue rechazada. Sin LED conectado, cuando se acabe el rollo el kiosco dejará de dar boletos **en silencio**, y el mesero pensará que falla el botón. Hay tres opciones sobre la mesa (LED real, zumbador propio o un pitido de la impresora) y **la decisión es del usuario**: ficha **F-256**. (3) **Los premios reales, los nombres, los cupos y las franjas de este documento siguen pendientes de tus respuestas** (§4, preguntas abiertas), igual que las piezas **A**, **B**, **C** y **D**. (4) Siguen en pie los dos recordatorios de la línea anterior, con el número al día: **reiniciar el inventario antes del lunes 21** —las pruebas del papel lo dejaron en el **folio 16**, no en 10— (**F-243**), y la **pieza D** de la hora (**F-241**). |
 | 2026-09-15 | Claude (ejecutor), Fase 4b | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo ni ninguna probabilidad.** (1) **`config.json` ya lleva los siete premios de este documento.** Se cargó el bloque `"premios"` del §5.1 tal cual —`id`, `nombre`, `detalle`, `stock`, `tope_diario` y `peso` **idénticos**—, **menos `desde` y `hasta`, omitidos a propósito** (ficha **F-259**): con las fechas puestas (del 21 al 25) **ningún** premio estaría disponible el **miércoles 16**, y lo que pediste fue justamente probar ese día los nombres y los detalles en papel para corregirlos. **Hay que cargar las fechas antes del lunes 21.** (2) **El bloque del §5.1 y `config.json` ya no se pueden desincronizar en silencio:** una prueba automática **deriva** los premios del bloque del §5.1 **de este documento** y los compara campo por campo con `config.json`; si dejan de coincidir, la suite se pone en rojo (`tests/test_config.py`, `TestPremiosOficialesDelEvento`). **Ojo: esa prueba NO vigila la tabla del §1** —medido el 2026-09-15: cambiando solo el §1, la suite sigue en verde—, así que cuando corrijas ahí un nombre (pregunta 6 del §4) hay que copiarlo también al bloque del §5.1 y de ahí a `config.json` (ficha **F-260**). Sigue mandando este documento, como dice el §6 paso 1. (3) **Lo que sigue pendiente de ti:** las siete preguntas del §4, empezando por los **nombres y detalles marcados con \*** (pregunta 6, ficha **F-260**) y por **N** (pregunta 1); y las piezas **A**, **B**, **C** y **D**. (4) **Recordatorio con fecha, ya escrito en el §6:** sin la **pieza A**, y mientras `config.json` vaya sin fechas, **las primeras 34 jugadas de cada día ganan premio, una tras otra** —34 y no 33 porque sin `desde` la hielera también entra; en cuanto se entreguen sus dos piezas son 33— (ficha **F-261**), y **hay que volver a reiniciar el inventario el lunes 21 antes de abrir** si el 16 se juega (ficha **F-262**). Plan: `docs/planes/fase-4b-config-oficial.md`. El despliegue a la Pi y el reinicio del inventario a **folio 00000** van en esta misma fase, **después** de esta edición. |
+| 2026-09-16 | Claude (ejecutor), Fase 4c | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo, ninguna probabilidad de las tablas ni ninguna pregunta del §4.** (1) **La pieza A quedó CONSTRUIDA**, que es lo que este documento llamaba «lo más importante»: el boleto de consuelo tiene **`peso` propio** y **compite en cada jugada**, con la forma exacta que proponía el §5.2 —`"peso"` dentro de `juego.consuelo`—, cargada en `config.json` con **217** (= N − 33 con **N = 250**, la propuesta por omisión de la **pregunta 1 del §4**). El §5.2 y la tabla del encabezado quedaron marcados, **sin borrar la propuesta**. (2) **Por qué ahora:** el **2026-09-16**, probando en vivo, el usuario reportó que «no ha salido ningún boleto de gracias por participar, solo premios». Era exactamente lo que este documento tenía escrito y lo que la ficha **F-261** anotaba: sin la pieza A ganaban las primeras **34** jugadas del día, una tras otra. **F-261 queda cerrada.** (3) **Cómo quedó, calculado por el programa** con el `config.json` real (todavía **sin `desde`/`hasta`**, así que la hielera entra todos los días): 34 papelitos de premio + 217 del consuelo = **251**; **gana el 13.55 % de las jugadas**, 1 de cada 7 u 8. (4) **Dos redes nuevas que muerden:** una prueba automática **deriva** el bloque `consuelo` **de este documento** (§5.2) y lo compara con `config.json`, y otra comprueba que el `peso` del §5.2 obedezca la regla **N − 33** del §2 y sea una de las N que ese §2 tabula. Si cambias N en un solo sitio, la suite se pone en rojo. (5) **Lo que sigue pendiente de ti:** las siete preguntas del §4, empezando por **N** (pregunta 1; el 217 es mi propuesta, no tu decisión: ficha **F-263**) y por los **nombres y detalles** (pregunta 6, **F-260**); y las piezas **B** (franjas), **C** (horario) y **D** (la hora, **F-241**). (6) **Recordatorios con fecha, sin cambios:** cargar `desde`/`hasta` antes del lunes 21 (**F-259**) y **reiniciar el inventario** antes de abrir (**F-243**, **F-262**) — esta fase **no** lo reinició, porque el usuario estaba probando. Plan: `docs/planes/fase-4c-consuelo-peso.md`. |
 |  |  |  |

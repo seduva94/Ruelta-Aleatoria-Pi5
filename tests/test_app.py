@@ -13,6 +13,22 @@ from ruleta.hardware import Antirrebote, EntradasSimuladas
 from ruleta.inventario import Inventario
 
 
+class RngSiempreConsuelo:
+    """`rng` falso que siempre elige el ÚLTIMO papelito de la tómbola.
+
+    Con `peso_consuelo` > 0 ese último es el consuelo (None), así que la jugada
+    sale sin premio **aunque queden premios disponibles**, que es justo lo que la
+    pieza A tiene que permitir.
+    """
+
+    def __init__(self):
+        self.llamadas: list[tuple[list, list]] = []
+
+    def choices(self, population, weights=None, k=1):
+        self.llamadas.append((list(population), list(weights)))
+        return [population[-1]]
+
+
 class Reloj:
     """Tiempo controlado: monotónico y de pared avanzan juntos."""
 
@@ -70,7 +86,8 @@ class TestRuleta(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.reloj = Reloj()
         self.cfg = config_prueba()
-        self.inv = Inventario(self.cfg.premios, Path(self.tmp.name), rng=random.Random(3))
+        self.inv = Inventario(self.cfg.premios, Path(self.tmp.name), rng=random.Random(3),
+                              peso_consuelo=self.cfg.juego.consuelo.peso)
         self.imp = ImpresoraMemoria()
         self.ent = EntradasSimuladas(reloj=self.reloj.monotonico)
         self.dormidas = []
@@ -311,9 +328,40 @@ class TestRuleta(unittest.TestCase):
         self.assertEqual(len(llamadas), 3)
         self.assertEqual(self.ruleta.errores, 1)
 
+    def test_el_consuelo_con_peso_sale_aunque_queden_premios(self):
+        """Pieza A (Fase 4c): el consuelo compite; no espera a que se agote todo.
+
+        Es el otro caso del de abajo (`test_sin_premios_imprime_consuelo`), que
+        cubre el consuelo por agotamiento con `peso` 0.
+        """
+        cfg = config_prueba(juego={"consuelo": {"peso": 217}})
+        rng = RngSiempreConsuelo()
+        inv = Inventario(cfg.premios, Path(self.tmp.name) / "peso", rng=rng,
+                         peso_consuelo=cfg.juego.consuelo.peso)
+        self.ruleta = self.nueva_ruleta(cfg, inv)
+        self.pulsar()
+        textos = self.trabajos_texto()
+        self.assertEqual(len(textos), 1)
+        self.assertIn("PARTICIPANDO", textos[0])
+        self.assertNotIn("GANASTE", textos[0])
+        self.assertIn("BOLETO 00001", textos[0])
+        self.assertEqual(self.ruleta.boletos_impresos, 1)
+        self.assertEqual(self.ent.estado_led, "listo")
+        # El folio avanza y el premio NO se toca: los dos siguen enteros y en juego.
+        self.assertEqual(inv.folio_actual, 1)
+        self.assertEqual(inv.entregados("unico") + inv.entregados("tacos"), 0)
+        self.assertEqual([p.id for p in inv.disponibles(self.reloj.ahora())], ["unico", "tacos"])
+        self.assertEqual(inv.pendientes(), [])       # un consuelo nunca queda 'para revisar'
+        # Y el papelito que se eligió era de verdad el del consuelo, con su peso.
+        poblacion, pesos = rng.llamadas[0]
+        self.assertEqual(poblacion[-1], None)
+        self.assertEqual(pesos, [1, 1000, 217])
+
     def test_sin_premios_imprime_consuelo(self):
         cfg = config_prueba(premios=[{"id": "unico", "nombre": "Premio único", "peso": 1, "stock": 1}])
-        inv = Inventario(cfg.premios, Path(self.tmp.name) / "c")
+        self.assertEqual(cfg.juego.consuelo.peso, 0)   # aquí el consuelo sale por agotamiento
+        inv = Inventario(cfg.premios, Path(self.tmp.name) / "c",
+                         peso_consuelo=cfg.juego.consuelo.peso)
         self.ruleta = self.nueva_ruleta(cfg, inv)
         self.pulsar()
         self.ticks(5)

@@ -271,8 +271,11 @@ por línea.
    que nadie toque JUGAR**. Se imprime el inventario. Si alguien juega en esos
    segundos, el gesto se cancela (suelta y vuelve a intentar). Se ajusta o
    desactiva con `gpio.pulsacion_larga_seg`.
-5. Si **no queda ningún premio disponible** se imprime un boleto de
-   "SIGUE PARTICIPANDO" (texto configurable). El folio también avanza.
+5. **La mayoría de las jugadas no dan premio**: se imprime un boleto de
+   "SIGUE PARTICIPANDO" (texto configurable). El folio también avanza. Con los
+   números cargados hoy gana **1 de cada 7 u 8** (§7); lo decide
+   `juego.consuelo.peso`, y también sale así cuando ya no queda ningún premio
+   disponible.
 6. **No salió boleto y el LED parpadea rápido.** Antes de imprimir, el programa
    le pregunta a la impresora si tiene papel y está en línea (por USB y por
    Bluetooth); si contesta que no, o si no logra abrirla, **el premio regresa al
@@ -409,7 +412,8 @@ inventario de arranque (`juego.intentos_inventario_arranque`).
 | `hora_inicio_dia` | `6` | hora a la que cambia el "día" para los topes diarios |
 | `imprimir_inventario_al_arrancar` | `true` | inventario automático al encender |
 | `intentos_inventario_arranque` | `3` | reintentos de ese inventario si la impresora tarda en estar lista |
-| `consuelo.titulo` / `consuelo.texto` | `"SIGUE PARTICIPANDO"` / … | boleto cuando no hay premios disponibles |
+| `consuelo.titulo` / `consuelo.texto` | `"SIGUE PARTICIPANDO"` / … | lo que dice el boleto cuando la jugada no da premio |
+| `consuelo.peso` | `0` | papelitos del consuelo en la tómbola (§7). **`0` = el consuelo solo sale cuando ya no queda ningún premio** |
 
 ### `premios` (lista)
 | Llave | Obligatoria | Qué es |
@@ -426,51 +430,69 @@ inventario de arranque (`juego.intentos_inventario_arranque`).
 
 ## 7. Premios y probabilidades
 
-En cada jugada solo participan los premios **disponibles** (con stock, sin
-llegar a su tope del día y dentro de sus fechas). Entre ellos:
+En cada jugada participan los premios **disponibles** (con stock, sin llegar a
+su tope del día y dentro de sus fechas) **y el boleto de consuelo**. Se hace
+**un solo sorteo** entre todos ellos:
 
 ```
-probabilidad del premio = peso del premio / suma de pesos de los disponibles
+probabilidad = peso de ese participante / suma de los pesos de todos los que participan
 ```
 
-Cuando un premio se agota o llega a su tope, su peso se reparte entre los
-demás. Por eso la probabilidad "real" cambia durante el día; el inventario
-impreso muestra la probabilidad vigente en ese momento.
+Piénsalo como una tómbola: cada participante mete un puñado de papelitos, y a
+ese puñado se le llama **peso**. **El boleto de consuelo también mete los
+suyos**: los que digas en `juego.consuelo.peso`. Cuantos más papelitos tenga el
+consuelo, **menos gente gana**.
 
-*(Corregido el 2026-09-15, Fase 4b. Hasta ese día esta sección describía «la
-configuración de prueba incluida», con los premios `TEST 1`…`TEST 7` y pesos 4,
-4, 1, 25, 25, 25, 25. Ya no: este `config.json` trae **los siete premios reales
+Cuando un premio se agota o llega a su tope, sus papelitos **salen** de la
+tómbola y los demás pasan a valer más. Por eso la probabilidad "real" cambia
+durante el día; el inventario impreso muestra la probabilidad vigente **en ese
+momento**.
+
+*(Corregido el 2026-09-16, Fase 4c: el boleto de consuelo ya tiene **peso
+propio**. Hasta ese día salía **solo** cuando no quedaba ningún premio, y por eso
+en las pruebas del usuario «ganaba todo el mundo». Antes, el 2026-09-15, la Fase
+4b había cambiado los premios `TEST 1`…`TEST 7` por **los siete premios reales
 del evento**.)*
 
-Con los premios que este `config.json` trae hoy —los del evento del 21 al 25 de
-septiembre de 2026, pesos 1, 2, 2, 4, 4, 10 y 11 → **suma 34**—:
+Con lo que este `config.json` trae hoy —los siete premios del evento del 21 al 25
+de septiembre de 2026, con pesos 1, 2, 2, 4, 4, 10 y 11 (**suma 34**), más el
+consuelo con **217**, o sea **251 papelitos** en la tómbola—:
 
-| Premio | Stock | Tope/día | Peso | Probabilidad inicial |
+| Participante | Stock | Tope/día | Peso | Probabilidad inicial |
 |---|---|---|---|---|
-| HIELERA IGLOO (mayor) | 2 | 1 | 1 | 2.9 % |
-| SILLA DE PLAYA (grande) | 10 | 2 | 2 | 5.9 % |
-| SET BBQ (grande) | 10 | 2 | 2 | 5.9 % |
-| 3 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 11.8 % |
-| 2 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 11.8 % |
-| CERVEZA (chico) | 50 | 10 | 10 | 29.4 % |
-| AGUA FRESCA (chico) | 55 | 11 | 11 | 32.4 % |
+| HIELERA IGLOO (mayor) | 2 | 1 | 1 | 0.40 % |
+| SILLA DE PLAYA (grande) | 10 | 2 | 2 | 0.80 % |
+| SET BBQ (grande) | 10 | 2 | 2 | 0.80 % |
+| 3 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 1.59 % |
+| 2 TACOS DE PASTOR (chico) | 20 | 4 | 4 | 1.59 % |
+| CERVEZA (chico) | 50 | 10 | 10 | 3.98 % |
+| AGUA FRESCA (chico) | 55 | 11 | 11 | 4.38 % |
+| **SIGUE PARTICIPANDO (consuelo)** | — | — | **217** | **86.45 %** |
+| **Total** | | | **251** | **100 %** |
 
-El peso de cada premio es **su cupo diario**: es la regla que el documento del
-evento explica en su §2 («el peso es el cupo»).
+*(Tabla **calculada por el programa** el 2026-09-16, no a mano: es lo que
+devuelve `Inventario.resumen` con este mismo `config.json`. Lo mismo se ve, sin
+imprimir, con `python3 -m ruleta reporte`.)*
+
+Léelo así: **gana algo el 13.55 % de las jugadas, más o menos 1 de cada 7 u 8
+personas.** El resto se lleva su boleto de "SIGUE PARTICIPANDO".
+
+El peso de cada premio es **su cupo diario** y el del consuelo es **N − 33**,
+donde **N** son las jugadas que esperas en un día: es la regla que el documento
+del evento explica en su §2 («el peso es el cupo»). Con **N = 250** sale
+**217**, que es lo que está cargado.
+
+**Para cambiar cuánta gente gana, se toca un solo número**: `juego.consuelo.peso`.
+Más alto = gana menos gente. (150 → 117 · 200 → 167 · **250 → 217** · 300 → 267 ·
+400 → 367.) Con `0` el consuelo **no participa** y vuelve el comportamiento
+viejo: gana **todo el mundo** hasta que se acaban los premios del día.
 
 > **Dos avisos que hay que leer antes de abrir el evento:**
 >
-> 1. **Esos porcentajes se reparten solo entre los premios.** El boleto de
->    consuelo **todavía no tiene peso propio**: sale únicamente cuando ya no
->    queda **ningún** premio disponible. Dicho en claro: **mientras haya cupo,
->    gana el 100 % de las jugadas** —con este `config.json`, que va **sin
->    fechas**, son las primeras **34** de cada uno de los dos primeros días que se
->    juegue (la hielera entra todos los días mientras le queden sus dos piezas) y
->    **33** de ahí en adelante— y después de esas, todo es consuelo. *(Medido el
->    2026-09-15 corriendo el sorteo real con este `config.json`: 34, 34, 33, 33 y
->    33.)*
->    Lo arregla la «pieza A» del §5.2 del documento del evento, que **no está
->    construida** (ficha **F-261**).
+> 1. **N todavía no lo confirmó el dueño.** El 217 es la **propuesta por
+>    omisión** del documento del evento (su §4, pregunta 1, sigue sin marcar).
+>    Cuando responda, se cambia ese número en el documento y en `config.json`, y
+>    nada más (ficha **F-263**).
 > 2. **Los premios se cargaron sin `desde`/`hasta`**, a propósito, para poder
 >    probarlos antes del evento. Hay que ponerlas **antes del lunes 21** o la
 >    hielera podrá salir cualquier día (ficha **F-259**).
@@ -481,9 +503,12 @@ Consejos:
   la suerte.
 - **Para repartir los grandes en la semana**, usa `tope_diario`: con stock 10 y
   tope 2, salen máximo 2 al día durante 5 días.
-- Si quieres que **siempre haya premio**, deja al menos un premio chico con
-  `"stock": null`. Si prefieres que se acaben, el boleto de consuelo se encarga.
-- Los porcentajes exactos los ves sin imprimir con `python3 -m ruleta reporte`.
+- Si quieres que **nunca se acaben los premios**, deja al menos un premio chico
+  con `"stock": null`; el `tope_diario` lo sigue limitando cada día.
+- **Para que gane más o menos gente**, mueve `juego.consuelo.peso`: es el único
+  número que hace falta tocar.
+- Los porcentajes exactos —los de los premios **y el del consuelo**— los ves sin
+  imprimir con `python3 -m ruleta reporte`.
 
 **La fuente de verdad de los premios no es este `config.json`**: es
 `docs/evento-2026-09-asadero-33.md` (su §1 y su §5.1), que es el archivo que el

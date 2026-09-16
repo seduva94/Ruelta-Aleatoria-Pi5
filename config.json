@@ -55,7 +55,8 @@
     "intentos_inventario_arranque": 3,
     "consuelo": {
       "titulo": "SIGUE PARTICIPANDO",
-      "texto": "¡Gracias por jugar!"
+      "texto": "¡Gracias por jugar!",
+      "peso": 217
     }
   },
 

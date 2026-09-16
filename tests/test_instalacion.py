@@ -24,7 +24,7 @@ from unittest import mock
 
 import PIL
 
-from ruleta import __main__ as cli
+from ruleta import __main__ as cli, config as configmod
 
 RAIZ = Path(__file__).resolve().parent.parent
 INSTALADOR = (RAIZ / "instalar.sh").read_text(encoding="utf-8")
@@ -361,6 +361,53 @@ class TestRevisarRutaImpresora(unittest.TestCase):
         self.assertEqual(
             cli.revisar_ruta_impresora("/dev", stat_fn=stat_de(CARPETA), access_fn=lambda ruta, modo: True),
             (False, "  [!!] /dev no es un dispositivo ni un archivo normal: revisa impresora.ruta"))
+
+
+class TestInventarioDeProduccion(unittest.TestCase):
+    """`abrir_inventario` es el único sitio de producción que construye un `Inventario`.
+
+    Importa porque todo lo que el motor necesita de `config.json` —la hora en que
+    cambia el día y, desde la Fase 4c, el **peso del boleto de consuelo**— entra
+    por ahí. Si alguien añade una segunda fábrica y se olvida de un parámetro, el
+    kiosco arranca con un motor a medio configurar y no se queja.
+    """
+
+    @staticmethod
+    def config_con(carpeta: Path, peso=None):
+        crudo = {
+            "negocio": {"nombre": "Asadero 33", "logo": None},
+            "impresora": {"tipo": "vista"},
+            "premios": [{"id": "a", "nombre": "A", "peso": 1}],
+            "carpeta_datos": str(carpeta),          # absoluta: no toca el repositorio
+        }
+        if peso is not None:
+            crudo["juego"] = {"consuelo": {"peso": peso}}
+        return configmod.desde_dict(crudo)
+
+    def test_abrir_inventario_pasa_el_peso_del_consuelo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for i, peso in enumerate((0, 217, 42)):
+                with self.subTest(peso=peso):
+                    cfg = self.config_con(Path(tmp) / f"d{i}", peso)
+                    self.assertEqual(cli.abrir_inventario(cfg).peso_consuelo, peso)
+            # Y sin la llave en el archivo, el motor queda como antes de la Fase 4c.
+            cfg = self.config_con(Path(tmp) / "sin", None)
+            inventario = cli.abrir_inventario(cfg)
+            self.assertEqual(inventario.peso_consuelo, 0)
+            self.assertEqual(inventario.hora_inicio_dia, cfg.juego.hora_inicio_dia)
+
+    def test_solo_hay_un_sitio_de_produccion_que_construye_el_inventario(self):
+        """Censo DERIVADO del paquete, no una lista escrita a mano."""
+        sitios = {}
+        for modulo in sorted((RAIZ / "ruleta").glob("*.py")):
+            cuantos = len(re.findall(r"\bInventario\(", modulo.read_text(encoding="utf-8")))
+            if cuantos:
+                sitios[modulo.name] = cuantos
+        self.assertEqual(
+            sitios, {"__main__.py": 1},
+            "Apareció otro sitio en ruleta/ que construye un Inventario. Si es legítimo, "
+            "compruébalo: tiene que pasar hora_inicio_dia y juego.consuelo.peso, como hace "
+            "abrir_inventario. Después actualiza este censo.")
 
 
 class TestVersionModulo(unittest.TestCase):

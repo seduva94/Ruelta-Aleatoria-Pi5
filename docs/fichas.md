@@ -4018,6 +4018,16 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Estado:** abierta en cuanto al defecto del código. La decisión del usuario
   ya está aplicada y anclada: `config.json` dice `"¡Gracias por jugar!"` y la
   suite completa quedó en verde (194 pruebas) el 2026-09-13.
+- **Nota del 2026-09-16 (Fase 4c):** el bloque `juego.consuelo` ganó una tercera
+  llave, **`peso`**, y **repite el mismo patrón a propósito**: por omisión vale
+  **0** en `ruleta/config.py` y **217** en `config.json`. La diferencia con lo
+  que esta ficha describe es que aquí **la asimetría es la decisión**, no un
+  descuido: un repositorio que no cargue la llave tiene que comportarse
+  **exactamente** como antes de la Fase 4c (consuelo solo al agotarse los
+  premios), y por eso el defecto del código **no puede** ser 217. Lo ancla por
+  igualdad `tests/test_config.py::TestReglas::test_consuelo_sin_peso_vale_cero`
+  (mutación **M4** de esa fase: poniendo 217 como defecto, tres pruebas en rojo).
+  Sigue valiendo lo que esta ficha pide para `texto`.
 
 ---
 
@@ -4382,6 +4392,15 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   §5.1 carga sin error en `ruleta/config.py`; los siete nombres se imprimen en
   tamaño ×4 a 48 columnas). Lo que queda abierto es A, B, C y las respuestas del
   usuario.
+- **Nota del 2026-09-16 (Fase 4c):** de las tres piezas, **la A ya está
+  construida** (llave `juego.consuelo.peso`, cargada con **217** en
+  `config.json`; ficha **F-261**, resuelta), y los siete premios reales se
+  cargaron en la Fase 4b. Por eso los puntos **(1)** y **(2)** del «Riesgo si no
+  se toca» de arriba —los premios `test1`…`test7` y «las 33 primeras jugadas de
+  cada día regalan premio»— **ya no son ciertos**: medido ese día con el
+  `config.json` real, gana el **13.55 %** de las jugadas. Siguen abiertas las
+  piezas **B** y **C**, la **D** (**F-241**) y las respuestas del §4, empezando
+  por **N** (**F-263**).
 
 ---
 
@@ -5512,9 +5531,26 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   valor **N − 33** (N = jugadas esperadas por día; la propuesta por omisión del
   documento es **N = 250**, o sea **217**). **Requiere antes la decisión del
   usuario sobre N** (pregunta 1 del §4).
-- **Estado:** **abierta.** **Bloquea la apertura del evento** según el propio
-  documento del evento. Hermanas: **piezas B** (franjas), **C** (horario) y **D**
-  (**F-241**, esperar a que la hora esté sincronizada).
+- **Estado:** **RESUELTA el 2026-09-16** (Fase 4c, plan
+  `docs/planes/fase-4c-consuelo-peso.md`). **Ya no bloquea la apertura del
+  evento.** Lo que disparó la fase fue el propio usuario probando en vivo ese
+  día: «no ha salido ningún boleto de gracias por participar, solo premios» —
+  exactamente lo que esta ficha anunciaba—. Se construyó la **pieza A** con la
+  forma que el §5.2 del documento proponía, **sin cambiarla**: llave nueva
+  `juego.consuelo.peso` (entero ≥ 0, **por omisión 0** = el comportamiento
+  viejo), cargada en `config.json` con **217**. `Inventario.sortear` hace ahora
+  **UNA sola** elección ponderada entre los premios disponibles **y** el
+  consuelo; el consuelo **no** descuenta stock ni tope, pero **sí** gasta folio,
+  como siempre. Medido el 2026-09-16 con el `config.json` real: la tómbola tiene
+  **251** papelitos (34 de premio + 217) y **gana el 13.55 % de las jugadas**, 1
+  de cada 7 u 8, en vez del 100 % de las primeras 34. La afirmación de la
+  cabecera de `ruleta/inventario.py` que esta ficha citaba —«Si no hay ninguno
+  disponible, el sorteo devuelve None (boleto de consuelo)»— quedó **reescrita**.
+  **Sigue siendo cierta con `"peso": 0`**, que es lo que pasa en cualquier
+  instalación que no cargue la llave nueva. Lo que queda abierto es **el número**,
+  no el mecanismo: ver **F-263**. Hermanas todavía abiertas: **piezas B**
+  (franjas), **C** (horario) y **D** (**F-241**, esperar a que la hora esté
+  sincronizada).
 
 ---
 
@@ -5550,5 +5586,156 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   de abrir.** Es la continuación de **F-243** (que anotó el mismo pendiente
   cuando el folio iba en 3, y luego en 16); **F-243 sigue abierta** por la misma
   razón.
+
+---
+
+## F-263 · La pieza A se construyó con N = 250 por omisión: el número sigue esperando la respuesta del usuario
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4c · decisión **D1** del plan
+  `docs/planes/fase-4c-consuelo-peso.md`
+- **Dónde:** `config.json`, `juego.consuelo.peso` = **217**; el §5.2 (PENDIENTE
+  A) y la **pregunta 1 del §4** de `docs/evento-2026-09-asadero-33.md`.
+- **Qué pasa:** el peso del consuelo es **N − 33**, donde **N** son las jugadas
+  que se esperan en un día. La pregunta 1 del §4 —«¿Cuántas jugadas esperas por
+  día?»— **sigue sin marcar**. Se cargó **217**, que es **N = 250**, la
+  **propuesta por omisión** que el propio documento escribe en tres sitios (§2
+  «Mi propuesta por omisión: N = 250», la tabla de escenarios y el §5.2). Es
+  decir: el mecanismo está decidido y probado; **el número no lo ha dicho el
+  dueño.**
+- **Por qué es residual:** no es un defecto ni una invención. El documento dice
+  con todas sus letras que «si no respondes una, se aplica la propuesta por
+  omisión», y 217 es esa propuesta, literal, sin redondear ni ajustar. Además el
+  documento explica por qué equivocarse no rompe nada: si vienen más jugadas que
+  N los premios llegan a su cupo más temprano, y si vienen menos, quedan piezas
+  en la bodega. **El cupo manda en los dos casos.**
+- **Riesgo si no se toca:** que la proporción de ganadores no sea la que el dueño
+  quiere. Medido el 2026-09-16 con el `config.json` real: con 217 gana el
+  **13.55 %** de las jugadas (1 de cada 7 u 8). Si el asadero hace **150**
+  jugadas al día y no 250, con 217 los premios **no se acaban**: saldrían unos 20
+  de los 33 del día. Si hace **400**, se acaban antes de la cena.
+- **Propuesta:** preguntarle a sdurazo **cuántas veces se va a apretar el botón
+  en un día** y cambiar **un solo número**, en el §5.2 del documento **y** en
+  `config.json` (150 → 117 · 200 → 167 · 250 → 217 · 300 → 267 · 400 → 367). Los
+  pesos de los premios **no se tocan nunca**: son los cupos que él fijó. Un
+  golden compara los dos archivos por igualdad, así que cambiar uno solo deja la
+  suite en rojo (`tests/test_config.py`,
+  `test_config_json_lleva_el_peso_de_consuelo_del_documento`), y otro comprueba
+  que el peso del §5.2 obedezca la regla **N − 33** del §2 y sea una de las N que
+  ese §2 tabula (cambiar N NO obliga a tocar la tabla de escenarios del §2). **Ya
+  arrancado el evento el número se puede medir**, no adivinar: el renglón
+  `Boletos emitidos hoy` del reporte impreso dice cuántas jugadas hubo.
+- **Estado:** **abierta. Requiere decisión del usuario** (pregunta 1 del §4 del
+  documento del evento). Con ella siguen abiertas las preguntas **2**, **3**,
+  **4**, **5**, **6** (**F-260**) y **7** del mismo §4. Sustituye, en cuanto al
+  número, a la parte de **F-261** que pedía construir la pieza A; **F-261 quedó
+  resuelta** el mismo día.
+
+---
+
+## F-264 · `juego.consuelo.peso` acepta cualquier entero: un cero de más y no gana casi nadie, sin un solo aviso
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4c · ejecutor, al escribir la validación de la decisión **D1**
+- **Dónde:** `ruleta/config.py`, `validar()` (`grep -n "consuelo.peso" ruleta/config.py`).
+- **Qué pasa:** la validación que se escribió rechaza el peso **negativo** y los
+  tipos malos (texto entre comillas, decimal, `true`, `null`), con mensaje en
+  español que nombra la llave. Lo que **no** hay es ningún tope por arriba ni
+  ninguna comparación con los pesos de los premios. Con `"peso": 2170` en vez de
+  `217` —un cero de más al teclear— la tómbola pasa de 251 papelitos a 2204 y la
+  probabilidad de ganar cae del **13.55 %** al **1.5 %**: en un día de 250
+  jugadas saldrían unos **cuatro** premios de los 33. El programa arranca
+  contento y no dice nada.
+- **Por qué es residual:** no es un defecto de conducta: el valor es legítimo
+  —hay quien querría justo eso— y el dato **sí** está a la vista, porque el
+  boleto de inventario de arranque imprime la línea del consuelo con su peso y su
+  porcentaje. Además la validación cubre lo que el protocolo pide: tipo y rango,
+  con mensaje en español.
+- **Riesgo si no se toca:** medio. El error no se detecta al arrancar sino
+  mirando el papel, y el único que mira ese papel es quien sepa qué número
+  esperar. Con el kiosco ya abierto, la señal sería «casi nadie gana».
+- **Propuesta:** dos ideas, ninguna urgente. (a) Que `validar()` avise —o falle—
+  si el peso del consuelo pasa de, por ejemplo, **cien veces** la suma de los
+  pesos de los premios; hay que decidir si es error o solo aviso en el log.
+  (b) Que el boleto de inventario de arranque **destaque** la línea del consuelo
+  cuando su probabilidad pase del 95 %. Mientras tanto, la defensa es de
+  procedimiento y ya está escrita: **mirar el boleto de inventario de arranque**
+  y comprobar que dice el porcentaje que se espera.
+- **Estado:** **abierta.** Relacionada con **F-263** (el número lo decide el
+  usuario) y con **F-221** (`juego.consuelo.texto` admite la cadena vacía sin
+  queja: el mismo bloque de configuración, la misma clase de hueco).
+
+---
+
+## F-265 · La decisión D2 del brief decía que `app.py` construye el Inventario, y quien lo construye es `__main__.py`
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4c · contradicción entre el brief del orquestador (**D2**) y
+  el código real, detectada por el ejecutor **antes** de escribir nada
+- **Dónde:** `ruleta/__main__.py`, `abrir_inventario()`; `ruleta/app.py`,
+  `Ruleta.__init__` (`grep -rn "Inventario(" ruleta`).
+- **Qué pasa:** la decisión **D2** del brief decía «`app.py` pasa
+  `cfg.juego.consuelo.peso` al construir el Inventario». **`ruleta/app.py` no
+  construye ningún `Inventario`:** lo recibe ya hecho. El único sitio de
+  producción que lo construye es `abrir_inventario()`, en `ruleta/__main__.py`,
+  y de ahí salen **los seis** comandos que tocan el inventario (`jugar`,
+  `vista-previa`, `reporte`, `liberar`, `reiniciar` y `diagnostico`, que solo
+  lee folio y pendientes). El ejecutor **no
+  improvisó una fábrica nueva en `app.py`**: cableó el parámetro donde el código
+  ya lo hacía con `hora_inicio_dia`, y lo reportó.
+- **Por qué es residual:** el efecto buscado por D2 se consiguió entero —los
+  seis comandos reciben el peso— y la diferencia es de redacción del brief, no
+  de conducta. Se anota para que un verificador futuro que compare el brief con
+  el diff lo lea como una decisión y no como un descuido. `app.py` **sí** se tocó
+  en esta fase, pero por otra cosa: su `log.warning("Sin premios disponibles…")`
+  dejaba de ser cierto en cuanto el consuelo tiene peso, y se partió en dos ramas.
+- **Riesgo si no se toca:** ninguno hoy. El riesgo real es futuro: que alguien
+  añada una segunda fábrica de `Inventario` y se olvide de un parámetro. Contra
+  eso se escribió un **censo derivado** que cuenta las construcciones en
+  `ruleta/*.py` y exige que siga habiendo **exactamente una**
+  (`tests/test_instalacion.py`,
+  `test_solo_hay_un_sitio_de_produccion_que_construye_el_inventario`), más un
+  golden que comprueba que `abrir_inventario` **deriva** el peso del `cfg` que
+  recibe (mutación **M9**: quitando el parámetro, en rojo).
+- **Propuesta:** que el orquestador confirme el cableado en `__main__.py` (o
+  pida moverlo). Si algún día `app.py` necesitara construir el inventario, el
+  censo derivado se pondrá en rojo y obligará a revisarlo, que es justo lo que se
+  quiere.
+- **Estado:** **abierta como confirmación del orquestador.** Técnicamente hecho
+  y probado.
+
+---
+
+## F-266 · El §5.1 del documento del evento sigue diciendo que la Pi va sin red y que por eso hace falta la batería RTC
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4c · el ejecutor leyó entero el documento del evento para la
+  pieza A y se topó con el párrafo
+- **Dónde:** `docs/evento-2026-09-asadero-33.md`, §5.1, párrafo «**Sobre el
+  reloj:**» (`grep -n "va sin red" docs/evento-2026-09-asadero-33.md`).
+- **Qué pasa:** ese párrafo dice que «las franjas dependen de la hora de la Pi, y
+  en producción la Pi **va sin red**. Por eso **la batería del reloj (RTC) tiene
+  que estar puesta y la hora correcta antes del lunes 21**». **El usuario derogó
+  esa premisa el 2026-09-15:** en el evento la Pi tendrá el internet del asadero,
+  que es lo que le pone la hora al arrancar (NTP), y **no habrá batería RTC**.
+  Está escrito así en `CLAUDE.md` y en la bitácora del §7 del propio documento,
+  con su ficha (**F-242**), pero el §5.1 no se actualizó y **se contradice con su
+  propio §7**.
+- **Por qué es residual:** no es un defecto de código ni una afirmación sobre el
+  programa: es una premisa de operación que cambió de dueño. Y estaba **fuera
+  del alcance literal** de esta fase, que del §5.1 solo podía tocar la línea del
+  campo nuevo (decisión **D5**). Corregirlo aquí habría sido meter mano de más en
+  el documento que el usuario edita a mano.
+- **Riesgo si no se toca:** que alguien lea el §5.1 antes que el §7 y salga a
+  comprar una batería RTC, o peor, que dé por hecho que la hora está garantizada
+  sin red. La consecuencia real —que en los primeros minutos tras encender, la Pi
+  cree que es otro día, y del día dependen los topes diarios y las fechas
+  `desde`/`hasta`— es la que persigue la **pieza D** (**F-241**).
+- **Propuesta:** en la pasada que cargue las fechas `desde`/`hasta` (**F-259**),
+  que ya va a tocar ese mismo §5.1, reescribir el párrafo del reloj con la
+  decisión del 2026-09-15 y remitir a la **pieza D**. **Requiere visto bueno del
+  usuario**, porque es su documento.
+- **Estado:** **abierta.** Hermanas: **F-242** (la derogación, anotada el
+  2026-09-15) y **F-241** (la pieza D).
 
 ---

@@ -93,6 +93,11 @@ class ConfigGPIO:
 class ConfigConsuelo:
     titulo: str = "SIGUE PARTICIPANDO"
     texto: str = "Por hoy se agotaron los premios. ¡Gracias por jugar!"
+    # Papelitos del boleto de consuelo en la tómbola, igual que el 'peso' de un
+    # premio. 0 = como antes de la Fase 4c: el consuelo solo sale cuando NINGÚN
+    # premio está disponible. La regla del documento del evento (§2) es
+    # peso = N - 33, con N = jugadas que se esperan en un día.
+    peso: int = 0
 
 
 @dataclass(frozen=True)
@@ -332,6 +337,11 @@ def validar(cfg: Config) -> None:
         raise ErrorConfig("juego.espera_entre_jugadas_seg no puede ser negativa")
     if j.intentos_inventario_arranque < 1:
         raise ErrorConfig("juego.intentos_inventario_arranque debe ser al menos 1")
+    if j.consuelo.peso < 0:
+        raise ErrorConfig(
+            f"juego.consuelo.peso no puede ser negativo (se encontró {j.consuelo.peso}): son los "
+            "papelitos del boleto de consuelo en la tómbola. 0 = el consuelo solo sale cuando ya "
+            "no queda ningún premio disponible")
     if not cfg.negocio.nombre.strip():
         raise ErrorConfig("negocio.nombre no puede estar vacío")
 
