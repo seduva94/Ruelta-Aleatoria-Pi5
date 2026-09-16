@@ -250,6 +250,12 @@ class TestRuleta(unittest.TestCase):
     # -- fallos -------------------------------------------------------------- #
 
     def test_error_conexion_revierte_el_premio(self):
+        # Este es el golden que sostiene la mitad del arreglo de la Fase 4a: la
+        # detección de papel (ruleta/escpos.py) solo sirve si el ErrorConexion
+        # que lanza devuelve el premio al inventario. Quitar el
+        # `self.inv.revertir(boleto)` de ruleta/app.py (mutación M10) lo pone en
+        # rojo. La política de app.py NO la cambió la Fase 4a: solo consiguió
+        # que el ErrorConexion se lance cuando debe.
         self.imp.fallar = ErrorConexion("apagada")
         self.pulsar()
         self.assertEqual(self.inv.folio_actual, 1)          # el folio se consume

@@ -284,13 +284,18 @@ por línea.
    python3 -m ruleta liberar 42       # devuelve el premio del boleto 00042
    sudo systemctl start ruleta
    ```
-8. **Se acabó el papel.** No apagues la impresora: pon el rollo nuevo y lo que
-   estuviera en su memoria sale solo. Con `consultar_estado: true` el programa
-   pregunta antes de cada boleto y, **si la impresora contesta** que no hay
-   papel, no descuenta el premio. No todos los firmwares contestan: si el rollo
-   se acabó, coteja igual los últimos folios de `datos/boletos.csv` (o del
-   inventario impreso) con los boletos físicos y libera con el punto 7 los que
-   no hayan salido.
+8. **Se acabó el papel.** **El kiosco no juega hasta que pongas el rollo.** Con
+   `consultar_estado: true` el programa le pregunta a la impresora antes de cada
+   boleto y, si le contesta que no tiene papel, **no imprime, no descuenta el
+   premio y el LED parpadea rápido** (así avisa de error): el premio vuelve al
+   inventario y el
+   journal dice `NO impreso (premio devuelto al inventario)`. Pon el rollo,
+   cierra bien la tapa y vuelve a jugar. **No apagues la impresora**: si tenía
+   algo en su memoria, sale solo al reponer el papel. No todos los firmwares
+   contestan; si el tuyo no contesta, el programa imprime igual (es lo correcto:
+   callarse no es lo mismo que fallar), así que **coteja** los últimos folios de
+   `datos/boletos.csv` (o del inventario impreso) con los boletos físicos y
+   libera con el punto 7 los que no hayan salido.
 
 **Archivos que genera** (carpeta `datos/`):
 
@@ -483,6 +488,21 @@ celular le roba la impresora) o vuelve a emparejar:
 bluetoothctl remove AA:BB:CC:DD:EE:FF
 ./herramientas/emparejar.sh
 ```
+
+**Se acabó el papel: el kiosco deja de dar boletos, y eso está bien.** Cuando la
+impresora dice que no tiene papel, el programa **no imprime, devuelve el premio
+al inventario** y el LED parpadea rápido (así avisa de error); en el journal sale
+`NO impreso (premio devuelto al inventario): la impresora /dev/ruleta-impresora
+no tiene papel`. **No se pierde ningún premio.** Pon el rollo, cierra bien la
+tapa y vuelve a jugar: el siguiente boleto sale normal.
+
+**Sale `[??] la impresora reporta poco papel`.** **No corras a comprar rollo.**
+Este aviso solo puede venir de una impresora **con sensor de papel de verdad**, y
+la que tiene el kiosco **no lo tiene** (medido el 2026-09-15: contesta «papel
+bien» hasta con el rollo fuera). Si algún día aparece, **abre la tapa y mira el
+rollo**, que es lo único que no miente. Los avisos que salieron entre el
+2026-09-11 y el 2026-09-15 eran **falsos** —el último fue el de la jugada sin
+papel de las 13:29 del 2026-09-15— y ya están arreglados.
 
 **Los acentos salen como símbolos raros o letras chinas.** Revisa que
 `cancelar_modo_chino` sea `true` y elige la tabla correcta con

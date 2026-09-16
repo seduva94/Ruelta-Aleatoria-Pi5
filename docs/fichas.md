@@ -1155,7 +1155,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Nota:** el PPD del driver del fabricante confirma que la impresora entiende
   `DLE EOT 1`, así que la consulta tiene sentido técnico
   (`docs/actas/2026-09-11-hechos-medidos.md`, sección del driver).
-- **Estado:** **resuelta a medias** el 2026-09-11 (2b, cambio (d)). `consultar_estado` ya vale por USB: `crear_impresora` se lo pasa a `ImpresoraArchivo` y este pregunta `DLE EOT` antes del boleto cuando la ruta es un dispositivo de caracteres, con la misma política que el Bluetooth (si no contesta, se imprime igual). **Siguen sin efecto por cable** `reintentos`, `timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`, `pausa_final_seg` y `bytes_por_segundo`, y así lo dice ahora la tabla del `README.md` §6, con una nota debajo. `espera_reintento_seg` **sí** cuenta con cualquier tipo: `Ruleta.arrancar` (`ruleta/app.py`) espera el doble de ese valor entre los intentos del inventario de arranque. **Medido en hardware real el 2026-09-11**, tras el deploy: la impresora contestó `DLE EOT` por el nodo USB y el servicio escribió `La impresora /dev/ruleta-impresora reporta poco papel: cambia el rollo pronto` **antes** de mandar el inventario, así que la consulta funciona de verdad por cable y lanzada desde systemd. Lo único que sigue sin probarse de esta parte es el caso extremo (sin papel o fuera de línea) con el rollo fuera. **MEDIDO POR FIN el 2026-09-15 a las 13:29:17 (Fase 3), y FALLÓ.** El usuario dejó la impresora **sin papel** a propósito y jugó una vez, con el servicio `active` y el folio previo en 8. La impresora encendió su foco rojo y se puso a pitar cada segundo, con el trabajo retenido en su búfer. El journal dice, en orden: `Boleto 00009 emitido: TEST 7` → `WARNING … reporta poco papel` (el aviso rezagado de siempre) → `Boleto 00009 impreso: TEST 7`. **No se detectó «sin papel» ni «fuera de línea»:** las dos guardias que añadió 2b quedaron derrotadas por el **mismo desfase de un comando** diagnosticado el 2026-09-13 —la impresora repite el último byte de estado y el programa lee la respuesta a la **pregunta anterior**—, tal y como lo había predicho el escéptico de ese día. Daño medido: `boletos.csv` con el 00009 `emitido` **e** `impreso`, `estado.json` en folio 9 y el premio **TEST 7 descontado sin que saliera papel**; el proceso, sano (`wchan` = `hrtimer_nanosleep`, `NRestarts=0`), porque la escritura a `usblp` no se bloqueó. Al reponer el papel (13:31–13:33) la impresora soltó sola el boleto retenido, cortado —lo que **no** salva el caso: si se apaga la impresora o la Pi antes de reponer, el trabajo se pierde y el programa ya lo dio por impreso—. Evidencia: `docs/actas/2026-09-15-fase-3.md` §6-bis. **El arreglo va en la ficha F-250.**
+- **Estado:** **resuelta a medias** el 2026-09-11 (2b, cambio (d)). `consultar_estado` ya vale por USB: `crear_impresora` se lo pasa a `ImpresoraArchivo` y este pregunta `DLE EOT` antes del boleto cuando la ruta es un dispositivo de caracteres, con la misma política que el Bluetooth (si no contesta, se imprime igual). **Siguen sin efecto por cable** `reintentos`, `timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`, `pausa_final_seg` y `bytes_por_segundo`, y así lo dice ahora la tabla del `README.md` §6, con una nota debajo. `espera_reintento_seg` **sí** cuenta con cualquier tipo: `Ruleta.arrancar` (`ruleta/app.py`) espera el doble de ese valor entre los intentos del inventario de arranque. **Medido en hardware real el 2026-09-11**, tras el deploy: la impresora contestó `DLE EOT` por el nodo USB y el servicio escribió `La impresora /dev/ruleta-impresora reporta poco papel: cambia el rollo pronto` **antes** de mandar el inventario. **Corrección del 2026-09-15 (Fase 4a): esa frase decía que «la consulta funciona de verdad por cable y lanzada desde systemd», y es falsa.** Lo único que quedó demostrado por cable es que **el nodo acepta la escritura del comando**: el byte que se leyó era el **rezagado de otra pregunta** (la impresora repite sin parar el último byte de estado), de modo que aquel aviso de «poco papel» era **falso** (**F-190**). Lo único que sigue sin probarse de esta parte es el caso extremo (sin papel o fuera de línea) con el rollo fuera. **MEDIDO POR FIN el 2026-09-15 a las 13:29:17 (Fase 3), y FALLÓ.** El usuario dejó la impresora **sin papel** a propósito y jugó una vez, con el servicio `active` y el folio previo en 8. La impresora encendió su foco rojo y se puso a pitar cada segundo, con el trabajo retenido en su búfer. El journal dice, en orden: `Boleto 00009 emitido: TEST 7` → `WARNING … reporta poco papel` (el aviso rezagado de siempre) → `Boleto 00009 impreso: TEST 7`. **No se detectó «sin papel» ni «fuera de línea»:** las dos guardias que añadió 2b quedaron derrotadas por el **mismo desfase de un comando** diagnosticado el 2026-09-13 —la impresora repite el último byte de estado y el programa lee la respuesta a la **pregunta anterior**—, tal y como lo había predicho el escéptico de ese día. Daño medido: `boletos.csv` con el 00009 `emitido` **e** `impreso`, `estado.json` en folio 9 y el premio **TEST 7 descontado sin que saliera papel**; el proceso, sano (`wchan` = `hrtimer_nanosleep`, `NRestarts=0`), porque la escritura a `usblp` no se bloqueó. Al reponer el papel (13:31–13:33) la impresora soltó sola el boleto retenido, cortado —lo que **no** salva el caso: si se apaga la impresora o la Pi antes de reponer, el trabajo se pierde y el programa ya lo dio por impreso—. Evidencia: `docs/actas/2026-09-15-fase-3.md` §6-bis. **El arreglo va en la ficha F-250.** **Cerrado el 2026-09-15 (Fase 4a):** el camino «sin papel» **ya está medido** —falló— y **queda arreglado en el cambio de código de esta fase**: `leer_estado_fresco` (`ruleta/escpos.py`) drena el atraso, escribe el comando y se queda con el **último** byte válido, y `verificar_estado` añade la pregunta `DLE EOT 2`, que es la única que en esta impresora se entera del rollo agotado (`0x32`, medido). Lo que **sigue abierto** de esta ficha es lo de siempre: `reintentos`, `timeout_seg` y las llaves de ritmo siguen **sin efecto por cable**.
 ---
 
 ## F-092 · El plan de la Fase 2 dice que incorpora mediciones del 2026-09-12 y todas son del 2026-09-11
@@ -2921,6 +2921,16 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   conteo —8 con papel de sobra; 7 + `[??]` de poco papel (el medido); 7 + `[??]`
   si el firmware no contesta; 7 + `[--]` con el servicio corriendo— quedan
   escritos donde alguien los va a buscar.
+- **Nota del 2026-09-15 (Fase 4a).** El segundo caso de ese conteo —«7 + `[??]`
+  de poco papel»— era el **medido**, pero el aviso era **falso** (**F-190**). Con
+  la lectura fresca y la máscara estricta, en esta impresora ese camino **ya no
+  se dispara**: haría falta una con sensor de papel de verdad. El censo del
+  **código** sigue siendo **8** (`grep -c "\[ok\]" ruleta/__main__.py`; las dos
+  ramas que añade la Fase 4a —tapa abierta y error de impresora— son de fallo,
+  `[!!]`, que pasan de 18 a 20). El censo de la **salida** con la impresora sana
+  debería volver a ser **8 aciertos**, pero **eso hay que medirlo en la Pi**
+  (Paso 10 del plan de la Fase 4a) y escribir aquí el número que salga: **al
+  cerrar este cambio todavía no se había medido**.
 
 ---
 
@@ -3012,7 +3022,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 
 ---
 
-## F-190 · La impresora lleva avisando de poco papel desde el 2026-09-11 y el rollo no se ha cambiado
+## F-190 · El aviso de «poco papel» del 2026-09-11 era FALSO: el programa leía la respuesta de otra pregunta (y el rollo, ese sí, hay que tenerlo de repuesto)
 
 - **Fecha:** 2026-09-11
 - **Origen:** Fase 2 · escriba, leyendo el diagnóstico y el journal del deploy
@@ -3021,10 +3031,21 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   journal del arranque de las 22:32:48
   (`WARNING ruleta.escpos: La impresora /dev/ruleta-impresora reporta poco
   papel: cambia el rollo pronto`).
-- **Qué pasa:** el sensor *near-end* de la impresora dice que al rollo le queda
-  poco, y esto se midió **dos veces** la misma noche: en el diagnóstico y en el
-  arranque del servicio. Entre las pruebas de aquella noche y el inventario del
-  deploy ya se gastó papel.
+- **Qué pasa. CORRECCIÓN del 2026-09-15 (Fase 4a): NO fue el sensor.** La AOMU
+  My-A1 repite sin parar por el endpoint de lectura el último byte de estado que
+  fijó su firmware (~21 kB/s), así que leer un byte después de un `DLE EOT`
+  devuelve la respuesta a la **pregunta anterior**. El `0x16` que se leía en la
+  ranura del papel es la respuesta **sana** de `DLE EOT 1` (bit 2 = pin 3 del
+  cajón; bit 3 = 0, **en línea**), y la comparación suelta `papel & 0x0C` se
+  conformaba con **uno** de los dos bits de la pareja. Y lo medido el
+  **2026-09-15**: `DLE EOT 4` contesta **`0x12` incluso con el rollo fuera**, o
+  sea que en este clon **no hay sensor de papel útil en esa pregunta** y
+  `BITS_SIN_PAPEL` no se enciende nunca; la única que se entera es `DLE EOT 2`
+  (`0x32`). Evidencia: `docs/actas/2026-09-15-hechos-medidos-fase-4a.md`.
+  **Redacción original del 2026-09-11, que se conserva:** «el sensor *near-end*
+  de la impresora dice que al rollo le queda poco, y esto se midió **dos veces**
+  la misma noche: en el diagnóstico y en el arranque del servicio. Entre las
+  pruebas de aquella noche y el inventario del deploy ya se gastó papel.»
 - **Por qué es residual:** no bloquea nada. El programa avisa y sigue
   imprimiendo, que es lo correcto: `[??]` no cambia el código de salida.
 - **Riesgo si no se toca:** el evento dura una semana. Si el rollo se acaba a
@@ -3033,7 +3054,7 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Propuesta:** poner rollo nuevo antes del evento y tener al menos uno de
   repuesto junto a la Pi. De paso, cambiar el rollo es la única forma de probar
   de verdad el camino «sin papel» que sigue sin medirse (**F-091**).
-- **Estado:** abierta (compra / acción del usuario). **Nota del 2026-09-15 (Fase 3):** el rollo **se acabó de verdad**. Fue en una prueba deliberada de las 13:29 —el usuario dejó la impresora sin papel a propósito— y **lo repuso él mismo entre las 13:31 y las 13:33**, con lo que la impresora soltó el boleto que tenía retenido. Así que el **rollo de hoy es nuevo**; lo que **sigue abierto es el repuesto**: tiene que haber al menos un rollo más junto a la Pi durante la semana del evento. Y el **riesgo que esta ficha anunciaba ya no es una hipótesis**: se midió que, con el papel agotado, el folio se gasta y el premio se descuenta **sin boleto** —y no porque el firmware no conteste, sino porque contesta tarde— (**F-091** actualizada, **F-250** nueva).
+- **Estado:** abierta (compra / acción del usuario). **Nota del 2026-09-15 (Fase 3):** el rollo **se acabó de verdad**. Fue en una prueba deliberada de las 13:29 —el usuario dejó la impresora sin papel a propósito— y **lo repuso él mismo entre las 13:31 y las 13:33**, con lo que la impresora soltó el boleto que tenía retenido. Así que el **rollo de hoy es nuevo**; lo que **sigue abierto es el repuesto**: tiene que haber al menos un rollo más junto a la Pi durante la semana del evento. Y el **riesgo que esta ficha anunciaba ya no es una hipótesis**: se midió que, con el papel agotado, el folio se gasta y el premio se descuenta **sin boleto** —y no porque el firmware no conteste, sino porque contesta tarde— (**F-091** actualizada, **F-250** nueva). **Nota del 2026-09-15 (Fase 4a):** el **diagnóstico queda cerrado** —el aviso era un artefacto de lectura, no un sensor— y el defecto de código está **arreglado en el cambio de esta fase** (lectura fresca y `DLE EOT 2`; **F-250**). Con la máscara estricta, en esta impresora el aviso de «poco papel» **ya no puede salir**: haría falta una con sensor de verdad. Lo único que sigue vivo de esta ficha es **tener un rollo de repuesto junto a la Pi** durante la semana del evento.
 
 ---
 
@@ -4975,6 +4996,16 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   y cuadrar `boletos.csv` contra la caja al cerrar el día.
 - **Estado:** abierta. **Riesgo abierto más grande que deja la Fase 3.**
   **Requiere autorización del usuario** para tocar código.
+- **Nota del 2026-09-15 (Fase 4a).** El usuario autorizó el arreglo y **el
+  código ya está escrito**: `leer_estado_fresco` en `ruleta/escpos.py` (drenar,
+  preguntar, quedarse con el **último** byte válido) y la pregunta `DLE EOT 2`
+  en `verificar_estado`, que es la única que en esta impresora se entera del
+  rollo agotado (`0x32`). La suite pasa de **194** a **214** pruebas y **9 de
+  las 10 mutaciones** del plan quedaron en rojo (la décima, **M6**, no puede
+  ponerse en rojo: ver **F-252**). **Esta ficha NO se cierra todavía:** se cierra
+  con la **prueba en vivo sin papel** del Paso 11 del plan, que al escribir esto
+  no se ha hecho. Hasta entonces, lo medido es que el arreglo funciona **contra
+  los dobles de prueba**, no contra la impresora.
 
 ---
 
@@ -5036,5 +5067,156 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
 - **Estado:** **abierta** el 2026-09-15 (plan escrito, ninguna casilla de la
   bitácora marcada, ninguna línea de código tocada). Se cierra cuando el §7 del
   plan esté entero en verde.
+- **Nota del 2026-09-15 (fin del paso del ejecutor).** Las **cinco**
+  afirmaciones falsas de la lista de arriba están **corregidas** en este mismo
+  cambio: la 1 en **F-091** (C1 y C1-bis), la 2 en **F-190** (C2 y C3), la 3 en
+  las dos filas de la tabla de pendientes de la Fase 2 (C5 y C6), la 4 con la
+  **nota fechada** debajo de la tabla del acta —la fila no se tocó— (C7) y la 5
+  con los números de línea **re-medidos** de `escpos.py` y `__main__.py` (C9).
+  La ficha **sigue abierta**: lo que la cierra es el §7 entero, y el **Paso 11**
+  —la prueba en vivo sin papel— todavía no se ha hecho.
+
+---
+
+## F-252 · La mutación M6 del plan de la Fase 4a NO puede ponerse en rojo: en Python `&` liga MÁS fuerte que `==`
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · ejecutor, corriendo la tabla de mutaciones del §6 sobre
+  copias del repositorio
+- **Dónde:** `docs/planes/fase-4a-papel.md` §2 (**D3**), §3 (**trampa 3**) y §6
+  (fila **M6**); el código afectado es `ruleta/escpos.py` (`verificar_estado`) y
+  `ruleta/__main__.py` (`interpretar_estado_papel`).
+- **Qué pasa:** el plan daba por cierto que «en Python `==` liga **más fuerte**
+  que `&`» —§2 (**D3**), §3 (**trampa 3**) y la fila **M6** del §6, **corregidos
+  en este mismo cambio**—, y de ahí deducía que sin paréntesis
+  `papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` se evaluaría como `papel & True`,
+  es decir `papel & 1`. **Eso es falso en Python** (es cierto en C, que es de
+  donde viene la costumbre). En Python las comparaciones tienen precedencia
+  **menor** que los operadores de bits, así que las dos formas son la **misma
+  expresión**. Medido el 2026-09-15 en la PC (Python 3.14.4), comparando el
+  árbol de sintaxis de las dos:
+
+  ```
+  con paréntesis: Compare(left=BinOp(Name papel, BitAnd, Name BITS_POCO_PAPEL), ops=[Eq], ...)
+  sin paréntesis: Compare(left=BinOp(Name papel, BitAnd, Name BITS_POCO_PAPEL), ops=[Eq], ...)
+  mismo AST: True
+  ```
+
+  Y con los vectores de los goldens: `0x1e` da `True` de las dos formas y `0x16`
+  da `False` de las dos formas; lo que el plan suponía (`papel & True`) daría
+  `0` en los dos casos.
+- **Consecuencia medida:** **M6 sobrevive en verde** (las **214** pruebas pasan
+  con los paréntesis quitados), y **ningún golden puede evitarlo**: no es que el
+  assert no muerda, es que la mutación **no cambia el comportamiento**. Las
+  otras **nueve** mutaciones del §6 sí quedaron en rojo.
+- **Por qué es residual:** no hay defecto en el código. Los paréntesis **se
+  quedan** (los manda **D3** y se leen mejor), pero son de **legibilidad**, no
+  de corrección. Lo que M6 quería proteger —que la máscara sea una igualdad de
+  **pareja** y no un «algún bit»— ya lo protege **M5**, que cae con **3**
+  pruebas (`test_el_byte_medido_0x16_no_avisa_de_poco_papel` en los dos
+  transportes y `TestLecturaFrescaAOMU.test_poco_papel_de_verdad_avisa_y_el_byte_medido_no`).
+- **Propuesta:** la **trampa 3**, la justificación de **D3** y la fila **M6** del
+  §6 de `docs/planes/fase-4a-papel.md` **ya no afirman nada falso sobre el
+  lenguaje**: el ejecutor corrigió ese texto en este mismo cambio, porque una
+  afirmación de documento falsa sí entra en la parada del §5 del protocolo. Lo
+  que **sigue pendiente del orquestador** es qué se hace con **M6**: retirarla de
+  la tabla, sustituirla por una mutación que sí muerda o aceptar el nueve de
+  diez. Eso el ejecutor **no lo decidió por su cuenta**, porque el §6 y el
+  criterio **7.2** son decisiones cerradas y el plan manda detenerse y preguntar.
+- **Estado:** **abierta**. Bloquea, tal como está escrito, el criterio **7.2**
+  del plan («las diez en rojo»): lo medido es **nueve en rojo y una imposible**.
+
+---
+
+## F-253 · `tests/__init__.py` apaga el registro, y con eso `assertLogs` y `assertNoLogs` no ven nada
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · ejecutor, al escribir los primeros goldens de registro
+  del repositorio
+- **Dónde:** `tests/__init__.py` (`logging.disable(logging.CRITICAL)`) y
+  `tests/test_escpos.py` (el ayudante `registro_activo`).
+- **Qué pasa:** el paquete de pruebas apaga el registro entero al importarse,
+  para que las pruebas que provocan errores a propósito no ensucien la salida.
+  Con eso puesto, `assertLogs` **falla siempre** (no ve ningún registro) y
+  `assertNoLogs` **pasa siempre** (tampoco ve ninguno): los dos darían su
+  veredicto **por el motivo equivocado**. La trampa 12 del plan de la Fase 4a
+  avisaba de que estos eran los primeros `assertLogs` del repositorio, pero no
+  de esto. Medido el 2026-09-15: con el golden de «poco papel» recién escrito,
+  `assertLogs` falló con `no logs of level WARNING or higher triggered on
+  ruleta.escpos` **aunque el aviso sí se emitía**.
+- **Cómo se resolvió en esta fase:** un `contextmanager` local,
+  `registro_activo()`, que hace `logging.disable(logging.NOTSET)` mientras dura
+  el bloque y vuelve a dejarlo como estaba en el `finally`. **No se tocó
+  `tests/__init__.py`**: está fuera del conjunto de archivos permitido de la
+  fase, y apagar el registro en el resto de la suite es deliberado.
+- **Por qué es residual:** ya está resuelto donde hacía falta. Queda escrito
+  porque **cualquier golden de registro futuro** (en `test_app.py`, en
+  `test_instalacion.py`) va a tropezar con lo mismo, y porque el ayudante vive
+  hoy en un solo archivo de pruebas.
+- **Propuesta:** cuando haga falta el segundo, mover `registro_activo()` a un
+  sitio compartido de `tests/`. Mientras tanto, no tocar nada.
+- **Estado:** **cerrada como hallazgo, viva como aviso** (2026-09-15).
+
+---
+
+## F-254 · Por Bluetooth, un fallo al ESCRIBIR el `DLE EOT` ya no se traga: sube como `OSError`
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · ejecutor, al reescribir `ImpresoraBluetooth._leer_estado`
+- **Dónde:** `ruleta/escpos.py`, `ImpresoraBluetooth._leer_estado` y
+  `leer_estado_fresco`.
+- **Qué pasa:** antes, todo el cuerpo de `_leer_estado` estaba dentro de un
+  `except (socket.timeout, TimeoutError): return None`, así que un
+  **`sendall` que expirara** se contaba como «la impresora no contesta» y el
+  boleto se imprimía igual. Ahora el `try` solo envuelve la **lectura**: el
+  plan de la Fase 4a (§5, Paso 1, punto 5) manda que un fallo de **escritura**
+  del comando **siga subiendo**, para que lo conviertan en `ErrorConexion` los
+  sitios que ya lo hacen. Por USB eso no cambia nada (ya era así). Por
+  Bluetooth, el `OSError` lo recoge el `except OSError` que ya existe en
+  `imprimir`, que reintenta el trabajo y, si se acaban los intentos, lanza
+  `ErrorConexion` **sin haber mandado ni un byte del boleto** (el premio se
+  revierte, que es la política correcta).
+- **Por qué es residual:** el cambio es el que pide el plan y es el seguro (si
+  no se puede ni escribir el comando, el enlace está roto). **No está medido en
+  hardware**: el transporte Bluetooth está escrito pero nunca se ha ejercido con
+  la impresora real, y el `SocketFalso` de las pruebas no simula un `sendall`
+  que expire.
+- **Propuesta:** si algún día el Bluetooth deja de ser respaldo y se usa de
+  verdad, añadir un golden con un `SocketFalso` que expire al enviar y decidir
+  ahí si se prefiere reintentar o imprimir igual.
+- **Estado:** **abierta como aviso** (2026-09-15). No bloquea: hoy la impresora
+  va por cable USB.
+
+---
+
+## F-255 · Por USB, el rechazo del nodo al escribir el `DLE EOT` (write devuelve 0) no tiene golden
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · ejecutor, al comprobar la propiedad del §5, Paso 1,
+  punto 5 del plan («si la escritura del comando falla, el `OSError` sube»)
+- **Dónde:** `ruleta/escpos.py`, el cierre `escribir` de
+  `ImpresoraArchivo._leer_estado`:
+  `raise OSError(errno.EIO, f"{self.ruta} no aceptó la consulta de estado")`.
+- **Qué pasa:** esa rama salta cuando `f.write()` devuelve **0** (el nodo no
+  acepta ni un byte de la consulta) y es la que convierte un enlace roto en
+  `ErrorConexion` —por `consultar_papel`, que la envuelve, o por `imprimir` con
+  `enviados == 0`—. La Fase 4a la **conservó tal cual** y la usa, pero **ninguna
+  prueba la ejercita**: medido el 2026-09-15, el texto «no aceptó la consulta de
+  estado» solo aparece en `ruleta/escpos.py`, en ninguna de las 214 pruebas. Los
+  goldens que tocan escrituras a medias son otros: `acepta=4` y `limite=10`
+  (`test_fallo_a_mitad_no_cuenta_la_consulta`), que ejercitan el `OSError` del
+  **límite**, no el del `write` que devuelve 0.
+- **Por qué es residual:** no es un defecto: el comportamiento es el correcto y
+  es el de antes de esta fase. Lo que falta es la **red** que lo sujete, y una
+  mutación que borrara ese `raise` sobreviviría hoy en verde.
+- **Riesgo si no se toca:** bajo. Un `write` que devuelve 0 sin excepción es
+  raro en `usblp`; si alguien «simplifica» esa rama, nadie se entera hasta que
+  el kiosco imprima con el nodo rechazando la consulta.
+- **Propuesta:** un golden con el doble de siempre (`DispositivoFalso` con
+  `acepta=0`) que compruebe que `consultar_papel` lanza `ErrorConexion` y que
+  `imprimir` no manda ni un byte del boleto. Cuesta poco; no se hizo aquí
+  porque está fuera de lo que manda el plan de esta fase y el árbol ya estaba
+  cerrado cuando se vio.
+- **Estado:** **abierta** (2026-09-15). No bloquea la Fase 4a.
 
 ---

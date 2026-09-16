@@ -390,26 +390,61 @@ class TestVersionModulo(unittest.TestCase):
 
 
 class TestInterpretarEstadoPapel(unittest.TestCase):
+    """Los tres bytes son (DLE EOT 4, DLE EOT 2, DLE EOT 1), como los devuelve
+    `ImpresoraArchivo.consultar_papel()`. Vectores medidos en la AOMU My-A1 el
+    2026-09-15: con papel contesta (0x12, 0x12, 0x16) y sin papel, con la tapa
+    cerrada, lo único que cambia es el de en medio, que pasa a 0x32."""
+
     def test_con_papel_y_en_linea(self):
-        self.assertEqual(cli.interpretar_estado_papel(0x12, 0x12),
+        self.assertEqual(cli.interpretar_estado_papel(0x12, 0x12, 0x16),
                          (True, "  [ok] la impresora contesta: hay papel y está en línea"))
 
     def test_sin_papel(self):
-        self.assertEqual(cli.interpretar_estado_papel(0x72, 0x12),
+        self.assertEqual(cli.interpretar_estado_papel(0x72, 0x12, 0x16),
                          (False, "  [!!] la impresora reporta SIN PAPEL: pon un rollo nuevo"))
+
+    def test_sin_papel_por_la_causa_de_fuera_de_linea(self):
+        # El vector real del rollo agotado: DLE EOT 4 y DLE EOT 1 siguen sanos y
+        # el único que se entera es DLE EOT 2 con su bit 5.
+        self.assertEqual(cli.interpretar_estado_papel(0x12, 0x32, 0x16),
+                         (False, "  [!!] la impresora reporta SIN PAPEL: pon un rollo nuevo"))
+
+    def test_sin_papel_gana_a_poco_papel(self):
+        # 0x7e trae los bits 5-6 Y la pareja 2-3 encendidos: un rollo agotado no
+        # es un rollo por acabarse. El ORDEN de las ramas es lo que se ancla.
+        self.assertEqual(cli.interpretar_estado_papel(0x7e, 0x12, 0x16),
+                         (False, "  [!!] la impresora reporta SIN PAPEL: pon un rollo nuevo"))
+
+    def test_tapa_abierta(self):
+        self.assertEqual(cli.interpretar_estado_papel(0x12, 0x16, 0x16),
+                         (False, "  [!!] la impresora tiene la tapa abierta: ciérrala bien"))
+
+    def test_error_de_impresora(self):
+        self.assertEqual(
+            cli.interpretar_estado_papel(0x12, 0x52, 0x16),
+            (False, "  [!!] la impresora reporta un error: revisa el papel, la tapa y la cuchilla"))
 
     def test_fuera_de_linea(self):
         self.assertEqual(
-            cli.interpretar_estado_papel(0x12, 0x1a),
+            cli.interpretar_estado_papel(0x12, 0x12, 0x1a),
             (False, "  [!!] la impresora está fuera de línea: tapa abierta, sin papel o con error"))
 
     def test_poco_papel_avisa_sin_ser_error(self):
-        self.assertEqual(cli.interpretar_estado_papel(0x16, 0x12),
+        # Estrena vector: 0x1e tiene la pareja 2-3 entera. El de antes era 0x16,
+        # que consagraba la lectura equivocada (ver la prueba de abajo).
+        self.assertEqual(cli.interpretar_estado_papel(0x1e, 0x12, 0x16),
                          (True, "  [??] la impresora reporta poco papel: ten listo el rollo de repuesto"))
+
+    def test_el_byte_medido_0x16_no_es_poco_papel(self):
+        # 0x16 es la respuesta SANA de DLE EOT 1 (bit 2 = pin 3 del cajón). Con
+        # la máscara suelta de antes salía un aviso de poco papel que no existía:
+        # 15 veces en el log del kiosco desde el 2026-09-11.
+        self.assertEqual(cli.interpretar_estado_papel(0x16, 0x12, 0x16),
+                         (True, "  [ok] la impresora contesta: hay papel y está en línea"))
 
     def test_no_contesta_no_es_falla(self):
         self.assertEqual(
-            cli.interpretar_estado_papel(None, None),
+            cli.interpretar_estado_papel(None, None, None),
             (True, "  [??] la impresora no contestó a la consulta de estado; se imprimirá igual "
                    "(no todos los firmwares contestan)"))
 

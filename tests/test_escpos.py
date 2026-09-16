@@ -1,5 +1,7 @@
+import contextlib
 import errno
 import io
+import logging
 import os
 import socket
 import stat
@@ -13,6 +15,45 @@ from PIL import Image
 from ruleta import escpos
 from ruleta.escpos import (Documento, ErrorConexion, ErrorEnvio, ImpresoraArchivo, ImpresoraBluetooth,
                            codificar, decodificar_vista, raster_gs_v0, transliterar)
+
+# Las tres preguntas de estado, en el orden en que las manda verificar_estado.
+COMANDOS_ESTADO = (escpos.CMD_ESTADO_PAPEL, escpos.CMD_ESTADO_CAUSA, escpos.CMD_ESTADO_IMPRESORA)
+# Vectores MEDIDOS en la AOMU My-A1 el 2026-09-15 con la lectura fresca: con
+# papel contesta 0x12 a DLE EOT 4, 0x12 a DLE EOT 2 y 0x16 a DLE EOT 1 (el bit 2
+# es el pin 3 del cajón, no un aviso de nada). Sin papel y con la tapa cerrada,
+# lo ÚNICO que cambia es DLE EOT 2, que pasa a 0x32.
+ESTADOS_CON_PAPEL = {escpos.CMD_ESTADO_PAPEL: b"\x12", escpos.CMD_ESTADO_CAUSA: b"\x12",
+                     escpos.CMD_ESTADO_IMPRESORA: b"\x16"}
+FLUJO_CON_PAPEL = {escpos.CMD_ESTADO_PAPEL: 0x12, escpos.CMD_ESTADO_CAUSA: 0x12,
+                   escpos.CMD_ESTADO_IMPRESORA: 0x16}
+AVISO_POCO_PAPEL = "reporta poco papel: cambia el rollo pronto"
+
+
+@contextlib.contextmanager
+def registro_activo():
+    """Vuelve a encender el registro mientras dura el bloque.
+
+    `tests/__init__.py` hace `logging.disable(logging.CRITICAL)` para que las
+    pruebas que provocan errores a propósito no ensucien la salida, y con eso
+    puesto `assertLogs` y `assertNoLogs` no ven absolutamente nada: los dos
+    pasarían (o fallarían) por el motivo equivocado. Se enciende solo aquí y se
+    vuelve a apagar al salir, pase lo que pase.
+    """
+    logging.disable(logging.NOTSET)
+    try:
+        yield
+    finally:
+        logging.disable(logging.CRITICAL)
+
+
+def con_papel(cambios=None):
+    """Los tres bytes de una impresora sana, con los que se quieran cambiados."""
+    return {**ESTADOS_CON_PAPEL, **(cambios or {})}
+
+
+def flujo_con_papel(cambios=None):
+    """Lo mismo para el doble de flujo, que repite un byte (int) por pregunta."""
+    return {**FLUJO_CON_PAPEL, **(cambios or {})}
 
 
 class TestCodificacion(unittest.TestCase):
@@ -214,7 +255,7 @@ class SocketFalso:
         self.registro.append(("shutdown",))
 
     def sendall(self, datos):
-        if datos in (escpos.CMD_ESTADO_PAPEL, escpos.CMD_ESTADO_IMPRESORA):
+        if datos in COMANDOS_ESTADO:
             self.consultas.append(datos)
             self._cola += self.estados.get(datos, b"")
             return
@@ -260,25 +301,61 @@ class TestImpresoraBluetooth(unittest.TestCase):
         self.assertTrue(self.sockets[0].cerrado)
 
     def test_fuera_de_linea_no_envia_el_boleto(self):
-        imp = self.impresora(consultar_estado=True,
-                             estados={escpos.CMD_ESTADO_PAPEL: b"\x12", escpos.CMD_ESTADO_IMPRESORA: b"\x1a"})
+        imp = self.impresora(consultar_estado=True, estados=con_papel({escpos.CMD_ESTADO_IMPRESORA: b"\x1a"}))
         with self.assertRaises(ErrorConexion) as ctx:
             imp.imprimir(b"boleto")
         self.assertIn("fuera de línea", str(ctx.exception))
         self.assertEqual(bytes(self.sockets[0].enviado), b"")
 
+    def test_fin_de_papel_por_causa_no_envia_el_boleto(self):
+        # Vector medido el 2026-09-15: sin rollo y con la tapa cerrada, DLE EOT 2
+        # contesta 0x32 y las otras dos preguntas siguen diciendo que todo va bien.
+        imp = self.impresora(consultar_estado=True, estados=con_papel({escpos.CMD_ESTADO_CAUSA: b"\x32"}))
+        with self.assertRaises(ErrorConexion) as ctx:
+            imp.imprimir(b"boleto")
+        self.assertIn("no tiene papel", str(ctx.exception))
+        self.assertEqual(bytes(self.sockets[0].enviado), b"")
+        self.assertEqual(self.sockets[0].consultas,
+                         [escpos.CMD_ESTADO_PAPEL, escpos.CMD_ESTADO_CAUSA])
+
+    def test_tapa_abierta_y_error_no_envian_el_boleto(self):
+        casos = {b"\x16": "tiene la tapa abierta", b"\x52": "reporta un error"}
+        dichos = {}
+        for causa in casos:
+            imp = self.impresora(consultar_estado=True, estados=con_papel({escpos.CMD_ESTADO_CAUSA: causa}))
+            with self.assertRaises(ErrorConexion) as ctx:
+                imp.imprimir(b"boleto")
+            dichos[causa] = str(ctx.exception).replace("la impresora AA:BB:CC:DD:EE:FF ", "")
+            self.assertEqual(bytes(self.sockets[-1].enviado), b"")
+        self.assertEqual(dichos, casos)
+
     def test_con_papel_imprime_y_restaura_timeout(self):
-        imp = self.impresora(consultar_estado=True,
-                             estados={escpos.CMD_ESTADO_PAPEL: b"\x12", escpos.CMD_ESTADO_IMPRESORA: b"\x12"})
+        imp = self.impresora(consultar_estado=True, estados=con_papel())
         imp.imprimir(b"boleto")
         s = self.sockets[0]
         self.assertEqual(bytes(s.enviado), b"boleto")
-        self.assertEqual(s.consultas, [escpos.CMD_ESTADO_PAPEL, escpos.CMD_ESTADO_IMPRESORA])
+        self.assertEqual(s.consultas, list(COMANDOS_ESTADO))
         self.assertEqual(s.timeout, 10.0)
 
     def test_poco_papel_solo_avisa(self):
-        imp = self.impresora(consultar_estado=True, estados={escpos.CMD_ESTADO_PAPEL: b"\x1e"})  # 0x12 | 0x0C
-        imp.imprimir(b"boleto")
+        # El assert MUERDE: si se borra la rama del aviso (mutación M7) no hay
+        # registro y esto cae. Hasta la Fase 4a el golden solo miraba lo escrito,
+        # así que borrar la rama dejaba la suite en verde.
+        imp = self.impresora(consultar_estado=True,
+                             estados=con_papel({escpos.CMD_ESTADO_PAPEL: b"\x1e"}))   # 0x12 | 0x0C
+        with registro_activo(), self.assertLogs("ruleta.escpos", level="WARNING") as cm:
+            imp.imprimir(b"boleto")
+        self.assertEqual(cm.output, [f"WARNING:ruleta.escpos:La impresora AA:BB:CC:DD:EE:FF {AVISO_POCO_PAPEL}"])
+        self.assertEqual(bytes(self.sockets[0].enviado), b"boleto")
+
+    def test_el_byte_medido_0x16_no_avisa_de_poco_papel(self):
+        # 0x16 es la respuesta SANA de DLE EOT 1 (bit 2 = pin 3 del cajón). Leído
+        # con la tabla de DLE EOT 4 tiene un solo bit de la pareja 2-3, y con la
+        # máscara suelta disparaba el aviso falso que salió 15 veces en el log.
+        imp = self.impresora(consultar_estado=True,
+                             estados=con_papel({escpos.CMD_ESTADO_PAPEL: b"\x16"}))
+        with registro_activo(), self.assertNoLogs("ruleta.escpos", level="WARNING"):
+            imp.imprimir(b"boleto")
         self.assertEqual(bytes(self.sockets[0].enviado), b"boleto")
 
     def test_impresora_que_no_responde_al_estado_imprime_igual(self):
@@ -417,16 +494,21 @@ class ArchivoFalso:
 
 
 class DispositivoFalso:
-    """Doble del nodo usblp: anota lo escrito y contesta a las consultas de estado.
+    """Doble del nodo usblp de una impresora EPSON normal: contesta UN byte por pregunta.
 
-    `respuestas` son los bytes que la impresora va soltando (uno por lectura);
-    `acepta` limita cuántos bytes toma por escritura y `limite` simula que el
-    dispositivo se atraganta tras N bytes en total.
+    `estados` es {comando DLE EOT: bytes de respuesta}; la pregunta que no
+    tenga entrada se queda sin contestar. No suelta NADA hasta que se le escribe
+    un comando, que es justo lo que hace un firmware que responde y se calla:
+    con ese doble, la lectura fresca drena el vacío, pregunta, lee ese único
+    byte y el resultado es el de siempre. `acepta` limita cuántos bytes toma por
+    escritura y `limite` simula que el dispositivo se atraganta tras N bytes.
     """
 
-    def __init__(self, respuestas=b"", acepta=None, limite=None):
-        self.pendiente = bytearray(respuestas)
+    def __init__(self, estados=None, acepta=None, limite=None):
+        self.estados = dict(estados or {})
+        self.pendiente = bytearray()
         self.escrito = bytearray()
+        self.consultas = []
         self.acepta = acepta
         self.limite = limite
         self.lecturas = 0
@@ -438,6 +520,10 @@ class DispositivoFalso:
             raise OSError(errno.EIO, "Input/output error")
         trozo = bytes(datos if self.acepta is None else datos[: self.acepta])
         self.escrito += trozo
+        cola = bytes(self.escrito[-3:])          # el comando puede llegar partido en varias escrituras
+        if cola in COMANDOS_ESTADO:
+            self.consultas.append(cola)
+            self.pendiente += self.estados.get(cola, b"")
         return len(trozo)
 
     def read(self, n):
@@ -449,6 +535,75 @@ class DispositivoFalso:
     def hay_datos(self, f, timeout):
         self.esperas.append(timeout)
         return bool(self.pendiente)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.cerrado = True
+        return False
+
+
+class DispositivoFlujo:
+    """Doble de la AOMU My-A1: repite SIN PARAR el último byte de estado.
+
+    Es la impresora que midió la sonda del 2026-09-15: por el endpoint de
+    lectura salen ~21 kB/s del último byte que fijó el firmware, y tras un
+    DLE EOT el flujo todavía suelta unos cuantos bytes VIEJOS antes de cambiar
+    al valor nuevo (la sonda vio el cambio entre el byte 1 y el 22). Por eso una
+    lectura de un solo byte devuelve la respuesta a la pregunta ANTERIOR.
+
+    - `atraso`: bytes viejos YA encolados antes de preguntar. Tiene que ser
+      mayor que `_MAX_BYTES_RESPUESTA`, o el golden no distinguiría «con
+      drenado» de «sin drenado» y la mutación M1 sobreviviría en verde.
+    - `viejos`: los que siguen saliendo con el valor anterior tras el comando.
+      Son 21, el peor caso MEDIDO (la sonda vio el cambio en el byte 22 como muy
+      tarde), para que cualquier `_MAX_BYTES_RESPUESTA` por debajo de 22 deje el
+      golden en rojo. Con uno bastaría para separar «quedarse con el primero»
+      (M2) de «quedarse con el último», pero no sujetaría el tope de lectura.
+    - `inicial`: dónde estaba aparcado el flujo, 0x16 en la sonda.
+
+    `read` NUNCA devuelve vacío y `hay_datos` SIEMPRE dice que sí: el único
+    freno son los topes de `leer_estado_fresco`.
+    """
+
+    def __init__(self, respuestas=None, inicial=0x16, atraso=200, viejos=21,
+                 acepta=None, limite=None):
+        self.respuestas = dict(respuestas or {})
+        self.actual = inicial
+        self.viejos = viejos
+        self.cola = bytearray([inicial]) * atraso
+        self.escrito = bytearray()
+        self.consultas = []
+        self.acepta = acepta
+        self.limite = limite
+        self.lecturas = 0
+        self.esperas = []
+        self.cerrado = False
+
+    def write(self, datos):
+        if self.limite is not None and len(self.escrito) >= self.limite:
+            raise OSError(errno.EIO, "Input/output error")
+        trozo = bytes(datos if self.acepta is None else datos[: self.acepta])
+        self.escrito += trozo
+        cola = bytes(self.escrito[-3:])
+        if cola in COMANDOS_ESTADO:
+            self.consultas.append(cola)
+            self.cola += bytes([self.actual]) * self.viejos   # el firmware tarda en cambiar
+            self.actual = self.respuestas.get(cola, self.actual)
+        return len(trozo)
+
+    def read(self, n):
+        self.lecturas += 1
+        if self.cola:
+            dato = bytes(self.cola[:n])
+            del self.cola[:n]
+            return dato
+        return bytes([self.actual] * n)          # el flujo no se acaba nunca
+
+    def hay_datos(self, f, timeout):
+        self.esperas.append(timeout)
+        return True
 
     def __enter__(self):
         return self
@@ -474,82 +629,110 @@ class TestImpresoraArchivoUSB(unittest.TestCase):
                                 esperar_lectura=disp.hay_datos)
 
     def test_sin_papel_no_envia_el_boleto(self):
-        disp = DispositivoFalso(b"\x72")                      # 0x12 | 0x60 = sin papel
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_PAPEL: b"\x72"}))   # 0x12 | 0x60
         with self.assertRaises(ErrorConexion) as ctx:
             self.impresora(disp).imprimir(b"boleto")
         self.assertIn("no tiene papel", str(ctx.exception))
-        self.assertEqual(bytes(disp.escrito), escpos.CMD_ESTADO_PAPEL)   # solo la pregunta
+        self.assertEqual(bytes(disp.escrito), escpos.CMD_ESTADO_PAPEL)   # solo la primera pregunta
         self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "r+b", 0)])
         self.assertTrue(disp.cerrado)
 
     def test_con_papel_escribe_todo(self):
-        disp = DispositivoFalso(b"\x12\x12")
+        # Golden (e) del plan: una EPSON normal, que contesta un byte por pregunta
+        # y se calla, se comporta EXACTAMENTE igual que antes de la lectura fresca.
+        disp = DispositivoFalso(con_papel())
         self.impresora(disp).imprimir(b"boleto")
-        self.assertEqual(bytes(disp.escrito),
-                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
-        self.assertEqual(disp.lecturas, 2)
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
+        self.assertEqual(disp.consultas, list(COMANDOS_ESTADO))
+        self.assertEqual(disp.lecturas, 3)            # un byte por pregunta, ni uno más
 
     def test_fuera_de_linea_no_envia_el_boleto(self):
-        disp = DispositivoFalso(b"\x12\x1a")                  # 0x12 | 0x08 = fuera de línea
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_IMPRESORA: b"\x1a"}))   # 0x12 | 0x08
         with self.assertRaises(ErrorConexion) as ctx:
             self.impresora(disp).imprimir(b"boleto")
         self.assertIn("fuera de línea", str(ctx.exception))
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO))
+
+    def test_fin_de_papel_por_causa_no_envia_el_boleto(self):
+        # Vector medido el 2026-09-15: DLE EOT 2 = 0x32 con el rollo fuera.
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_CAUSA: b"\x32"}))
+        with self.assertRaises(ErrorConexion) as ctx:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertIn("no tiene papel", str(ctx.exception))
         self.assertEqual(bytes(disp.escrito),
-                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA)
+                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_CAUSA)
 
     def test_poco_papel_solo_avisa(self):
-        disp = DispositivoFalso(b"\x16\x12")                  # 0x12 | 0x04 = poco papel
-        self.impresora(disp).imprimir(b"boleto")
-        self.assertEqual(bytes(disp.escrito),
-                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
+        # Estrena vector: con la máscara estricta, el 0x16 de antes ya no avisa.
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_PAPEL: b"\x1e"}))   # 0x12 | 0x0C
+        with registro_activo(), self.assertLogs("ruleta.escpos", level="WARNING") as cm:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(cm.output,
+                         [f"WARNING:ruleta.escpos:La impresora /dev/ruleta-impresora {AVISO_POCO_PAPEL}"])
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
+
+    def test_el_byte_medido_0x16_no_avisa_de_poco_papel(self):
+        # El aviso falso que salió 15 veces en el log del kiosco desde el
+        # 2026-09-11: 0x16 tiene UN bit de la pareja 2-3, y con uno no basta.
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_PAPEL: b"\x16"}))
+        with registro_activo(), self.assertNoLogs("ruleta.escpos", level="WARNING"):
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
 
     def test_sin_respuesta_imprime_igual(self):
-        disp = DispositivoFalso(b"")                          # firmware que no contesta
+        disp = DispositivoFalso()                             # firmware que no contesta
         self.impresora(disp).imprimir(b"boleto")
-        self.assertEqual(bytes(disp.escrito),
-                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
         self.assertEqual(disp.lecturas, 0)
 
     def test_cada_lectura_tiene_limite_de_tiempo(self):
         # Sin límite, una lectura sobre usblp cuelga el servicio para siempre.
-        disp = DispositivoFalso(b"")
-        self.impresora(disp).imprimir(b"boleto")
-        self.assertEqual(disp.esperas, [1.0, 1.0])
+        # Por pregunta: una espera de drenado (que se corta en la primera lectura
+        # vacía) y una del primer byte de la respuesta. Ninguna pasa del tope.
+        disp = DispositivoFalso()
+        imp = self.impresora(disp)
+        imp.imprimir(b"boleto")
+        self.assertEqual(disp.esperas, [escpos._ESPERA_DRENADO_SEG, 1.0] * len(COMANDOS_ESTADO))
+        self.assertLessEqual(max(disp.esperas), imp.timeout_estado)
 
     def test_bytes_invalidos_se_descartan_e_imprime(self):
-        disp = DispositivoFalso(b"\x00\x00\x00\x00")          # ninguno cumple los bits fijos
+        # Una impresora que habla sin parar y NUNCA contesta un estado válido:
+        # los topes cortan (drenado y respuesta), las tres preguntas dan None y
+        # se imprime igual, que es la política de siempre.
+        disp = DispositivoFlujo(inicial=0x00)                 # 0x00 no cumple los bits fijos
         self.impresora(disp).imprimir(b"boleto")
-        self.assertEqual(bytes(disp.escrito),
-                         escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_IMPRESORA + b"boleto")
-        self.assertEqual(disp.lecturas, 4)
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
+        self.assertEqual(disp.lecturas,
+                         len(COMANDOS_ESTADO) * (escpos._MAX_BYTES_DRENADO + escpos._MAX_BYTES_RESPUESTA))
 
     def test_consultar_estado_false_no_pregunta(self):
-        disp = DispositivoFalso(b"\x72")                      # diría que no hay papel...
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_PAPEL: b"\x72"}))   # diría que no hay papel...
         self.impresora(disp, consultar_estado=False).imprimir(b"boleto")
         self.assertEqual(bytes(disp.escrito), b"boleto")      # ...pero no se le pregunta
         self.assertEqual(disp.lecturas, 0)
         self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "ab", 0)])
 
     def test_archivo_normal_no_pregunta_aunque_este_activado(self):
-        disp = DispositivoFalso(b"\x72")
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_PAPEL: b"\x72"}))
         self.impresora(disp, dispositivo=False).imprimir(b"boleto")
         self.assertEqual(bytes(disp.escrito), b"boleto")
         self.assertEqual(disp.lecturas, 0)
         self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "ab", 0)])
 
     def test_fallo_a_mitad_no_cuenta_la_consulta(self):
-        disp = DispositivoFalso(b"\x12\x12", acepta=4, limite=10)   # 6 de consulta + 4 de boleto
+        disp = DispositivoFalso(con_papel(), acepta=4, limite=10)   # 9 de consultas + 4 de boleto
         with self.assertRaises(ErrorEnvio) as ctx:
             self.impresora(disp).imprimir(b"0123456789")
         self.assertEqual(ctx.exception.bytes_enviados, 4)
 
-    def test_consultar_papel_devuelve_los_dos_bytes(self):
-        disp = DispositivoFalso(b"\x12\x1e")
-        self.assertEqual(self.impresora(disp).consultar_papel(), (0x12, 0x1e))
+    def test_consultar_papel_devuelve_los_tres_bytes(self):
+        disp = DispositivoFalso(con_papel({escpos.CMD_ESTADO_IMPRESORA: b"\x1e"}))
+        self.assertEqual(self.impresora(disp).consultar_papel(), (0x12, 0x12, 0x1e))
+        self.assertEqual(disp.consultas, list(COMANDOS_ESTADO))
         self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "r+b", 0)])
 
     def test_consultar_papel_sin_respuesta(self):
-        self.assertEqual(self.impresora(DispositivoFalso(b"")).consultar_papel(), (None, None))
+        self.assertEqual(self.impresora(DispositivoFalso()).consultar_papel(), (None, None, None))
 
     def test_consultar_papel_no_se_puede_abrir(self):
         def abrir(*a, **k):
@@ -585,6 +768,159 @@ class TestImpresoraArchivoUSB(unittest.TestCase):
             with open(ruta, "wb"):
                 pass
             self.assertFalse(escpos.es_dispositivo_caracteres(ruta))
+
+
+class TestLecturaFrescaAOMU(unittest.TestCase):
+    """Goldens contra el doble de la impresora que habla sin parar (AOMU My-A1).
+
+    Es la que tiene el kiosco. Los vectores MEDIDOS el 2026-09-15 son los de «con
+    papel» (0x12 / 0x12 / 0x16) y el de «sin papel» (DLE EOT 2 = 0x32); los de
+    sin-papel por sensor (0x72), fuera de línea (0x1e), poco papel (0x1e), error
+    (0x52) y tapa abierta (bit 2) NO están medidos en este clon: son vectores de
+    la tabla EPSON, no bytes que haya contestado esta impresora. El caso (b) es
+    exactamente el que el 2026-09-15 a las 13:29 regaló el boleto
+    00009: rollo agotado, tapa cerrada, DLE EOT 2 contestando 0x32 mientras las
+    otras dos preguntas seguían diciendo que todo estaba bien.
+    """
+
+    def setUp(self):
+        self.aperturas = []
+
+    def impresora(self, disp):
+        def abrir(ruta, modo, buffering=0):
+            self.aperturas.append((ruta, modo, buffering))
+            return disp
+        return ImpresoraArchivo("/dev/ruleta-impresora", anexar=True, abrir=abrir,
+                                consultar_estado=True, timeout_estado=1.0,
+                                es_dispositivo=lambda ruta: True, esperar_lectura=disp.hay_datos)
+
+    @staticmethod
+    def lecturas_de(preguntas):
+        """Censo DERIVADO: por pregunta, el drenado topa en su límite (este flujo
+        no se vacía nunca) y la respuesta se lee hasta el suyo."""
+        return preguntas * (escpos._MAX_BYTES_DRENADO + escpos._MAX_BYTES_RESPUESTA)
+
+    def test_el_tramo_empieza_viejo_y_acaba_con_la_respuesta_nueva(self):
+        # Sonda del 2026-09-15, 13:43:44: se escribió DLE EOT 4 y el tramo empezó
+        # en 0x32 (el eco del DLE EOT 2 anterior) y acabó en 0x12, que sí era su
+        # respuesta. Aquí, con el flujo aparcado en 0x16 como lo encontró la
+        # sonda, el primer byte del tramo es el eco viejo y el último la
+        # respuesta al comando recién escrito.
+        disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_CAUSA: 0x32}))
+        leidos = []
+
+        def leer_byte(espera):
+            dato = disp.read(1)
+            leidos.append(dato[0])
+            return dato
+
+        byte = escpos.leer_estado_fresco(disp.write, leer_byte, escpos.CMD_ESTADO_CAUSA, 1.0)
+        self.assertEqual(byte, 0x32)
+        tramo = leidos[escpos._MAX_BYTES_DRENADO:]
+        self.assertEqual(len(tramo), escpos._MAX_BYTES_RESPUESTA)
+        self.assertEqual((tramo[0], tramo[-1]), (0x16, 0x32))
+        self.assertEqual(set(tramo), {0x16, 0x32})
+
+    def test_el_tramo_se_corta_por_tiempo_aunque_el_flujo_siga(self):
+        # El otro tope del tramo, el de TIEMPO: con una impresora que no se calla
+        # nunca, lo que corta la lectura puede ser el reloj antes que los 64
+        # bytes. Con un reloj falso para no dormir de verdad en la suite.
+        disp = DispositivoFlujo(flujo_con_papel())
+        tiempos = [0.0, 0.0, 0.10, 0.19, escpos._MAX_SEG_RESPUESTA]
+        reloj = iter(tiempos)
+        with mock.patch("ruleta.escpos.time.monotonic", lambda: next(reloj, tiempos[-1])):
+            byte = escpos.leer_estado_fresco(disp.write, lambda espera: disp.read(1),
+                                             escpos.CMD_ESTADO_PAPEL, 1.0)
+        # Cuatro bytes leídos, no 64: el reloj llegó al tope antes que el conteo.
+        self.assertEqual(disp.lecturas, escpos._MAX_BYTES_DRENADO + 4)
+        self.assertEqual(byte, 0x16)      # cortar pronto devuelve el eco viejo, y eso es lo esperable
+
+    def test_con_papel_no_avisa_y_escribe_el_boleto_entero(self):
+        # (a) Con papel: 0x12 / 0x12 / 0x16, los tres medidos.
+        disp = DispositivoFlujo(flujo_con_papel())
+        with registro_activo(), self.assertNoLogs("ruleta.escpos", level="WARNING"):
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
+        self.assertEqual(disp.consultas, list(COMANDOS_ESTADO))
+        self.assertEqual(disp.lecturas, self.lecturas_de(3))
+        self.assertEqual(self.aperturas, [("/dev/ruleta-impresora", "r+b", 0)])
+
+    def test_fin_de_papel_por_causa_no_escribe_ni_un_byte_del_boleto(self):
+        # (b) El boleto 00009: DLE EOT 2 = 0x32 y las otras dos sanas.
+        disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_CAUSA: 0x32}))
+        with self.assertRaises(ErrorConexion) as ctx:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(str(ctx.exception), "la impresora /dev/ruleta-impresora no tiene papel")
+        self.assertEqual(bytes(disp.escrito), escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_CAUSA)
+        self.assertEqual(disp.lecturas, self.lecturas_de(2))
+
+    def test_sin_papel_por_sensor_no_escribe_ni_un_byte_del_boleto(self):
+        # (c) Los bits 5-6 de DLE EOT 4, que en este clon no se encienden nunca
+        # pero en otra impresora sí: se corta en la PRIMERA pregunta.
+        disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_PAPEL: 0x72}))
+        with self.assertRaises(ErrorConexion) as ctx:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(str(ctx.exception), "la impresora /dev/ruleta-impresora no tiene papel")
+        self.assertEqual(bytes(disp.escrito), escpos.CMD_ESTADO_PAPEL)
+        self.assertEqual(disp.lecturas, self.lecturas_de(1))
+
+    def test_fuera_de_linea_no_escribe_ni_un_byte_del_boleto(self):
+        # (d) Bit 3 de DLE EOT 1: se pregunta la tercera y se corta ahí.
+        disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_IMPRESORA: 0x1e}))
+        with self.assertRaises(ErrorConexion) as ctx:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(str(ctx.exception),
+                         "la impresora /dev/ruleta-impresora está fuera de línea "
+                         "(tapa abierta, sin papel o error)")
+        self.assertEqual(bytes(disp.escrito), b"".join(COMANDOS_ESTADO))
+        self.assertEqual(disp.lecturas, self.lecturas_de(3))
+
+    def test_tapa_abierta_y_error_de_impresora_no_escriben_el_boleto(self):
+        # Las otras dos ramas de DLE EOT 2. La tapa abierta NO está medida en
+        # esta impresora (el bit 2 nunca se vio encendido); se programa porque
+        # otra sí lo reporta. El censo de textos se compara entero, por igualdad.
+        casos = {0x16: "la impresora /dev/ruleta-impresora tiene la tapa abierta",
+                 0x52: "la impresora /dev/ruleta-impresora reporta un error"}
+        dichos = {}
+        for causa in casos:
+            disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_CAUSA: causa}))
+            with self.assertRaises(ErrorConexion) as ctx:
+                self.impresora(disp).imprimir(b"boleto")
+            dichos[causa] = str(ctx.exception)
+            self.assertEqual(bytes(disp.escrito), escpos.CMD_ESTADO_PAPEL + escpos.CMD_ESTADO_CAUSA)
+        self.assertEqual(dichos, casos)
+
+    def test_poco_papel_de_verdad_avisa_y_el_byte_medido_no(self):
+        # (g) en la impresora que habla sin parar: solo la pareja 2-3 entera
+        # avisa. 0x16, el byte que disparó 15 avisos falsos, no dice nada.
+        disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_PAPEL: 0x1e}))
+        with registro_activo(), self.assertLogs("ruleta.escpos", level="WARNING") as cm:
+            self.impresora(disp).imprimir(b"boleto")
+        self.assertEqual(cm.output,
+                         [f"WARNING:ruleta.escpos:La impresora /dev/ruleta-impresora {AVISO_POCO_PAPEL}"])
+        sano = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_PAPEL: 0x16}))
+        with registro_activo(), self.assertNoLogs("ruleta.escpos", level="WARNING"):
+            self.impresora(sano).imprimir(b"boleto")
+        self.assertEqual(bytes(sano.escrito), b"".join(COMANDOS_ESTADO) + b"boleto")
+
+    def test_ninguna_espera_pasa_del_tope(self):
+        # El servicio no puede colgarse leyendo usblp: las únicas esperas que se
+        # piden son las tres del diseño, y la mayor es timeout_estado.
+        disp = DispositivoFlujo(flujo_con_papel())
+        imp = self.impresora(disp)
+        imp.imprimir(b"boleto")
+        self.assertEqual(set(disp.esperas),
+                         {escpos._ESPERA_DRENADO_SEG, imp.timeout_estado,
+                          escpos._ESPERA_SIGUIENTE_BYTE_SEG})
+        self.assertEqual(len(disp.esperas), self.lecturas_de(3))
+        self.assertEqual(max(disp.esperas), imp.timeout_estado)
+
+    def test_consultar_papel_devuelve_los_tres_frescos(self):
+        # El diagnóstico ve lo mismo que la impresión: sin papel, DLE EOT 2 es
+        # el único que se entera (0x32) y los otros dos siguen igual de sanos.
+        disp = DispositivoFlujo(flujo_con_papel({escpos.CMD_ESTADO_CAUSA: 0x32}))
+        self.assertEqual(self.impresora(disp).consultar_papel(), (0x12, 0x32, 0x16))
+        self.assertEqual(disp.consultas, list(COMANDOS_ESTADO))
 
 
 class TestImpresoraArchivo(unittest.TestCase):

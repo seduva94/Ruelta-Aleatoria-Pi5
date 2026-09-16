@@ -6,12 +6,29 @@ lo que da por cierto está medido y vive en
 `docs/actas/2026-09-15-hechos-medidos-fase-4a.md` (copia literal del archivo de
 hechos del orquestador). Lo que no se midió, este plan dice que no se midió.
 
-**ESTADO GLOBAL (2026-09-15, al escribir el plan).** **FASE 4a ABIERTA, SIN
-EMPEZAR.** Ninguna casilla de la §0 está marcada y **no se ha tocado ni una
-línea de código**. Al redactarlo, el árbol estaba limpio en `main` sobre
-`a554be2` (cierre documental de la Fase 3) y la suite daba **194 pruebas OK** en
-la PC; lo único que este primer cambio añade son los **tres documentos de
-apertura**: este plan, la copia literal de los hechos medidos y la ficha
+**ESTADO GLOBAL (2026-09-15, tras el paso del ejecutor).** **CÓDIGO, GOLDENS,
+MUTACIONES Y DOCUMENTOS HECHOS; SIN COMMITEAR, SIN DESPLEGAR Y SIN LA PRUEBA EN
+VIVO.** Las casillas **0 a 8** de la §0 están marcadas con su evidencia (la **7**
+como `[~]`, por lo de **M6**); las **9 a 12** siguen pendientes y son de otros
+eslabones de la cadena. La suite pasó de **194** a **214** pruebas en verde y
+nueve de las diez mutaciones quedaron en rojo (§6-bis). **Lo que esta fase
+promete sigue sin medirse contra la impresora:** hasta el Paso 11, lo único
+demostrado es que el arreglo funciona contra los dobles de prueba.
+
+El paso del ejecutor se hizo en **dos tandas**: la primera se detuvo a media
+faena el 2026-09-15 a las 15:25 (pausa segura del usuario,
+`docs/PAUSA-2026-09-15.md`) y la segunda **no rehízo nada**, como manda el §6 del
+protocolo: leyó el diff entero, comprobó una por una las casillas ya marcadas,
+corrió las **diez mutaciones enteras** sobre copias limpias y cerró lo que
+faltaba —la §6-bis con la corrida final y los números de línea re-medidos de la
+Fase 2 (C9)—.
+
+**ESTADO GLOBAL (2026-09-15, al escribir el plan; se conserva).** **FASE 4a
+ABIERTA, SIN EMPEZAR.** Ninguna casilla de la §0 está marcada y **no se ha
+tocado ni una línea de código**. Al redactarlo, el árbol estaba limpio en `main`
+sobre `a554be2` (cierre documental de la Fase 3) y la suite daba **194 pruebas
+OK** en la PC; lo único que ese primer cambio añadió son los **tres documentos
+de apertura**: este plan, la copia literal de los hechos medidos y la ficha
 **F-251**.
 
 Esta es una **sub-fase de programación**, hermana pequeña de la Fase 4 (premios
@@ -82,15 +99,15 @@ nunca de memoria.**
 
 | Nº | Paso | Quién | Estado | Hora / fecha | Evidencia |
 |---|---|---|---|---|---|
-| 0 | Re-grep del mapa de anclas de la §4 **antes de la primera edición** | agente | [ ] | | |
-| 1 | `ruleta/escpos.py`: topes, `leer_estado_fresco`, los dos `_leer_estado`, `verificar_estado` con `DLE EOT 2` y máscara estricta | ejecutor | [ ] | | |
-| 2 | `ruleta/__main__.py`: `interpretar_estado_papel` con tres bytes, ramas nuevas, máscara estricta y la llamada del diagnóstico | ejecutor | [ ] | | |
-| 3 | `tests/test_escpos.py`: `DispositivoFlujo` nuevo, `DispositivoFalso` y `SocketFalso` convertidos, goldens (a)-(g) | ejecutor | [ ] | | |
-| 4 | `tests/test_instalacion.py`: los cinco goldens de `interpretar_estado_papel` a tres bytes, más los casos nuevos | ejecutor | [ ] | | |
-| 5 | `tests/test_app.py`: **no se duplica nada**; se referencia el golden que ya existe (§2, D5) | ejecutor | [ ] | | |
-| 6 | Suite verde en la PC, con el número exacto de pruebas anotado | ejecutor | [ ] | | |
-| 7 | **Tabla de mutaciones M1-M10, todas en rojo**, ejecutadas sobre copias del repositorio | ejecutor | [ ] | | |
-| 8 | Documentos: fichas **F-091**, **F-186**, **F-190**, **F-250**; `README.md` §9; plan y acta de la Fase 2; plan de la Fase 3 | ejecutor | [ ] | | |
+| 0 | Re-grep del mapa de anclas de la §4 **antes de la primera edición** | agente | [x] | 2026-09-15 | Las anclas de la §4 aparecieron **todas**, con su texto y con tantas coincidencias como declara cada fila (dos en «bits fijos», dos en `def _leer_estado`, doce en `DispositivoFalso(`, ...). Árbol limpio: `git status --porcelain` vacío. Punto de partida: `Ran 194 tests` / `OK` |
+| 1 | `ruleta/escpos.py`: topes, `leer_estado_fresco`, los dos `_leer_estado`, `verificar_estado` con `DLE EOT 2` y máscara estricta | ejecutor | [x] | 2026-09-15 | `grep -c "CMD_ESTADO_CAUSA"` = **3**; `grep -c "_MAX_BYTES_BASURA"` = **0**; `grep -c "while True"` = **0**; `grep -n "== BITS_POCO_PAPEL"` = **una** línea (196), con paréntesis; `python -c "import ruleta.escpos"` sin error. Los únicos bucles de lectura son los dos `for ... in range(TOPE)` de `leer_estado_fresco` (153 y 159) |
+| 2 | `ruleta/__main__.py`: `interpretar_estado_papel` con tres bytes, ramas nuevas, máscara estricta y la llamada del diagnóstico | ejecutor | [x] | 2026-09-15 | Firma con **tres** parámetros (346-347); `== escpos.BITS_POCO_PAPEL` en **una** línea (368), con paréntesis; `grep -c "[ok]"` = **8** (como predecía D4) y `grep -c "[!!]"` = **20** (eran 18); `python -m ruleta --help` sin excepción |
+| 3 | `tests/test_escpos.py`: `DispositivoFlujo` nuevo, `DispositivoFalso` y `SocketFalso` convertidos, goldens (a)-(g) | ejecutor | [x] | 2026-09-15 | `python -m unittest tests.test_escpos` → `Ran 85 tests` / `OK`; `grep -c "assertLogs\|assertNoLogs"` = **8**; `grep -c "class DispositivoFlujo"` = **1**; `grep -c "DispositivoFalso(b"` = **0** |
+| 4 | `tests/test_instalacion.py`: los cinco goldens de `interpretar_estado_papel` a tres bytes, más los casos nuevos | ejecutor | [x] | 2026-09-15 | `python -m unittest tests.test_instalacion` → `Ran 38 tests` / `OK`. `TestInterpretarEstadoPapel` pasa de **5** a **10** casos: `test_con_papel_y_en_linea`, `test_sin_papel`, `test_sin_papel_por_la_causa_de_fuera_de_linea`, `test_sin_papel_gana_a_poco_papel`, `test_tapa_abierta`, `test_error_de_impresora`, `test_fuera_de_linea`, `test_poco_papel_avisa_sin_ser_error` (estrena vector `0x1e`), `test_el_byte_medido_0x16_no_es_poco_papel`, `test_no_contesta_no_es_falla` |
+| 5 | `tests/test_app.py`: **no se duplica nada**; se referencia el golden que ya existe (§2, D5) | ejecutor | [x] | 2026-09-15 | `grep -c "def test_error_conexion_revierte_el_premio"` = **1**. Se le añadió **solo un comentario**; el golden ya comprobaba que `entregados_total()` vuelve a 0. `python -m unittest tests.test_app` → `Ran 29 tests` / `OK`. **`ruleta/app.py` no se tocó** (`git diff --stat ruleta/app.py` vacío) |
+| 6 | Suite verde en la PC, con el número exacto de pruebas anotado | ejecutor | [x] | 2026-09-15 | `python -m unittest discover -s tests -t .` → **`Ran 214 tests`** / **`OK`** (eran 194: **+20**). Sin retornos de carro en ningún archivo tocado |
+| 7 | **Tabla de mutaciones M1-M10, todas en rojo**, ejecutadas sobre copias del repositorio | ejecutor | [~] | 2026-09-15 | **Nueve en rojo; M6 no puede ponerse en rojo.** Las diez se corrieron de verdad sobre copias del repositorio (§6-bis, con el nombre del test que cae en cada una), y se **volvieron a correr enteras** la tarde del 2026-09-15, tras la pausa de las 15:25, con el mismo veredicto: nueve `FAILED` y un `OK`, `Ran 214 tests` en las diez. **M6 sobrevive en verde porque la mutación no cambia el comportamiento:** en Python `&` liga **más fuerte** que `==`, así que quitar los paréntesis deja **el mismo árbol de sintaxis**. Ningún golden puede atrapar eso. Ficha **F-252**; el criterio **7.2** queda pendiente de la decisión del orquestador |
+| 8 | Documentos: fichas **F-091**, **F-186**, **F-190**, **F-250**; `README.md` §9; plan y acta de la Fase 2 | ejecutor | [x] | 2026-09-15 | Aplicadas **C1, C1-bis, C2, C3, C4, C5, C6, C7, C8, C9, C10 y C11**, más la nota de **C13** en F-250 (que **sigue abierta**: la prueba en vivo del Paso 11 no se ha hecho) y **C14** (fichas nuevas **F-252**, **F-253**, **F-254** y **F-255**, más la nota de cierre de **F-251**, cuyas cinco afirmaciones falsas quedan corregidas en este cambio). **C12 no se hizo**, y es correcto: el plan dice que las filas 21 y 21-ter de la Fase 3 se marcan **cuando esta fase cierre**, y además `docs/planes/fase-3-botones.md` está fuera del conjunto de archivos de este cambio. En la segunda tanda se **re-midieron** los números de **C9**, que estaban a uno de distancia: `verificar_estado` ocupa **172-213** (no 172-212) y `consultar_papel` **746-763**, con sus tres consultas en **759-761** |
 | 9 | Commit compuertado (conjunto de archivos fijado por adelantado) | agente de commit | [ ] | | |
 | 10 | Deploy en la Pi: `git pull --ff-only`, suite en la Pi, diagnóstico con el servicio detenido, `restart` observado | agente | [ ] | | |
 | 11 | **PRUEBA EN VIVO sin papel**, con el usuario delante | usuario + agente | [ ] | | |
@@ -255,10 +272,16 @@ En `ruleta/escpos.py` y en `ruleta/__main__.py`, con **paréntesis**:
 (papel & BITS_POCO_PAPEL) == BITS_POCO_PAPEL
 ```
 
-**Los paréntesis no son cosméticos.** En Python `==` liga **más fuerte** que
-`&`, así que `papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` se evalúa como
-`papel & (BITS_POCO_PAPEL == BITS_POCO_PAPEL)`, es decir `papel & True`, es
-decir `papel & 1`: otro defecto silencioso. El aviso sigue siendo `log.warning`
+**Los paréntesis se quedan, pero son de legibilidad.** En Python los operadores
+de bits ligan **más fuerte** que las comparaciones, así que
+`papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` es **la misma expresión** que la de
+arriba: medido el 2026-09-15 en la PC (Python 3.14.4), el árbol de sintaxis de
+las dos formas es idéntico (`ast.dump` igual) y con los vectores de los goldens
+`0x1e` da `True` y `0x16` da `False` de las dos maneras. Lo de `papel & True` es
+cierto en C, no en Python. **Escríbanse igual con paréntesis** —los manda esta
+misma D3 y se leen mejor—, pero quitarlos no es un defecto, y por eso la
+mutación **M6** no puede ponerse en rojo (§6-bis y ficha **F-252**). Lo que de
+verdad protege la igualdad de pareja es **M5**, la máscara suelta. El aviso sigue siendo `log.warning`
 con el **mismo texto**.
 
 ### D4 · El diagnóstico consulta las tres preguntas
@@ -378,9 +401,13 @@ son opiniones: cada una tiene detrás una medición o un incidente.
    **tirar el atraso acumulado** para que los 64 bytes siguientes sean recientes.
    Por eso el tope tiene que ser duro y por eso el doble de pruebas necesita un
    **atraso inicial** para que el golden muerda.
-3. **`==` liga más fuerte que `&` en Python.** Sin paréntesis,
-   `papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` es `papel & 1`. Es la trampa que
-   convierte un arreglo en un defecto nuevo, y tiene mutación propia (**M6**).
+3. **En Python los operadores de bits ligan MÁS fuerte que `==`, al revés que en
+   C.** Sin paréntesis, `papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` es **la
+   misma expresión** que con ellos (AST idéntico, medido el 2026-09-15 en Python
+   3.14.4), **no** `papel & 1`. La trampa de verdad no es la precedencia: es
+   volver a la **máscara suelta** (`papel & BITS_POCO_PAPEL`, «algún bit»), que
+   es la que produjo los 15 avisos falsos y tiene mutación propia (**M5**).
+   **M6** no puede ponerse en rojo: ficha **F-252**.
 4. **`es_estado_valido` no distingue de qué pregunta viene un byte.** Los bits
    fijos (b0=0, b1=1, b4=1, b7=0) son **idénticos** en `DLE EOT` 1, 2, 3 y 4:
    `0x12 & 0x93` y `0x16 & 0x93` valen los dos `0x12` y **los dos pasan**. Por
@@ -429,7 +456,14 @@ son opiniones: cada una tiene detrás una medición o un incidente.
 10. **Una impresora muda ahora cuesta un segundo más por boleto.** Antes eran
     dos preguntas sin respuesta a 1.0 s; ahora son tres. Es el precio conocido de
     D2 y se anota en el acta; **no** es motivo para bajar `timeout_estado` sin
-    medir.
+    medir. **Medido el 2026-09-15 en la PC**, con dobles que duermen las esperas
+    de verdad: una **EPSON normal** (contesta y calla) cuesta **0.182 s** por
+    boleto —los 0.01 s del drenado más los 0.05 s de la lectura siguiente, por
+    cada una de las tres preguntas—, y una **impresora muda** cuesta **3.032 s**
+    (eran ~2.0 s con dos preguntas). **La AOMU no paga ninguna de las dos
+    cuentas:** como habla sin parar, ninguna de sus lecturas llega a esperar, y
+    las tres preguntas le salen por unas décimas de milisegundo de espera y 576
+    lecturas inmediatas cada una.
 11. **El servicio `ruleta` tiene que estar DETENIDO para que el diagnóstico
     consulte la impresora.** `ruleta/__main__.py:417` comprueba
     `servicio_activo()` (definido en la 90) y, si está arriba, imprime
@@ -1063,11 +1097,52 @@ ninguno**, la fase se detiene (§5, Paso 7).
 | **M3** | **Quitar la consulta `DLE EOT 2`** de `verificar_estado` | El golden **(b)**, `EOT2 = 0x32`: sin esa pregunta, `DLE EOT 4` contesta `0x12` y `DLE EOT 1` contesta `0x16`, así que el boleto se imprimiría **sin papel**. Es, literalmente, el boleto 00009 |
 | **M4** | `BIT_FIN_DE_PAPEL` de `0x20` a `0x10` | **Ojo, y por eso está escrito:** `0x10` es uno de los **bits fijos** de toda respuesta `DLE EOT`, así que el golden (b) seguiría pasando *por el motivo equivocado*. El que cae es el de **«con papel»**: `0x12 & 0x10` también vale `0x10`, y el kiosco se negaría a imprimir siempre |
 | **M5** | Volver a la máscara **suelta** de poco papel en `escpos.py` (`papel & BITS_POCO_PAPEL`) | Los goldens del byte medido **`0x16`** que comprueban que **no** hay aviso, en los **dos** transportes (USB y Bluetooth) |
-| **M6** | **Quitar los paréntesis** de la máscara estricta | `papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` se convierte en `papel & 1`, y `0x1e & 1 = 0`: cae `test_poco_papel_solo_avisa`, que ahora **sí** comprueba que el aviso ocurre |
+| **M6** | **Quitar los paréntesis** de la máscara estricta | **MEDIDO el 2026-09-15: no cae ninguna prueba, y no puede caer** (las **214** pasan). En Python `&` liga más fuerte que `==`, así que la mutación deja el **mismo árbol de sintaxis** y **no cambia el comportamiento**; no es que el assert no muerda. Lo que M6 quería proteger lo protege **M5**. Ver §6-bis y ficha **F-252**; si esta tabla se retoca, lo decide el orquestador |
 | **M7** | **Borrar entera** la rama del aviso de poco papel (`escpos.py`, las dos líneas del `if` y su `log.warning`) | `test_poco_papel_solo_avisa` en los dos transportes. **Es la mutación que HOY sobrevive en verde** (medido el 2026-09-13: con la rama borrada, 194 pruebas OK). Que caiga es la prueba de que el assert pasó a morder |
 | **M8** | `_MAX_BYTES_RESPUESTA` de `64` a `1` | Los goldens con `DispositivoFlujo`: con un solo byte se lee el de la transición (todavía viejo) y se vuelve al defecto de siempre |
 | **M9** | En `interpretar_estado_papel`, **mover la rama de poco papel por delante** de la de sin papel | El golden nuevo del **orden**, con `papel = 0x7e` (bits 5-6 **y** 2-3 encendidos): tiene que decir **SIN PAPEL**, no «poco papel» |
 | **M10** | En `ruleta/app.py`, **no revertir** el boleto ante `ErrorConexion` (quitar `self.inv.revertir(boleto)`) | `tests/test_app.py::test_error_conexion_revierte_el_premio`. **No se toca `app.py` en la fase**: esta mutación existe para demostrar que la reversión del premio **está protegida por un golden que muerde**, que es la mitad del valor de todo este arreglo |
+
+### 6-bis · Lo que salió **medido** (2026-09-15, PC, Python 3.14.4)
+
+Las diez se corrieron **de verdad**, cada una sobre una copia limpia del
+repositorio (`shutil.copytree` sin `.git` ni `__pycache__`), con la suite entera
+(`python -m unittest discover -s tests -t .`) y borrando la copia después. La
+columna de la izquierda es la de la tabla de arriba; esta es la **medición**, no
+la predicción.
+
+**La corrida que manda es la de la tarde del 2026-09-15**, después de la pausa
+de las 15:25 y con el árbol ya completo: las diez se volvieron a correr enteras
+en vez de dar por buena una tabla que nadie podía comprobar. El script vive en
+el scratchpad de la sesión (`mutaciones_fase4a.py`), aplica cada mutación como
+una **sustitución de texto única** —si el ancla aparece dos veces **aborta** en
+vez de mutar a ciegas— y anota el nombre de todas las pruebas que caen. En las
+diez corren las **214** pruebas: ninguna mutación rompe la recolección, así que
+lo que cae, cae por conducta. Dos detalles que cambian el conteo y por eso se
+escriben: **M2** se aplicó como `if es_estado_valido(dato[0]) and ultimo is
+None:` —leer el tramo entero y quedarse con el **primero** válido—, que mide
+«primero contra último» sin tocar el número de lecturas; y **M10** se ancló al
+`except ErrorConexion as e:` que la precede, porque `self.inv.revertir(boleto)`
+aparece **dos** veces en `ruleta/app.py` (la otra es la del `except Exception`
+de antes de mandar nada, y mutarla sería otra cosa).
+
+| Id | ¿En rojo? | Pruebas que caen | Una de ellas, con su nombre exacto |
+|---|---|---|---|
+| **M1** | **sí** | 12 | `TestLecturaFrescaAOMU.test_con_papel_no_avisa_y_escribe_el_boleto_entero` (falla con «tiene la tapa abierta»: el byte rezagado `0x16` tiene el bit 2, que en `DLE EOT 2` es la tapa. Es la trampa 5 de la §3, medida) |
+| **M2** | **sí** | 7 | `TestLecturaFrescaAOMU.test_el_tramo_empieza_viejo_y_acaba_con_la_respuesta_nueva` (y las seis que dependen del veredicto: con el primer byte se lee la respuesta de la pregunta **anterior** y el kiosco decide por el byte equivocado) |
+| **M3** | **sí** | 17 | `TestLecturaFrescaAOMU.test_fin_de_papel_por_causa_no_escribe_ni_un_byte_del_boleto` (el boleto 00009, convertido en golden) |
+| **M4** | **sí** | 21 | `TestLecturaFrescaAOMU.test_con_papel_no_avisa_y_escribe_el_boleto_entero` — **tal y como predecía el plan**: el que cae es el de «con papel», porque `0x12 & 0x10` también vale `0x10` |
+| **M5** | **sí** | 3 | `TestImpresoraArchivoUSB.test_el_byte_medido_0x16_no_avisa_de_poco_papel` (y su gemelo de Bluetooth, y `test_poco_papel_de_verdad_avisa_y_el_byte_medido_no`) |
+| **M6** | **NO, y no puede** | 0 | **Ninguna: la suite entera pasa (214 OK).** La mutación **no cambia el comportamiento**: en Python `&` liga **más fuerte** que `==`, de modo que `papel & BITS_POCO_PAPEL == BITS_POCO_PAPEL` tiene **el mismo árbol de sintaxis** que la versión con paréntesis (medido con `ast.dump`, 2026-09-15). La trampa 3 de la §3 y la justificación de **D3** afirmaban lo contrario —eso es C, no Python— y **quedan corregidas en este mismo cambio**, igual que la predicción de la fila **M6** de la tabla del §6, que decía «`papel & 1`, y `0x1e & 1 = 0`» y ahora dice lo medido; lo que **no** se ha decidido, porque son decisiones cerradas del orquestador, es si **M6 se retira o se sustituye** y qué pasa con el criterio **7.2**. Los paréntesis **se quedan** —los manda D3 y se leen mejor—, pero son de legibilidad. Lo que M6 quería proteger lo protege **M5**. Ficha **F-252** |
+| **M7** | **sí** | 3 | `TestImpresoraBluetooth.test_poco_papel_solo_avisa` — la que **hoy sobrevivía en verde**; con el `assertLogs` ya muerde |
+| **M8** | **sí** | 9 | `TestLecturaFrescaAOMU.test_el_tramo_empieza_viejo_y_acaba_con_la_respuesta_nueva` |
+| **M9** | **sí** | 1 | `TestInterpretarEstadoPapel.test_sin_papel_gana_a_poco_papel` |
+| **M10** | **sí** | 1 | `TestRuleta.test_error_conexion_revierte_el_premio` (`tests/test_app.py`; `ruleta/app.py` **no se tocó** en la fase) |
+
+**Recuento: nueve en rojo y una imposible.** El criterio **7.2** («las diez en
+rojo, cero supervivientes») **no se cumple tal y como está escrito**, y el
+ejecutor **no lo arregló por su cuenta**: M6 es una decisión cerrada del §6 y el
+plan manda **detenerse y preguntar** (§10). Lo decide el orquestador.
 
 ---
 

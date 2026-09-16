@@ -56,15 +56,33 @@ CODECS_TABLA = {0: "cp437", 2: "cp850", 3: "cp860", 16: "cp1252", 17: "cp866", 1
 # Estado en tiempo real: DLE EOT n. La respuesta es 1 byte con bits fijos
 # (b0=0, b1=1, b4=1, b7=0) que sirven para validarla.
 CMD_ESTADO_IMPRESORA = b"\x10\x04\x01"   # bit 3 = fuera de línea
-CMD_ESTADO_PAPEL = b"\x10\x04\x04"       # bits 2-3 = poco papel, bits 5-6 = sin papel
+CMD_ESTADO_CAUSA = b"\x10\x04\x02"       # causa: bit 2 = tapa abierta, bit 5 = fin de papel, bit 6 = error
+CMD_ESTADO_PAPEL = b"\x10\x04\x04"       # bits 2-3 = poco papel (solo legales en pareja), bits 5-6 = sin papel
 _MASCARA_FIJA_ESTADO = 0x93
 _VALOR_FIJO_ESTADO = 0x12
 # Bits con significado dentro de esa respuesta. Están aquí una sola vez: los
 # usan los dos transportes (Bluetooth y USB) y el diagnóstico.
 BITS_SIN_PAPEL = 0x60
-BITS_POCO_PAPEL = 0x0C
+BITS_POCO_PAPEL = 0x0C                   # hacen falta LOS DOS bits: 2-3 solo son legales 00 u 11
 BIT_FUERA_DE_LINEA = 0x08
-_MAX_BYTES_BASURA = 4                    # bytes sueltos que se descartan buscando un estado válido
+# Bits de DLE EOT 2 (la causa de estar fuera de línea). Medido en la AOMU My-A1
+# el 2026-09-15: con papel contesta 0x12 y sin papel (tapa cerrada) 0x32, o sea
+# el bit 5. En este clon es la ÚNICA pregunta que se entera de que el rollo se
+# acabó: DLE EOT 4 siguió contestando 0x12 y DLE EOT 1 siguió contestando 0x16
+# con el rollo fuera. La tapa abierta no se vio nunca encendida: se programa
+# porque otra impresora sí la reporta, pero no está medida.
+BIT_TAPA_ABIERTA = 0x04
+BIT_FIN_DE_PAPEL = 0x20
+BIT_ERROR_IMPRESORA = 0x40
+
+# Topes de la lectura fresca (ver leer_estado_fresco). Los cinco salen de la
+# sonda del 2026-09-15 sobre la AOMU My-A1, que repite el último byte de estado
+# a ~21 kB/s por el endpoint de lectura.
+_MAX_BYTES_DRENADO = 512                 # con el flujo corriendo la sonda topó siempre en 512 y nunca lo vació
+_ESPERA_DRENADO_SEG = 0.01               # 10 ms por byte, como la sonda; corta en la primera lectura vacía
+_MAX_BYTES_RESPUESTA = 64                # la sonda leyó 64; el byte nuevo llegó entre el 1 y el 22
+_ESPERA_SIGUIENTE_BYTE_SEG = 0.05        # 50 ms por byte a partir del primero, como la sonda
+_MAX_SEG_RESPUESTA = 0.2                 # tope de tiempo del tramo posterior al primer byte
 
 # Errores de conexión en los que reintentar no sirve de nada.
 _ERRNO_SIN_REINTENTO = {errno.EBUSY, errno.EACCES, errno.EPERM}
@@ -104,27 +122,94 @@ def es_estado_valido(byte: int) -> bool:
     return (byte & _MASCARA_FIJA_ESTADO) == _VALOR_FIJO_ESTADO
 
 
+def leer_estado_fresco(escribir: Callable[[bytes], None],
+                       leer_byte: Callable[[float], bytes],
+                       comando: bytes,
+                       espera_primer_byte: float) -> int | None:
+    """Pregunta un DLE EOT y devuelve el ÚLTIMO byte de estado válido, o None.
+
+    Por qué el último y no el primero: la AOMU My-A1 repite sin parar por el
+    endpoint de lectura el último byte de estado que fijó su firmware, a unos
+    21 kB/s (medido el 2026-09-15). Quedarse con el PRIMER byte que llega tras
+    un DLE EOT devuelve la respuesta a la pregunta ANTERIOR. Ese desfase de un
+    comando es exactamente lo que el 2026-09-15 a las 13:29 hizo que el kiosco
+    leyera 0x16 —la respuesta sana de DLE EOT 1— en la ranura del papel, avisara
+    de «poco papel» que no existía y diera por impreso el boleto 00009, que no
+    salió. Por eso: se tira el atraso, se pregunta y se lee un tramo entero; el
+    último byte válido del tramo sí es la respuesta al comando recién enviado
+    (sonda de las 13:43:44: primero=0x32, el eco del DLE EOT 2 anterior, y
+    último=0x12, la respuesta del DLE EOT 4 recién escrito).
+
+    En una impresora EPSON normal, que contesta un byte y calla, el drenado no
+    encuentra nada, el tramo trae ese único byte y el resultado es el de
+    siempre: esta función no cambia la política para ese hardware.
+
+    `escribir(comando)` manda el comando completo; si la escritura falla, el
+    OSError **sube** (lo convierten en ErrorConexion quienes ya lo hacen).
+    `leer_byte(espera)` devuelve el siguiente byte, o b"" si no llegó nada en
+    `espera` segundos. Los dos bucles tienen tope de bytes y de tiempo: leer sin
+    tope este nodo colgó una sonda 2.5 minutos el 2026-09-13.
+    """
+    for _ in range(_MAX_BYTES_DRENADO):          # tope de bytes; cada lectura, tope de tiempo
+        if not leer_byte(_ESPERA_DRENADO_SEG):   # silencio: no hay atraso que tirar
+            break
+    escribir(comando)
+    ultimo: int | None = None
+    inicio: float | None = None
+    for leidos in range(_MAX_BYTES_RESPUESTA):
+        dato = leer_byte(espera_primer_byte if leidos == 0 else _ESPERA_SIGUIENTE_BYTE_SEG)
+        if not dato:
+            break
+        if inicio is None:
+            inicio = time.monotonic()            # el tope de tiempo corre desde el primer byte
+        if es_estado_valido(dato[0]):
+            ultimo = dato[0]
+        if time.monotonic() - inicio >= _MAX_SEG_RESPUESTA:
+            break
+    return ultimo
+
+
 def verificar_estado(leer: Callable[[bytes], int | None], quien: str) -> None:
-    """Pregunta por el papel y por la línea; aborta si la impresora dice que no puede.
+    """Pregunta las tres cosas que puede contestar la impresora; aborta si dice que no puede.
 
     `leer(comando)` manda un DLE EOT y devuelve el byte de estado, o None si la
     impresora no contesta. La política es la misma por Bluetooth y por USB, y no
     se cambia: si **no contesta** se imprime igual (no responder no es prueba de
-    falla) y solo se lanza ErrorConexion —antes de mandar un solo byte del
-    boleto— cuando contesta y dice «sin papel» o «fuera de línea». El papel se
-    evalúa antes de mandar la segunda pregunta: sin papel ya no hay nada más que
-    preguntar.
+    falla) y todo ErrorConexion se lanza **antes de mandar un solo byte del
+    boleto**, que es lo que hace segura la reversión del premio.
+
+    Se pregunta en este orden, y el orden importa porque cada respuesta se
+    evalúa antes de mandar la siguiente pregunta:
+
+    1. DLE EOT 4 (sensores de papel): sin papel aborta; poco papel solo avisa,
+       y hace falta la pareja de bits entera (ver BITS_POCO_PAPEL).
+    2. DLE EOT 2 (causa de estar fuera de línea): fin de papel, error o tapa
+       abierta abortan. En la AOMU My-A1 es la única que se entera del rollo
+       agotado (0x32, medido el 2026-09-15); el bit 3, alimentación por botón,
+       se ignora a propósito.
+    3. DLE EOT 1 (estado): bit 3, fuera de línea, aborta.
     """
     papel = leer(CMD_ESTADO_PAPEL)
     if papel is not None:
         if papel & BITS_SIN_PAPEL:
             raise ErrorConexion(f"la impresora {quien} no tiene papel")
-        if papel & BITS_POCO_PAPEL:
+        if (papel & BITS_POCO_PAPEL) == BITS_POCO_PAPEL:
             log.warning("La impresora %s reporta poco papel: cambia el rollo pronto", quien)
+    causa = leer(CMD_ESTADO_CAUSA)
+    if causa is not None:
+        if causa & BIT_FIN_DE_PAPEL:
+            # Mismo texto que el de DLE EOT 4 a propósito: es lo que lee el mesero
+            # en el journal y lo que dice el README. De qué pregunta vino va al debug.
+            log.debug("La impresora %s reporta fin de papel por DLE EOT 2 (0x%02x)", quien, causa)
+            raise ErrorConexion(f"la impresora {quien} no tiene papel")
+        if causa & BIT_ERROR_IMPRESORA:
+            raise ErrorConexion(f"la impresora {quien} reporta un error")
+        if causa & BIT_TAPA_ABIERTA:
+            raise ErrorConexion(f"la impresora {quien} tiene la tapa abierta")
     estado = leer(CMD_ESTADO_IMPRESORA)
     if estado is not None and estado & BIT_FUERA_DE_LINEA:
         raise ErrorConexion(f"la impresora {quien} está fuera de línea (tapa abierta, sin papel o error)")
-    if papel is None and estado is None:
+    if papel is None and causa is None and estado is None:
         log.debug("La impresora %s no responde al estado en tiempo real; se imprime sin verificar", quien)
 
 
@@ -454,19 +539,27 @@ class ImpresoraBluetooth(Impresora):
         return sock
 
     def _leer_estado(self, sock, comando: bytes) -> int | None:
-        """Envía DLE EOT n y devuelve el byte de estado, o None si no responde."""
+        """Envía DLE EOT n y devuelve el byte de estado FRESCO, o None si no responde.
+
+        La mecánica (drenar, preguntar, quedarse con el último) vive en
+        `leer_estado_fresco`, compartida con el transporte de archivo/USB:
+        aquí solo se aportan las dos operaciones del socket.
+        """
+        def escribir(datos: bytes) -> None:
+            # El comando se manda con el timeout de la CONEXIÓN, no con el de
+            # una lectura: settimeout gobierna también el envío.
+            sock.settimeout(self.timeout if self.timeout and self.timeout > 0 else None)
+            sock.sendall(datos)
+
+        def leer_byte(espera: float) -> bytes:
+            sock.settimeout(espera)
+            try:
+                return sock.recv(1) or b""
+            except (socket.timeout, TimeoutError):
+                return b""
+
         try:
-            sock.sendall(comando)
-            sock.settimeout(self.timeout_estado)
-            for _ in range(_MAX_BYTES_BASURA):   # descarta bytes sueltos que no sean un estado válido
-                dato = sock.recv(1)
-                if not dato:
-                    return None
-                if es_estado_valido(dato[0]):
-                    return dato[0]
-            return None
-        except (socket.timeout, TimeoutError):
-            return None
+            return leer_estado_fresco(escribir, leer_byte, comando, self.timeout_estado)
         finally:
             try:
                 sock.settimeout(self.timeout if self.timeout and self.timeout > 0 else None)
@@ -629,28 +722,33 @@ class ImpresoraArchivo(Impresora):
         self._esperar = esperar_lectura or _hay_algo_que_leer
 
     def _leer_estado(self, f, comando: bytes) -> int | None:
-        """Manda DLE EOT n y devuelve el byte de estado, o None si no contesta."""
-        pendiente = memoryview(comando)
-        while pendiente:
-            n = f.write(pendiente)
-            if not n:
-                raise OSError(errno.EIO, f"{self.ruta} no aceptó la consulta de estado")
-            pendiente = pendiente[n:]
-        for _ in range(_MAX_BYTES_BASURA):   # descarta bytes sueltos que no sean un estado válido
-            if not self._esperar(f, self.timeout_estado):
-                return None
-            dato = f.read(1)
-            if not dato:
-                return None
-            if es_estado_valido(dato[0]):
-                return dato[0]
-        return None
+        """Manda DLE EOT n y devuelve el byte de estado FRESCO, o None si no contesta.
 
-    def consultar_papel(self) -> tuple[int | None, int | None]:
-        """Devuelve (byte de papel, byte de estado); None en el que no conteste.
+        La mecánica (drenar, preguntar, quedarse con el último) vive en
+        `leer_estado_fresco`, compartida con el transporte Bluetooth: aquí solo
+        se aportan la escritura completa y la lectura con tope de tiempo.
+        """
+        def escribir(datos: bytes) -> None:
+            pendiente = memoryview(datos)
+            while pendiente:
+                n = f.write(pendiente)
+                if not n:
+                    raise OSError(errno.EIO, f"{self.ruta} no aceptó la consulta de estado")
+                pendiente = pendiente[n:]
 
-        No interpreta nada ni imprime: es lo que usa el diagnóstico para decir
-        si la impresora contesta y qué contesta.
+        def leer_byte(espera: float) -> bytes:
+            if not self._esperar(f, espera):
+                return b""
+            return f.read(1) or b""
+
+        return leer_estado_fresco(escribir, leer_byte, comando, self.timeout_estado)
+
+    def consultar_papel(self) -> tuple[int | None, int | None, int | None]:
+        """Devuelve (byte de papel, byte de causa, byte de estado); None en el que no conteste.
+
+        Son DLE EOT 4, DLE EOT 2 y DLE EOT 1, en ese orden. No interpreta nada
+        ni imprime: es lo que usa el diagnóstico para decir si la impresora
+        contesta y qué contesta.
         """
         try:
             f = self._abrir(self.ruta, "r+b", buffering=0)
@@ -659,6 +757,7 @@ class ImpresoraArchivo(Impresora):
         try:
             with f:
                 return (self._leer_estado(f, CMD_ESTADO_PAPEL),
+                        self._leer_estado(f, CMD_ESTADO_CAUSA),
                         self._leer_estado(f, CMD_ESTADO_IMPRESORA))
         except OSError as e:
             raise ErrorConexion(f"falló la consulta de estado de {self.ruta}: {e}") from e

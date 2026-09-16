@@ -343,16 +343,29 @@ def revisar_ruta_impresora(ruta: str, stat_fn: Callable = os.stat,
     return False, f"  [!!] {ruta} no es un dispositivo ni un archivo normal: revisa impresora.ruta"
 
 
-def interpretar_estado_papel(papel: int | None, estado: int | None) -> tuple[bool, str]:
-    """Traduce la respuesta DLE EOT de la impresora a una línea del diagnóstico."""
-    if papel is None and estado is None:
+def interpretar_estado_papel(papel: int | None, causa: int | None,
+                             estado: int | None) -> tuple[bool, str]:
+    """Traduce las tres respuestas DLE EOT de la impresora a una línea del diagnóstico.
+
+    `papel` es DLE EOT 4, `causa` es DLE EOT 2 y `estado` es DLE EOT 1, tal y
+    como los devuelve `ImpresoraArchivo.consultar_papel()`. El ORDEN de las
+    ramas manda: «sin papel» se decide antes que «poco papel», porque un byte
+    con los bits 5-6 y los 2-3 encendidos a la vez es un rollo agotado, no un
+    rollo por acabarse. Cada condición se evalúa solo si su byte llegó.
+    """
+    if papel is None and causa is None and estado is None:
         return True, ("  [??] la impresora no contestó a la consulta de estado; se imprimirá igual "
                       "(no todos los firmwares contestan)")
-    if papel is not None and papel & escpos.BITS_SIN_PAPEL:
+    if ((papel is not None and papel & escpos.BITS_SIN_PAPEL)
+            or (causa is not None and causa & escpos.BIT_FIN_DE_PAPEL)):
         return False, "  [!!] la impresora reporta SIN PAPEL: pon un rollo nuevo"
+    if causa is not None and causa & escpos.BIT_TAPA_ABIERTA:
+        return False, "  [!!] la impresora tiene la tapa abierta: ciérrala bien"
+    if causa is not None and causa & escpos.BIT_ERROR_IMPRESORA:
+        return False, "  [!!] la impresora reporta un error: revisa el papel, la tapa y la cuchilla"
     if estado is not None and estado & escpos.BIT_FUERA_DE_LINEA:
         return False, "  [!!] la impresora está fuera de línea: tapa abierta, sin papel o con error"
-    if papel is not None and papel & escpos.BITS_POCO_PAPEL:
+    if papel is not None and (papel & escpos.BITS_POCO_PAPEL) == escpos.BITS_POCO_PAPEL:
         return True, "  [??] la impresora reporta poco papel: ten listo el rollo de repuesto"
     return True, "  [ok] la impresora contesta: hay papel y está en línea"
 
@@ -419,11 +432,11 @@ def cmd_diagnostico(cfg: Config, args) -> int:
                       "para no interferir (deténlo con sudo systemctl stop ruleta si quieres consultarlo)")
             else:
                 try:
-                    papel, estado = escpos.ImpresoraArchivo(cfg.impresora.ruta).consultar_papel()
+                    papel, causa, estado = escpos.ImpresoraArchivo(cfg.impresora.ruta).consultar_papel()
                 except ErrorImpresora as e:
                     bien, linea = False, f"  [!!] no se pudo consultar el estado de la impresora: {e}"
                 else:
-                    bien, linea = interpretar_estado_papel(papel, estado)
+                    bien, linea = interpretar_estado_papel(papel, causa, estado)
                 print(linea)
                 ok = ok and bien
         return 0 if ok else 1
