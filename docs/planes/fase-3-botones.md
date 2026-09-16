@@ -66,12 +66,31 @@ de memoria.
 | 16 | Cierre documental: plan retroactivo, acta, fichas, README y documento del evento | ejecutor | [x] | 2026-09-15 | Este documento, `docs/actas/2026-09-15-fase-3.md`, las fichas **F-239** a **F-250** y las notas del README §2 |
 | 17 | **Soldar o enrollar** el cobre de las patitas del pulsador HABILITAR | usuario | [ ] | | Hoy las patitas delgadas van metidas en terminales de crimpar tipo cuchilla, que son para cuchillas anchas: funciona, pero el contacto es precario (ficha **F-239**) |
 | 18 | Decidir qué se hace con `"led": 22` sin LED físico | usuario | [ ] | | O se pone `"led": null`, o se conecta un LED de verdad, o se deja como está a sabiendas (ficha **F-240**) |
-| 19 | **Reiniciar el inventario antes del lunes 21** | usuario o agente | [ ] | | Las pruebas del día dejaron `estado.json` en el **folio 10** (`test4`=1, `test7`=4, `test6`=3, `test5`=2): `python3 -m ruleta reiniciar --si` (ficha **F-243**) |
+| 19 | **Reiniciar el inventario antes del lunes 21** | usuario o agente | [ ] | | Las pruebas del día dejaron `estado.json` en el **folio 10** (`test4`=1, `test7`=4, `test6`=3, `test5`=2): `python3 -m ruleta reiniciar --si` (ficha **F-243**). **Nota del 2026-09-15 (cierre de la Fase 4a): ya no es el folio 10.** Las pruebas del papel de esa misma noche lo dejaron en el **folio 16** (`test4`=2, `test5`=2, `test6`=5, `test7`=5). **La casilla sigue vacía y el plazo no se mueve:** antes del lunes 21 |
 | 20 | **Pieza D**: esperar a que la hora esté sincronizada antes de imprimir y de aceptar jugadas | fase de programación aparte | [ ] | | Sale de la decisión del usuario de ir **sin batería RTC y con internet del asadero** (ficha **F-241**) |
-| 21 | Arreglo del **aviso falso de poco papel** | fase de programación aparte | [ ] | | Diagnóstico cerrado el 2026-09-13; el arreglo espera autorización del usuario. **No se tocó en esta fase** |
+| 21 | Arreglo del **aviso falso de poco papel** | fase de programación aparte | [x] | 2026-09-15 21:26:42 | **HECHO en la Fase 4a**, commit `2a0aba3e01dcd15878579f1d02a64457b1834046`. Diagnóstico cerrado el 2026-09-13; el arreglo son la **lectura fresca** del estado y la **máscara estricta** de poco papel (hacen falta **los dos** bits). Medido tras el deploy: **0 apariciones** de «poco papel» en el journal desde el restart de las 21:26:42, cuando antes salía en **cada** arranque (ficha **F-190**, cerrada; acta `docs/actas/2026-09-15-fase-4a.md`) |
 | 21-bis | **Prueba deliberada SIN PAPEL** | usuario + agente | [x] | 13:29:17 | Se ejerció por fin el camino que la **F-091** llevaba desde el 2026-09-11 sin probar, **y falló**: el boleto 00009 se emitió, se descontó el premio y se dio por impreso **sin que saliera papel**. Ver §7.7 |
-| 21-ter | **Arreglo de la consulta de papel: leer la respuesta FRESCA** | fase de programación aparte (Fase 4) | [ ] | | Sale de la fila 21-bis. Espera autorización del usuario (ficha **F-250**) |
-| 22 | Actualizar el «Contexto del producto» de `CLAUDE.md` (hoy dice «sin red» y «batería RTC necesaria») | **orquestador** | [ ] | | `CLAUDE.md` está **fuera** del conjunto de archivos que esta fase podía tocar (ficha **F-242**) |
+| 21-ter | **Arreglo de la consulta de papel: leer la respuesta FRESCA** | fase de programación aparte (Fase 4) | [x] | 2026-09-15 21:32:21 | **HECHO en la Fase 4a** y **probado en hardware**, con el mismo experimento de la fila 21-bis pero con el código nuevo: los boletos **00013** y **00014** se revirtieron **sin mandar un byte** (`la impresora /dev/ruleta-impresora no tiene papel` → `premio devuelto al inventario`), **no quedó nada retenido** en la impresora y, con el rollo repuesto, el **00015** y el **00016** salieron normales. El premio **no se descontó** (`test5` = 2). Commit `2a0aba3e01dcd15878579f1d02a64457b1834046` (fichas **F-091** y **F-250**, cerradas; acta `docs/actas/2026-09-15-fase-4a.md` §8) |
+| 22 | Actualizar el «Contexto del producto» de `CLAUDE.md` (hoy dice «sin red» y «batería RTC necesaria») | **orquestador** | [x] | 2026-09-15 | **HECHO en el cierre documental de la Fase 4a.** Se editó **únicamente** la sección «Contexto del producto» —las secciones 1 a 7 y «Convenciones de este repo» no se tocaron—: botones cableados (GPIO 17 / pin 11 y GPIO 27 / pin 13, tierras en 9 y 25, **sin LED**), lo que la impresora contesta de verdad, la decisión de **internet del asadero y sin batería RTC** como **nota fechada que conserva lo que decía antes**, y el recordatorio del **folio 16**. Ficha **F-242**, cerrada |
+
+> **NOTA DEL 2026-09-15 (cierre de la Fase 4a; esta bitácora no se reescribe, se
+> marca).** Tres casillas que esta fase dejó vacías **ya están hechas**, y no las
+> hizo la Fase 3: la **21** y la **21-ter** —los dos arreglos del camino del
+> papel— y la **22** —el «Contexto del producto» de `CLAUDE.md`—. Las tres se
+> cerraron el mismo 2026-09-15, con el commit
+> `2a0aba3e01dcd15878579f1d02a64457b1834046` y su cierre documental. Por eso el
+> párrafo de arriba que dice que **«con el rollo agotado el kiosco emite,
+> descuenta y da por impreso un boleto que no sale»** describe el defecto **tal y
+> como estaba el 2026-09-15 a las 13:29**, y **ya no es cierto**: se conserva
+> porque es lo que esta fase midió y porque la fila 21-bis es la prueba que
+> disparó el arreglo. **Lo que sigue pendiente de esta bitácora** son las filas
+> **17** (soldar HABILITAR), **18** (qué se hace con `"led": 22`), **19**
+> (reiniciar el inventario, ahora en el folio **16**) y **20** (la pieza D de la
+> hora). Y algo que esta fase no podía saber: **sin LED conectado, el rechazo por
+> falta de papel no se percibe** —el usuario, delante de la prueba, dijo «no vi
+> ninguna diferencia realmente»—, lo que hace de la fila **18** algo más que una
+> cuestión de limpieza (ficha **F-256**). Evidencia:
+> `docs/actas/2026-09-15-fase-4a.md`.
 
 ---
 

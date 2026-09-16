@@ -108,9 +108,11 @@ Cada eslabón que produce commit espera un «listo» explícito de los revisores
 Ruleta de premios para el restaurante Asadero 33: Raspberry Pi 5, botón arcade
 JUGAR más botón HABILITAR del mesero, impresora térmica de 80 mm y sin pantalla.
 
-*(Actualizado el 2026-09-11 con lo medido en la Fase 2; antes decía «impresora
-Bluetooth» y «valores sin confirmar». Evidencia:
-`docs/actas/2026-09-11-fase-2.md`.)*
+*(Actualizado el 2026-09-15 con lo medido y decidido en las Fases 3 y 4a
+—botones, papel, red y hora—. Antes, el 2026-09-11, ya se había corregido lo de
+«impresora Bluetooth» y «valores sin confirmar». Evidencia:
+`docs/actas/2026-09-11-fase-2.md`, `docs/actas/2026-09-15-fase-3.md` y
+`docs/actas/2026-09-15-fase-4a.md`.)*
 
 - **La impresora es una AOMU My-A1, que es un clon POS-80** (ESC/POS). Medido en
   la Pi: USB `0418:5011` e `ieee1284_id` =
@@ -125,10 +127,48 @@ Bluetooth» y «valores sin confirmar». Evidencia:
   acentos **19 (`cp858`)**, **48 columnas**, **corte automático** y zumbador que
   da **un pitido corto por comando `ESC B`** —ignora cantidad y duración—, con
   `"beep": true` = un pitido al final de cada boleto.
-- **Red:** la de laboratorio es el **punto de acceso móvil de Windows** de la
-  laptop del usuario, con el mismo nombre y contraseña que el Wi-Fi del asadero;
-  la Pi entra sola. **En producción la Pi va sin red**, y por eso la **batería
-  RTC** es necesaria.
+- **Botones, cableados y probados en hardware el 2026-09-15** (Fase 3):
+  **JUGAR** en **GPIO 17 (pin 11)** y **HABILITAR** en **GPIO 27 (pin 13)**, los
+  dos contra tierra, con las **tierras en los pines 9 y 25**. Los tres boletos de
+  prueba salieron con jugadas reales, y el cooldown y la compuerta del mesero se
+  vieron morder en el journal. **No hay ningún LED conectado**, aunque
+  `config.json` sigue diciendo `"led": 22` —`gpiozero` no falla por eso— y **esa
+  es hoy la única señal de error que el programa tiene prevista**, así que una
+  jugada rechazada **no se percibe** (fichas **F-240** y **F-256**). Diagrama:
+  `docs/cableado-botones.svg`.
+- **Papel: la impresora habla sin parar, y solo una pregunta se entera.** La
+  AOMU repite por el endpoint de lectura **el último byte de estado** que fijó su
+  firmware (~21 kB/s), así que leer un byte tras un `DLE EOT` devuelve la
+  respuesta a la **pregunta anterior**. Medido el 2026-09-15: con el rollo fuera,
+  **`DLE EOT 4` y `DLE EOT 1` son ciegos en este clon** —siguen contestando
+  `0x12` y `0x16`— y **solo `DLE EOT 2`, bit 5 (`0x32`), reporta el fin de
+  papel**. Desde **`2a0aba3`** el programa **drena lo viejo, pregunta y se queda
+  con el último byte válido**, y con eso **se niega a jugar sin papel**: no
+  imprime, devuelve el premio al inventario y no deja nada retenido en la
+  impresora (probado en vivo el 2026-09-15 a las 21:32; evidencia:
+  `docs/actas/2026-09-15-fase-4a.md`). El viejo aviso de «poco papel» era un
+  artefacto de esa lectura y **ya no aparece**.
+- **Red y hora. Decisión del usuario del 2026-09-15:** en el evento **la Pi
+  tendrá el internet del asadero**, que es lo que le pone la hora al arrancar
+  (NTP), y **NO habrá batería RTC**. El riesgo que eso acepta tiene nombre: en
+  los **primeros minutos tras encender** —unos tres, medidos el 2026-09-15— la Pi
+  **cree que es otro día**, y de la fecha dependen los topes diarios, las fechas
+  `desde`/`hasta` y el boleto de inventario de arranque. La mitigación es la
+  **pieza D**, que **todavía no existe**: esperar a que la hora esté sincronizada
+  antes de imprimir y de aceptar jugadas (ficha **F-241**). Regla práctica
+  mientras tanto: encender la Pi unos minutos antes de abrir y **mirar la fecha
+  del boleto de inventario**; si está mal, **no reiniciar**, esperar y pedir otro
+  inventario. *(Nota fechada: hasta el 2026-09-15 este párrafo decía que **en
+  producción la Pi va sin red** y que **por eso la batería RTC es necesaria**. La
+  decisión del usuario lo derogó; se conserva aquí porque hay fichas viejas que
+  todavía razonan desde esa premisa. Ficha **F-242**.)* La red de **laboratorio**
+  sigue siendo el **punto de acceso móvil de Windows** de la laptop del usuario,
+  con el mismo nombre y contraseña que el Wi-Fi del asadero; la Pi entra sola.
+- **El inventario real NO está en cero:** las pruebas de hardware del 2026-09-15
+  lo dejaron en el **folio 16**, con premios de prueba ya contados como
+  entregados. **Hay que correr `python3 -m ruleta reiniciar --si` antes del lunes
+  21 de septiembre** o esos boletos contarán como premios entregados (ficha
+  **F-243**).
 
 Ver `README.md` para operación e instalación, y `docs/actas/` para la evidencia
 medida de cada uno de estos valores.

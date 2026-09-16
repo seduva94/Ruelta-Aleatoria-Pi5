@@ -21,7 +21,7 @@ Todo el texto (config, boletos, mensajes, comandos) está en español.
 | Pieza | Detalle |
 |---|---|
 | Raspberry Pi 5 | con fuente oficial de 27 W y microSD de 16 GB o más |
-| Batería RTC (recomendada) | "RTC Battery for Raspberry Pi 5" (Panasonic ML-2020, conector J5 junto al USB-C). Sin ella, tras un corte de luz y sin internet la hora de los boletos saldrá mal |
+| Batería RTC (**no se va a poner**) | "RTC Battery for Raspberry Pi 5" (Panasonic ML-2020, conector J5 junto al USB-C). Sin ella, tras un corte de luz y sin internet la hora de los boletos saldrá mal. *(Esta fila decía «recomendada». **El 2026-09-15 el usuario decidió no comprarla**: la Pi irá con el internet del asadero, que es lo que le pone la hora al encender. **No hace falta que compres nada aquí**; lo que sí hay que hacer está en la §2: encender la Pi unos minutos antes de abrir y mirar la fecha del boleto de inventario. Ficha **F-241**.)* |
 | Impresora | AOMU My-A1 (familia POS-80), 80 mm, con cortador automático y zumbador. Va por **cable USB**; el Bluetooth queda de respaldo. Rollos térmicos de 80 mm |
 | Botón JUGAR | botón arcade (cualquier botón normalmente abierto sirve) |
 | Botón HABILITAR | pulsador para el mesero; se mantiene presionado mientras el cliente juega |
@@ -297,6 +297,23 @@ por línea.
    `datos/boletos.csv` (o del inventario impreso) con los boletos físicos y
    libera con el punto 7 los que no hayan salido.
 
+> **Aviso del 2026-09-15 (Fase 4a): en este kiosco NO hay ningún LED
+> conectado.** Los puntos 6 y 8 de arriba dicen «el LED parpadea rápido» porque
+> el LED es la señal de error que el programa tiene prevista, y **funciona si
+> alguien lo conecta** (§2). Hoy no hay ninguno, y eso está medido: en la prueba
+> en vivo de las 21:32 del 2026-09-15, con el rollo fuera, el kiosco **rechazó
+> dos jugadas correctamente** —no imprimió, devolvió los dos premios y no dejó
+> nada retenido— y el usuario, que estaba delante, dijo **«no vi ninguna
+> diferencia realmente»**. Mientras no haya LED (o zumbador), **la única forma de
+> enterarse es que no salga boleto y mirar el journal o el rollo**. Ficha
+> **F-256**; evidencia: `docs/actas/2026-09-15-fase-4a.md`.
+>
+> En el mismo aviso, un matiz del punto 8: **desde el 2026-09-15 la impresora ya
+> no se queda con el boleto**. El programa se entera de que no hay papel **antes
+> de mandar un solo byte**, así que al reponer el rollo **no sale ningún boleto
+> solo** (antes sí salía). Lo de «no apagues la impresora» sigue valiendo por si
+> el fallo la pilla a media impresión, que es otro caso.
+
 **Archivos que genera** (carpeta `datos/`):
 
 | Archivo | Contenido |
@@ -495,6 +512,13 @@ al inventario** y el LED parpadea rápido (así avisa de error); en el journal s
 `NO impreso (premio devuelto al inventario): la impresora /dev/ruleta-impresora
 no tiene papel`. **No se pierde ningún premio.** Pon el rollo, cierra bien la
 tapa y vuelve a jugar: el siguiente boleto sale normal.
+
+*(Probado en hardware el 2026-09-15 a las 21:32, con el rollo fuera y el usuario
+delante: los boletos 00013 y 00014 se revirtieron sin mandar un byte, **no quedó
+nada retenido en la impresora** y los dos siguientes, con el rollo puesto,
+salieron normales. **Pero sin LED conectado nadie ve el rechazo**: si el kiosco
+deja de dar boletos de golpe, lo primero que hay que mirar es el rollo. Fichas
+**F-250** y **F-256**; acta `docs/actas/2026-09-15-fase-4a.md`.)*
 
 **Sale `[??] la impresora reporta poco papel`.** **No corras a comprar rollo.**
 Este aviso solo puede venir de una impresora **con sensor de papel de verdad**, y

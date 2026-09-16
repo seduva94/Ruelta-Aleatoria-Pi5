@@ -1,10 +1,16 @@
 <!-- Copia INTEGRA y LITERAL del archivo de hechos medidos del orquestador de la
      sesion del 2026-09-15 para la Fase 4a (scratchpad efimero:
-     hechos-fase-4a-papel.md, 4979 bytes, sha256
-     2efbe4c10cbda88eda3382d607bc887008b9e5bfac7c6ec6c94d4e7e4b2bf300).
+     hechos-fase-4a-papel.md, 8528 bytes, sha256
+     fc3dc7a4534f7acbdf2683e5a51639fbc11160cc0c2e3b9514c7b89ee4b8ce3c).
+     RE-COPIADA el 2026-09-15 al cerrar la fase: el archivo CRECIO respecto de la
+     copia del commit 3290930 (4979 bytes, sha256 2efbe4c1...), porque el
+     orquestador siguio anadiendo hechos hasta el final de la sesion. Lo nuevo
+     respecto de aquella copia son las dos ultimas secciones: la de la cadena de
+     la Fase 4a (pausa de las 15:25, mutaciones, corte de internet, commit y
+     deploy) y la de la PRUEBA EN VIVO sin papel de las 21:32.
      No se corrigio ni se anadio nada a su contenido: el plan
-     docs/planes/fase-4a-papel.md y el acta de cierre de la fase se escriben
-     DESDE aqui, nunca de memoria.
+     docs/planes/fase-4a-papel.md y el acta docs/actas/2026-09-15-fase-4a.md se
+     escriben DESDE aqui, nunca de memoria.
      El log integro de la sonda que cita la seccion "Sonda con lectura fresca"
      (sonda-papel-2026-09-15.log, 603 lineas, 48980 bytes) vive solo en el
      scratchpad de esa sesion y NO esta en el repositorio: lo que se conserva
@@ -78,3 +84,44 @@ y una de vuelta (13:44:12): coincide con "tapa cerrada sin papel" y "papel repue
    journal debe decir que la impresora no tiene papel, el boleto debe REVERTIRSE (premio de
    vuelta, folio no reutilizado según la política actual) y nada debe quedar retenido en la
    impresora; al reponer papel, la siguiente jugada imprime normal.
+
+## Cadena de la Fase 4a (2026-09-15, run wf_b070d43e-66f, con pausa 15:25 y corte de internet)
+- Plan: commit 3290930 (base a554be2), lente 6 correcciones aplicadas, verificado.
+- Código: ejecutor detenido a mitad (pausa segura, docs/PAUSA-2026-09-15.md), retomado ~19:50 con
+  ESTADO PREVIO en el prompt (sin rehacer). Suite 194 → 214 pruebas. Mutaciones M1–M10 ejecutadas
+  sobre copia: 9 en rojo; M6 (quitar paréntesis de la máscara) NO es mutación: en Python `&` liga
+  más fuerte que `==`, el AST es idéntico (el escéptico del 13 se equivocó; corregido en plan y
+  fichas, F-252). Lentes: ronda 1 = 10 correcciones, ronda 2 = 7, quedó 1 sin converger;
+  escéptico: 3 correcciones (tope _MAX_BYTES_RESPUESTA con golden que muerda, celda M6 del plan)
+  aplicadas. Un corte de internet de la laptop tumbó escéptico/commit/verificador a la primera;
+  relanzado con resumeFromRunId sin rehacer.
+- Commit 2a0aba3e01dcd15878579f1d02a64457b1834046 (base 3290930; 14 commits): README, PAUSA,
+  acta F2 (nota), fichas, plan F2, plan F4a, ruleta/__main__.py, ruleta/escpos.py,
+  tests/test_app.py, tests/test_escpos.py, tests/test_instalacion.py (999+/140−). ruleta/app.py
+  sin cambios (ya revertía ante ErrorConexion; golden test_error_conexion_revierte_el_premio
+  existente). Push verificado: HEAD = origin/main, árbol limpio.
+- Deploy en la Pi: 5345d25 → 2a0aba3 con git pull --ff-only (17 archivos); 214 pruebas OK en la
+  Pi; restart --no-block 21:26:42 → active, NRestarts=0, PID 1115; journal: GPIO listo,
+  "Inventario impreso (arranque). Folio actual 00012", "Lista. Esperando jugadas."; apariciones
+  de "poco papel" tras el restart: 0 (el aviso falso desapareció). Verificación en vivo OK.
+- Pendiente: PRUEBA EN VIVO sin papel con el usuario (criterio del plan, Paso 12).
+
+## PRUEBA EN VIVO sin papel con el código nuevo (2026-09-15 21:32, servicio active, HEAD 2a0aba3)
+- 21:32:21 jugada SIN papel: "Boleto 00013 emitido: TEST 5" → WARNING inventario "Boleto 00013
+  revertido por error de conexión" → ERROR app "Boleto 00013 NO impreso (premio devuelto al
+  inventario): la impresora /dev/ruleta-impresora no tiene papel". Ningún byte del boleto enviado.
+- 21:32:28 segunda jugada sin papel: idéntico con el boleto 00014 (TEST 5), revertido.
+- 21:32:59 con papel repuesto: "Boleto 00015 impreso: TEST 4"; 21:33:23 "Boleto 00016 impreso:
+  TEST 6". NO salió ningún boleto retenido antes del 00015 (la impresora no tenía nada en el búfer).
+- boletos.csv: 00013 y 00014 = emitido + error_conexion; 00015 y 00016 = emitido + impreso.
+  estado.json: folio 16; entregados test5 = 2 (los dos TEST 5 revertidos NO se descontaron),
+  test4 = 2, test6 = 5, test7 = 5. Servicio active, NRestarts=0, PID 1115 (sin reinicio).
+- Sin aviso de "poco papel" en toda la sesión desde el restart de las 21:26.
+- Observación del usuario: "no vi ninguna diferencia realmente". Sin LED conectado no hay señal
+  visible de que la jugada fue rechazada (el LED de error es el único feedback previsto; la
+  impresora sin papel muestra su foco rojo igual que antes). Los cinco criterios del Paso 12 del
+  plan se cumplen en el journal/CSV; el hueco es de EXPERIENCIA, no de detección → ficha: señal
+  perceptible de rechazo (LED real, zumbador GPIO idea F-194, o pitido ESC B a la impresora antes
+  de abortar si el zumbador funciona sin papel; requiere medición).
+- Trampa de red de esta noche: el alias `ruleta` intentó IPv6 y colgó la sesión 30 s; funcionó
+  `ssh -4 -i ~/.ssh/id_ruleta asadero@192.168.137.22`.

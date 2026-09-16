@@ -1156,6 +1156,20 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   `DLE EOT 1`, así que la consulta tiene sentido técnico
   (`docs/actas/2026-09-11-hechos-medidos.md`, sección del driver).
 - **Estado:** **resuelta a medias** el 2026-09-11 (2b, cambio (d)). `consultar_estado` ya vale por USB: `crear_impresora` se lo pasa a `ImpresoraArchivo` y este pregunta `DLE EOT` antes del boleto cuando la ruta es un dispositivo de caracteres, con la misma política que el Bluetooth (si no contesta, se imprime igual). **Siguen sin efecto por cable** `reintentos`, `timeout_seg`, `tamano_bloque`, `pausa_bloque_seg`, `pausa_inicial_seg`, `pausa_final_seg` y `bytes_por_segundo`, y así lo dice ahora la tabla del `README.md` §6, con una nota debajo. `espera_reintento_seg` **sí** cuenta con cualquier tipo: `Ruleta.arrancar` (`ruleta/app.py`) espera el doble de ese valor entre los intentos del inventario de arranque. **Medido en hardware real el 2026-09-11**, tras el deploy: la impresora contestó `DLE EOT` por el nodo USB y el servicio escribió `La impresora /dev/ruleta-impresora reporta poco papel: cambia el rollo pronto` **antes** de mandar el inventario. **Corrección del 2026-09-15 (Fase 4a): esa frase decía que «la consulta funciona de verdad por cable y lanzada desde systemd», y es falsa.** Lo único que quedó demostrado por cable es que **el nodo acepta la escritura del comando**: el byte que se leyó era el **rezagado de otra pregunta** (la impresora repite sin parar el último byte de estado), de modo que aquel aviso de «poco papel» era **falso** (**F-190**). Lo único que sigue sin probarse de esta parte es el caso extremo (sin papel o fuera de línea) con el rollo fuera. **MEDIDO POR FIN el 2026-09-15 a las 13:29:17 (Fase 3), y FALLÓ.** El usuario dejó la impresora **sin papel** a propósito y jugó una vez, con el servicio `active` y el folio previo en 8. La impresora encendió su foco rojo y se puso a pitar cada segundo, con el trabajo retenido en su búfer. El journal dice, en orden: `Boleto 00009 emitido: TEST 7` → `WARNING … reporta poco papel` (el aviso rezagado de siempre) → `Boleto 00009 impreso: TEST 7`. **No se detectó «sin papel» ni «fuera de línea»:** las dos guardias que añadió 2b quedaron derrotadas por el **mismo desfase de un comando** diagnosticado el 2026-09-13 —la impresora repite el último byte de estado y el programa lee la respuesta a la **pregunta anterior**—, tal y como lo había predicho el escéptico de ese día. Daño medido: `boletos.csv` con el 00009 `emitido` **e** `impreso`, `estado.json` en folio 9 y el premio **TEST 7 descontado sin que saliera papel**; el proceso, sano (`wchan` = `hrtimer_nanosleep`, `NRestarts=0`), porque la escritura a `usblp` no se bloqueó. Al reponer el papel (13:31–13:33) la impresora soltó sola el boleto retenido, cortado —lo que **no** salva el caso: si se apaga la impresora o la Pi antes de reponer, el trabajo se pierde y el programa ya lo dio por impreso—. Evidencia: `docs/actas/2026-09-15-fase-3.md` §6-bis. **El arreglo va en la ficha F-250.** **Cerrado el 2026-09-15 (Fase 4a):** el camino «sin papel» **ya está medido** —falló— y **queda arreglado en el cambio de código de esta fase**: `leer_estado_fresco` (`ruleta/escpos.py`) drena el atraso, escribe el comando y se queda con el **último** byte válido, y `verificar_estado` añade la pregunta `DLE EOT 2`, que es la única que en esta impresora se entera del rollo agotado (`0x32`, medido). Lo que **sigue abierto** de esta ficha es lo de siempre: `reintentos`, `timeout_seg` y las llaves de ritmo siguen **sin efecto por cable**.
+- **Nota de cierre del 2026-09-15 (Fase 4a, tras la prueba en vivo de las 21:32).**
+  **El camino «sin papel» ya está medido EN LOS DOS SENTIDOS, con el usuario
+  delante y el mismo experimento las dos veces.** Con el código viejo, el
+  2026-09-15 a las **13:29**, **falló**: el kiosco emitió el 00009, lo descontó y
+  lo dio por impreso sin que saliera papel. Con el código de
+  `2a0aba3e01dcd15878579f1d02a64457b1834046`, el mismo día a las **21:32**,
+  **funcionó**: los boletos **00013** y **00014** se revirtieron sin mandar un
+  solo byte (`la impresora /dev/ruleta-impresora no tiene papel` →
+  `premio devuelto al inventario`), **no quedó nada retenido** en la impresora y
+  con el rollo repuesto el **00015** y el **00016** salieron normales;
+  `estado.json` conservó `test5` = 2, o sea que **los premios revertidos no se
+  descontaron**. Evidencia: `docs/actas/2026-09-15-fase-4a.md` §8. **Lo que esta
+  ficha sigue teniendo abierto es solo lo de la línea anterior:** `reintentos`,
+  `timeout_seg` y las llaves de ritmo, que por cable siguen sin efecto.
 ---
 
 ## F-092 · El plan de la Fase 2 dice que incorpora mediciones del 2026-09-12 y todas son del 2026-09-11
@@ -3055,6 +3069,18 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   repuesto junto a la Pi. De paso, cambiar el rollo es la única forma de probar
   de verdad el camino «sin papel» que sigue sin medirse (**F-091**).
 - **Estado:** abierta (compra / acción del usuario). **Nota del 2026-09-15 (Fase 3):** el rollo **se acabó de verdad**. Fue en una prueba deliberada de las 13:29 —el usuario dejó la impresora sin papel a propósito— y **lo repuso él mismo entre las 13:31 y las 13:33**, con lo que la impresora soltó el boleto que tenía retenido. Así que el **rollo de hoy es nuevo**; lo que **sigue abierto es el repuesto**: tiene que haber al menos un rollo más junto a la Pi durante la semana del evento. Y el **riesgo que esta ficha anunciaba ya no es una hipótesis**: se midió que, con el papel agotado, el folio se gasta y el premio se descuenta **sin boleto** —y no porque el firmware no conteste, sino porque contesta tarde— (**F-091** actualizada, **F-250** nueva). **Nota del 2026-09-15 (Fase 4a):** el **diagnóstico queda cerrado** —el aviso era un artefacto de lectura, no un sensor— y el defecto de código está **arreglado en el cambio de esta fase** (lectura fresca y `DLE EOT 2`; **F-250**). Con la máscara estricta, en esta impresora el aviso de «poco papel» **ya no puede salir**: haría falta una con sensor de verdad. Lo único que sigue vivo de esta ficha es **tener un rollo de repuesto junto a la Pi** durante la semana del evento.
+- **Nota de cierre del 2026-09-15 (Fase 4a, tras el deploy de las 21:26:42).**
+  **El aviso falso desapareció, y está contado.** Con
+  `2a0aba3e01dcd15878579f1d02a64457b1834046` desplegado en la Pi y el servicio
+  reiniciado a las **21:26:42**, las apariciones de «poco papel» en el journal
+  desde ese restart son **0** —incluidas las dos jugadas sin papel de las 21:32,
+  que dijeron «no tiene papel» y ninguna otra cosa—. Antes salía en **cada
+  arranque** desde el 2026-09-11 y había aparecido **15 veces** en el log del
+  kiosco. Con la máscara estricta (`(papel & BITS_POCO_PAPEL) == BITS_POCO_PAPEL`)
+  y la lectura fresca, en esta impresora ese aviso **ya no puede salir**: haría
+  falta una con sensor de verdad. Evidencia: `docs/actas/2026-09-15-fase-4a.md`
+  §7.2 y §8. **Parte de diagnóstico y de código: cerrada.** **Sigue abierta solo
+  la compra**: un rollo de repuesto junto a la Pi durante la semana del evento.
 
 ---
 
@@ -4740,6 +4766,23 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   premisa), pero quien actualice `CLAUDE.md` conviene que sepa que existen.
 - **Estado:** abierta. **Le toca al orquestador** (fuera del alcance del ejecutor
   de la Fase 3).
+- **Nota de cierre del 2026-09-15 (cierre documental de la Fase 4a).**
+  **RESUELTA: el orquestador actualizó `CLAUDE.md` en este mismo cambio.** Se
+  editó **únicamente** la sección «Contexto del producto» —las secciones 1 a 7 y
+  «Convenciones de este repo» no se tocaron ni una letra—, con la decisión del
+  usuario del 2026-09-15 escrita como **nota fechada que conserva lo que decía
+  antes**: en el evento la Pi tendrá **el internet del asadero** (NTP le pone la
+  hora al arrancar) y **no habrá batería RTC**, con el riesgo del primer minuto
+  tras encender nombrado y remitido a la **pieza D** (**F-241**). De paso, esa
+  misma sección recogió lo demás que faltaba del producto: los **botones
+  cableados** (JUGAR GPIO 17 / pin 11, HABILITAR GPIO 27 / pin 13, tierras en los
+  pines 9 y 25, **sin LED conectado**), lo que la impresora contesta de verdad
+  (`DLE EOT 2` es la única que se entera del rollo agotado) y el recordatorio de
+  **reiniciar el inventario**, que iba por el folio 16. El **`README.md` ya
+  estaba corregido** desde la pasada anterior. **Lo que esta ficha avisaba y
+  sigue siendo cierto:** hay más de una docena de líneas en fichas viejas que
+  razonan desde «la Pi va sin red»; **no se reescriben**, pero quien las lea que
+  sepa que la premisa está derogada.
 
 ---
 
@@ -5006,6 +5049,28 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   con la **prueba en vivo sin papel** del Paso 11 del plan, que al escribir esto
   no se ha hecho. Hasta entonces, lo medido es que el arreglo funciona **contra
   los dobles de prueba**, no contra la impresora.
+- **RESUELTA el 2026-09-15 a las 21:32, por
+  `2a0aba3e01dcd15878579f1d02a64457b1834046` y su prueba en vivo.** La prueba en
+  vivo del Paso 11 **ya se hizo**, contra la impresora, con el usuario sacando y
+  reponiendo el rollo, y **los cinco criterios salieron en verde**:
+  (1) el journal dijo `Boleto 00013 NO impreso (premio devuelto al inventario):
+  la impresora /dev/ruleta-impresora no tiene papel`, **sin un solo «poco
+  papel»**, y lo repitió con el **00014** a las 21:32:28; (2) **no hubo ninguna
+  línea «impreso»** para esos dos folios; (3) `boletos.csv` los marcó
+  `emitido` + `error_conexion` y `estado.json` conservó `test5` = **2**, o sea
+  que **el premio volvió al inventario las dos veces**; (4) **al reponer el
+  rollo no salió ningún boleto retenido** —que es justo lo contrario de lo que
+  pasó a las 13:29, cuando la impresora soltó sola el 00009—; y (5) las jugadas
+  siguientes imprimieron normal (**00015** a las 21:32:59 y **00016** a las
+  21:33:23). El servicio no se reinició en ningún momento (`NRestarts=0`, PID
+  1115). Antes de eso, el deploy había dejado **214 pruebas OK en la Pi** y
+  **cero** avisos de poco papel desde el restart de las 21:26:42. Evidencia:
+  `docs/actas/2026-09-15-fase-4a.md` §7 y §8, y
+  `docs/actas/2026-09-15-hechos-medidos-fase-4a.md`. **Lo que esta ficha NO
+  cubre y se va a otra:** sin LED conectado, el personal **no percibe** que la
+  jugada fue rechazada —el usuario dijo «no vi ninguna diferencia realmente»—;
+  eso es **F-256**. Y el caso de que el papel se acabe **a media impresión**
+  sigue sin provocarse: `ErrorEnvio` no revierte el premio, a propósito.
 
 ---
 
@@ -5218,5 +5283,116 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   porque está fuera de lo que manda el plan de esta fase y el árbol ya estaba
   cerrado cuando se vio.
 - **Estado:** **abierta** (2026-09-15). No bloquea la Fase 4a.
+
+---
+
+## F-256 · Sin LED, el rechazo por falta de papel es INVISIBLE para el personal: el usuario no vio ninguna diferencia
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · prueba en vivo sin papel de las 21:32, observación del
+  usuario
+- **Dónde:** el kiosco entero. `config.json` sigue diciendo `"led": 22` y **no
+  hay ningún LED conectado** (**F-240**); el LED de error lo enciende
+  `_terminar_accion` en `ruleta/app.py`, y es **el único aviso perceptible** que
+  el programa tiene previsto para una jugada rechazada.
+- **Qué pasa:** desde `2a0aba3e01dcd15878579f1d02a64457b1834046` el kiosco **sí**
+  se niega a jugar sin papel, y está medido: boletos **00013** y **00014**
+  revertidos, premio devuelto, nada retenido en la impresora (**F-250**,
+  resuelta). Pero **hacia fuera no se nota nada**. El usuario, que estaba
+  delante de las dos jugadas rechazadas, lo dijo tal cual: **«no vi ninguna
+  diferencia realmente»**. No sale boleto, no se enciende nada, no suena nada; la
+  impresora enciende su foco rojo, que es lo mismo que hacía antes del arreglo.
+  Desde la mesa, una jugada rechazada se parece a una jugada en la que el botón
+  no hizo contacto.
+- **Por qué es residual:** **no es un defecto de conducta**: el programa hace
+  exactamente lo que el plan de la Fase 4a le pidió, y los cinco criterios del
+  Paso 11 se cumplieron medidos. Lo que falta es una **pieza de hardware o una
+  decisión de producto**, y las tres opciones cuestan dinero o requieren medir
+  algo que nadie ha medido. No entra en el alcance de esta fase.
+- **Riesgo si no se toca:** durante la semana del evento, cuando se acabe el
+  rollo el kiosco **dejará de dar boletos en silencio**. Ya no se regalan
+  premios —eso está arreglado—, pero **nadie se entera de por qué dejó de
+  funcionar**: el mesero pensará que el botón falla, seguirá habilitando, y la
+  fila seguirá jugando sin recibir nada hasta que alguien mire el rollo.
+- **Propuesta (tres opciones; la decisión es del usuario):**
+  1. **LED real en GPIO 22.** Es lo que el programa ya espera y lo que el
+     `README.md` §2 describe: LED normal con resistencia de 330 Ω al pin 15, o el
+     LED del propio botón arcade a través de un transistor. **Cero código.** El
+     parpadeo rápido de error dura unos segundos, así que hay que mirarlo cuando
+     pasa.
+  2. **Zumbador propio en un GPIO** (la idea de **F-194**). Se oye aunque nadie
+     esté mirando, que es la ventaja sobre el LED. Requiere pieza, cable y
+     **código nuevo**: hoy no existe ninguna salida de audio en el programa.
+  3. **Un pitido `ESC B` a la impresora antes de abortar**, aprovechando el
+     zumbador que la impresora ya trae y que está confirmado en hardware (un
+     pitido corto por comando, 2026-09-11). **Cuesta casi nada de código**, pero
+     **NO ESTÁ MEDIDO** que el zumbador de la impresora funcione **con el rollo
+     agotado y el foco rojo encendido**: hay que probarlo antes de prometerlo. Y
+     hay que decidir si un pitido más, encima del que ya da por cada boleto,
+     confunde en vez de avisar.
+- **Estado:** **abierta.** **Requiere decisión del usuario.** No bloquea nada
+  técnico: el kiosco es correcto sin esto. Relacionadas: **F-240** (qué se hace
+  con `"led": 22` sin LED), **F-194** (el zumbador en GPIO) y **F-250** (el
+  arreglo que esta ficha hace perceptible).
+
+---
+
+## F-257 · El alias `ruleta` de SSH intenta IPv6 y cuelga la sesión 30 s cuando la Pi está en el punto de acceso
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · noche del deploy y de la prueba en vivo
+- **Dónde:** la configuración de SSH de la PC (el alias `ruleta` de
+  `~/.ssh/config`), con la Pi en el punto de acceso móvil de Windows.
+- **Qué pasa:** esa noche el alias `ruleta` **intentó IPv6 y dejó la sesión
+  colgada unos 30 segundos** antes de rendirse. Lo que sí funcionó, medido, fue
+  forzar IPv4 con la llave y la IP explícitas:
+  `ssh -4 -i ~/.ssh/id_ruleta asadero@192.168.137.22`.
+- **Por qué es residual:** no rompe nada del producto; es una trampa del entorno
+  de trabajo. Pero **se paga en minutos cada vez**, y un agente sin contexto que
+  vea la sesión colgada va a diagnosticar «la Pi está caída» cuando la Pi está
+  perfectamente.
+- **Riesgo si no se toca:** cada sesión futura sobre el punto de acceso vuelve a
+  perder medio minuto por comando, o peor: alguien concluye que hay que reiniciar
+  la Pi.
+- **Propuesta:** añadir `AddressFamily inet` (y, si hace falta, `HostName` con la
+  IP del punto de acceso) al bloque `Host ruleta` de `~/.ssh/config`; o, mientras
+  tanto, que los briefs de agente escriban el respaldo con `-4`, `-i` y la IP,
+  como ya hace la convención de comandos de los planes. **Ojo:** la IP del punto
+  de acceso **cambia** —el 2026-09-13 fue `192.168.137.123` y el 2026-09-15,
+  `192.168.137.22`—, así que fijarla en el `config` obliga a revisarla.
+- **Estado:** abierta (configuración de la PC del usuario). Familia: **F-244** y
+  **F-245**, las otras dos trampas de SSH que ya costaron tiempo medido.
+
+---
+
+## F-258 · La nota de pausa `docs/PAUSA-2026-09-15.md` quedó commiteada dentro del commit de CÓDIGO
+
+- **Fecha:** 2026-09-15
+- **Origen:** Fase 4a · escriba, comparando el diff real de
+  `2a0aba3e01dcd15878579f1d02a64457b1834046` contra la lista del Paso 9 del plan
+- **Dónde:** `docs/PAUSA-2026-09-15.md`, y el conjunto de archivos del Paso 9 de
+  `docs/planes/fase-4a-papel.md`.
+- **Qué pasa:** el Paso 9 fija por adelantado **doce** rutas permitidas y la nota
+  de pausa **no está entre ellas**. El commit `2a0aba3` llevó **once** archivos, y
+  uno de ellos fue `docs/PAUSA-2026-09-15.md`. La decisión fue del orquestador:
+  la nota se había escrito durante la pausa de las 15:25 y quedarse sin
+  commitearla habría dejado el árbol sucio, que es lo que la compuerta del §4 del
+  protocolo prohíbe («nada pendiente de push antes de commitear»). Se metió para
+  no bloquear el gate.
+- **Por qué es residual:** no es un defecto de conducta ni de código: **el
+  contenido del commit es correcto y está verificado contra el remoto**. Lo que
+  falla es la correspondencia entre el conjunto declarado y el conjunto real, que
+  es justo lo que la compuerta existe para comprobar «por igualdad».
+- **Riesgo si no se toca:** un verificador futuro que compare el commit contra la
+  lista del plan encuentra una diferencia y no sabe si fue una decisión o un
+  descuido. Por eso queda escrito aquí y en el acta (§9.4).
+- **Propuesta:** para la próxima pausa, o bien la nota entra en la lista de
+  archivos permitidos **antes** de commitear, o bien se escribe fuera del
+  repositorio, en el scratchpad de la sesión, como el resto de los archivos
+  efímeros.
+- **Estado:** **cerrada el 2026-09-15.** La pausa **se retomó** (~19:50, sin
+  rehacer nada) y **se cerró** con el acta `docs/actas/2026-09-15-fase-4a.md`;
+  el propio `docs/PAUSA-2026-09-15.md` lo dice en negrita justo debajo de su
+  título. Lo que queda es la lección para la próxima, no una acción pendiente.
 
 ---

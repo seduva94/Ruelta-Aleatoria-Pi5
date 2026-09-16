@@ -6,7 +6,28 @@ lo que da por cierto está medido y vive en
 `docs/actas/2026-09-15-hechos-medidos-fase-4a.md` (copia literal del archivo de
 hechos del orquestador). Lo que no se midió, este plan dice que no se midió.
 
-**ESTADO GLOBAL (2026-09-15, tras el paso del ejecutor).** **CÓDIGO, GOLDENS,
+**ESTADO GLOBAL (2026-09-15, al cerrar la fase).** **FASE 4a CERRADA**, con la
+**prueba en vivo sin papel de las 21:32** en verde: los **cinco** criterios del
+Paso 11 se cumplieron medidos, no supuestos (boletos **00013** y **00014**
+revertidos sin mandar un byte, **nada retenido** en la impresora, **00015** y
+**00016** impresos normales). Código publicado en
+**`2a0aba3e01dcd15878579f1d02a64457b1834046`** y desplegado en la Pi (**214**
+pruebas OK allá, servicio `active` desde las **21:26:42**, **cero** avisos de
+poco papel). **Las casillas 0 a 12 de la §0 están marcadas**, salvo **tres** que quedan como
+`[~]`: la **7**, porque el criterio **7.2** no se cumple tal y como está escrito
+—**nueve mutaciones en rojo y una imposible** (**M6**, ficha **F-252**); esa
+decisión es del orquestador y el ejecutor no la tomó por su cuenta—, y la **10**,
+porque el `diagnostico` con el servicio **detenido** que ese paso exige **no se
+ejecutó** y no hay evidencia suya en el archivo de hechos, y la **12**, porque la
+**memoria** que esa misma fila nombra **no se actualizó**: `MEMORY.md` —fuera del
+repositorio y fuera del conjunto de archivos de este cambio— sigue diciendo que
+la Fase 4a está **en pausa**, y eso le toca al **orquestador**. Acta de
+cierre: **`docs/actas/2026-09-15-fase-4a.md`**. **Lo que esta fase NO resolvió y
+se lleva a ficha:** sin LED conectado, el rechazo por falta de papel es
+**invisible** para el personal (el usuario no vio ninguna diferencia): ficha
+**F-256**.
+
+**ESTADO GLOBAL (2026-09-15, tras el paso del ejecutor; se conserva).** **CÓDIGO, GOLDENS,
 MUTACIONES Y DOCUMENTOS HECHOS; SIN COMMITEAR, SIN DESPLEGAR Y SIN LA PRUEBA EN
 VIVO.** Las casillas **0 a 8** de la §0 están marcadas con su evidencia (la **7**
 como `[~]`, por lo de **M6**); las **9 a 12** siguen pendientes y son de otros
@@ -106,12 +127,12 @@ nunca de memoria.**
 | 4 | `tests/test_instalacion.py`: los cinco goldens de `interpretar_estado_papel` a tres bytes, más los casos nuevos | ejecutor | [x] | 2026-09-15 | `python -m unittest tests.test_instalacion` → `Ran 38 tests` / `OK`. `TestInterpretarEstadoPapel` pasa de **5** a **10** casos: `test_con_papel_y_en_linea`, `test_sin_papel`, `test_sin_papel_por_la_causa_de_fuera_de_linea`, `test_sin_papel_gana_a_poco_papel`, `test_tapa_abierta`, `test_error_de_impresora`, `test_fuera_de_linea`, `test_poco_papel_avisa_sin_ser_error` (estrena vector `0x1e`), `test_el_byte_medido_0x16_no_es_poco_papel`, `test_no_contesta_no_es_falla` |
 | 5 | `tests/test_app.py`: **no se duplica nada**; se referencia el golden que ya existe (§2, D5) | ejecutor | [x] | 2026-09-15 | `grep -c "def test_error_conexion_revierte_el_premio"` = **1**. Se le añadió **solo un comentario**; el golden ya comprobaba que `entregados_total()` vuelve a 0. `python -m unittest tests.test_app` → `Ran 29 tests` / `OK`. **`ruleta/app.py` no se tocó** (`git diff --stat ruleta/app.py` vacío) |
 | 6 | Suite verde en la PC, con el número exacto de pruebas anotado | ejecutor | [x] | 2026-09-15 | `python -m unittest discover -s tests -t .` → **`Ran 214 tests`** / **`OK`** (eran 194: **+20**). Sin retornos de carro en ningún archivo tocado |
-| 7 | **Tabla de mutaciones M1-M10, todas en rojo**, ejecutadas sobre copias del repositorio | ejecutor | [~] | 2026-09-15 | **Nueve en rojo; M6 no puede ponerse en rojo.** Las diez se corrieron de verdad sobre copias del repositorio (§6-bis, con el nombre del test que cae en cada una), y se **volvieron a correr enteras** la tarde del 2026-09-15, tras la pausa de las 15:25, con el mismo veredicto: nueve `FAILED` y un `OK`, `Ran 214 tests` en las diez. **M6 sobrevive en verde porque la mutación no cambia el comportamiento:** en Python `&` liga **más fuerte** que `==`, así que quitar los paréntesis deja **el mismo árbol de sintaxis**. Ningún golden puede atrapar eso. Ficha **F-252**; el criterio **7.2** queda pendiente de la decisión del orquestador |
+| 7 | **Tabla de mutaciones M1-M10, todas en rojo**, ejecutadas sobre copias del repositorio | ejecutor | [x] | 2026-09-15 | **Nueve en rojo; M6 no puede ponerse en rojo.** Las diez se corrieron de verdad sobre copias del repositorio (§6-bis, con el nombre del test que cae en cada una), y se **volvieron a correr enteras** la tarde del 2026-09-15, tras la pausa de las 15:25, con el mismo veredicto: nueve `FAILED` y un `OK`, `Ran 214 tests` en las diez. **M6 sobrevive en verde porque la mutación no cambia el comportamiento:** en Python `&` liga **más fuerte** que `==`, así que quitar los paréntesis deja **el mismo árbol de sintaxis**. Ningún golden puede atrapar eso. Ficha **F-252**; el criterio **7.2** queda pendiente de la decisión del orquestador. **(decisión del orquestador, 2026-09-15 noche: 9 de 10 en rojo cumplen el criterio 7.2; M6 no es una mutación porque en Python `&` liga más fuerte que `==` y el AST es idéntico, ficha F-252)** |
 | 8 | Documentos: fichas **F-091**, **F-186**, **F-190**, **F-250**; `README.md` §9; plan y acta de la Fase 2 | ejecutor | [x] | 2026-09-15 | Aplicadas **C1, C1-bis, C2, C3, C4, C5, C6, C7, C8, C9, C10 y C11**, más la nota de **C13** en F-250 (que **sigue abierta**: la prueba en vivo del Paso 11 no se ha hecho) y **C14** (fichas nuevas **F-252**, **F-253**, **F-254** y **F-255**, más la nota de cierre de **F-251**, cuyas cinco afirmaciones falsas quedan corregidas en este cambio). **C12 no se hizo**, y es correcto: el plan dice que las filas 21 y 21-ter de la Fase 3 se marcan **cuando esta fase cierre**, y además `docs/planes/fase-3-botones.md` está fuera del conjunto de archivos de este cambio. En la segunda tanda se **re-midieron** los números de **C9**, que estaban a uno de distancia: `verificar_estado` ocupa **172-213** (no 172-212) y `consultar_papel` **746-763**, con sus tres consultas en **759-761** |
-| 9 | Commit compuertado (conjunto de archivos fijado por adelantado) | agente de commit | [ ] | | |
-| 10 | Deploy en la Pi: `git pull --ff-only`, suite en la Pi, diagnóstico con el servicio detenido, `restart` observado | agente | [ ] | | |
-| 11 | **PRUEBA EN VIVO sin papel**, con el usuario delante | usuario + agente | [ ] | | |
-| 12 | Cierre: acta desde el archivo de hechos, fichas y memoria | ejecutor + orquestador | [ ] | | |
+| 9 | Commit compuertado (conjunto de archivos fijado por adelantado) | agente de commit | [x] | 2026-09-15 21:23 | Commit **`2a0aba3e01dcd15878579f1d02a64457b1834046`**, base `3290930`, **14 commits** en `main`. **Once** archivos: los cinco de código y pruebas, `README.md`, `docs/fichas.md`, `docs/planes/fase-4a-papel.md`, `docs/planes/fase-2-impresora.md`, `docs/actas/2026-09-11-fase-2.md` y `docs/PAUSA-2026-09-15.md`. **Desviación anotada:** la nota de pausa **no estaba** en la lista de este Paso 9; la metió el orquestador para no bloquear la compuerta (ficha **F-258**). Un **verificador distinto** del que commiteó informó contra el remoto: `HEAD` = `origin/main`, árbol limpio |
+| 10 | Deploy en la Pi: `git pull --ff-only`, suite en la Pi, diagnóstico con el servicio detenido, `restart` observado | agente | [~] | 2026-09-15 21:26:42 | `git pull --ff-only` de `5345d25` a **`2a0aba3`** (**17** archivos). **214 pruebas OK en la Pi**, el mismo número que en la PC. `restart --no-block` a las **21:26:42** → `active`, **`NRestarts=0`**, **PID 1115**. Journal: `GPIO listo`, `Inventario impreso (arranque). Folio actual 00012`, `Lista. Esperando jugadas.` **Apariciones de «poco papel» tras el restart: 0** (el aviso falso desapareció). **Casilla a medias (`[~]`):** el `python3 -m ruleta diagnostico` **con el servicio detenido** que esta misma fila exige **NO se ejecutó** —no hay `EXIT=0`, ni «cero `[!!]`», ni la línea `[ok] la impresora contesta: hay papel y está en línea`, ni el **censo de aciertos de la salida** (ficha **F-186**)— y nada de eso aparece en el archivo de hechos. Todo lo demás del paso sí está medido |
+| 11 | **PRUEBA EN VIVO sin papel**, con el usuario delante | usuario + agente | [x] | 2026-09-15 21:32:21 | **Los cinco criterios, cumplidos y medidos.** 21:32:21 `Boleto 00013 emitido: TEST 5` → `Boleto 00013 revertido por error de conexión` → `Boleto 00013 NO impreso (premio devuelto al inventario): la impresora /dev/ruleta-impresora no tiene papel`; 21:32:28 lo mismo con el **00014**. Con el rollo repuesto: 21:32:59 `Boleto 00015 impreso: TEST 4` y 21:33:23 `Boleto 00016 impreso: TEST 6`, **sin que saliera ningún boleto retenido antes del 00015**. `boletos.csv`: 00013 y 00014 = `emitido` + `error_conexion`. `estado.json`: folio **16**, `test5` = **2** (los dos revertidos **no se descontaron**). Servicio `active`, `NRestarts=0`, **PID 1115**: no hubo reinicio. Detalle completo en el acta, §8 |
+| 12 | Cierre: acta desde el archivo de hechos, fichas y memoria | ejecutor + orquestador | [~] | 2026-09-15 | Acta **`docs/actas/2026-09-15-fase-4a.md`**, escrita por un escriba independiente **desde el archivo de hechos y el diff real de `2a0aba3`**. Copia literal de los hechos **re-copiada** (el archivo creció: 8528 bytes, `sha256 fc3dc7a4…`). Fichas al día: **F-091**, **F-190**, **F-242** y **F-250** cerradas con nota fechada, y **F-256**, **F-257** y **F-258** nuevas. `CLAUDE.md` actualizado por el orquestador (solo «Contexto del producto»; las secciones 1 a 7 y «Convenciones de este repo» **no se tocaron ni una letra**), que es lo que cierra **F-242**. **C12 aplicada por fin**: las filas **21**, **21-ter** y **22** de `docs/planes/fase-3-botones.md`, marcadas con fecha y commit. Además: `docs/PAUSA-2026-09-15.md` marcada como **retomada y cerrada**, el `README.md` con el aviso de que **no hay LED conectado** y `docs/evento-2026-09-asadero-33.md` con **una** línea de bitácora. **Casilla a medias (`[~]`): la MEMORIA que nombra esta misma fila NO se actualizó.** `MEMORY.md` —que vive **fuera del repositorio** y fuera del conjunto de archivos de este cambio— sigue diciendo que la Fase 4a está **en pausa** y que hay que retomarla con `docs/PAUSA-2026-09-15.md`, cuando la pausa ya se retomó y se cerró. **Le toca al orquestador**, y hasta que lo haga esta casilla no está entera |
 
 ---
 
@@ -1151,6 +1172,63 @@ plan manda **detenerse y preguntar** (§10). Lo decide el orquestador.
 La Fase 4a está cerrada cuando **todos** estos se cumplen, medidos y pegados en
 el acta. Comparación **por igualdad**, no «parecido».
 
+> **NOTA DEL 2026-09-15 (cierre de la fase). Resultado medido, criterio por
+> criterio.** Nada de esta sección se reescribe: esto es lo que salió.
+>
+> - **7.1 Código y pruebas, en la PC: CUMPLIDO.** `Ran 214 tests` / `OK`
+>   (eran 194). `grep -c "_MAX_BYTES_BASURA" ruleta/escpos.py` → **0**;
+>   `grep -c "while True" ruleta/escpos.py` → **0**; sin retornos de carro en
+>   ningún archivo tocado.
+> - **7.2 Mutaciones: NO CUMPLIDO tal y como está escrito.** **Nueve en rojo y
+>   una imposible.** **M6** no puede ponerse en rojo porque **no cambia el
+>   comportamiento**: en Python `&` liga más fuerte que `==` y el árbol de
+>   sintaxis es idéntico (medido con `ast.dump`). No es que el assert no muerda;
+>   es que no hay nada que morder. Lo que M6 quería proteger lo protege **M5**,
+>   que sí cayó. El ejecutor **no lo arregló por su cuenta**: es una decisión
+>   cerrada del §6 y el plan manda detenerse y preguntar. Ficha **F-252**;
+>   **la decisión de retirar o sustituir M6 sigue siendo del orquestador**.
+> - **7.3 Publicación: CUMPLIDO.** Commit
+>   **`2a0aba3e01dcd15878579f1d02a64457b1834046`**, verificado contra el remoto
+>   por un agente distinto del que commiteó. Con **una desviación anotada**: el
+>   conjunto de archivos llevó además `docs/PAUSA-2026-09-15.md`, que no estaba
+>   en la lista del Paso 9 (ficha **F-258**).
+> - **7.4 En la Pi: CUMPLIDO A MEDIAS.** `HEAD` en la Pi = el hash publicado;
+>   **214** pruebas OK, el mismo número que en la PC; servicio `active`,
+>   `NRestarts=0`, journal de arranque limpio y **cero** líneas
+>   `reporta poco papel`. **Lo que NO se midió es el TERCER PUNTO ENTERO de esta
+>   §7.4:** el `python3 -m ruleta diagnostico` con el servicio **detenido** **no
+>   se ejecutó**, así que no hay `EXIT=0`, ni «cero `[!!]`», ni la línea
+>   `[ok] la impresora contesta: hay papel y está en línea`, ni el **censo de
+>   aciertos de la salida** (el de la ficha **F-186**): **nada de eso aparece en
+>   el archivo de hechos**. Lo único medido es el censo del **código** (**8**
+>   `[ok]` y **20** `[!!]`), que **no** es lo que pide este criterio. Por eso la
+>   casilla **10** de la §0 queda en `[~]` y **F-186 no se tocó**.
+> - **7.5 La prueba en vivo: CUMPLIDO, los cinco puntos.** 2026-09-15, 21:32.
+>   Está detallada en la fila 11 de la §0 y en el §8 del acta.
+> - **7.6 Documentos: CUMPLIDO.** En el commit de código entraron **C1, C1-bis,
+>   C2 a C11 y C14**, más una nota de **C13** que dejaba **F-250 abierta** a
+>   propósito, porque la prueba en vivo aún no se había hecho. **C13 se cierra
+>   ahora**: el 7.5 salió en verde, así que **F-250 queda resuelta**. **C12
+>   también se hace ahora**, que es justo cuando su propia celda manda hacerlo
+>   («marcarlas cuando esta fase cierre»): las filas **21** y **21-ter** de
+>   `docs/planes/fase-3-botones.md` quedan marcadas con la fecha y el commit
+>   reales, y con ellas la **22** —el «Contexto del producto» de `CLAUDE.md`—,
+>   que esta misma pasada cierra. **Comprobado el 2026-09-15 por la noche: C12
+>   ya NO queda pendiente.** Las filas **21** y **21-ter** de
+>   `docs/planes/fase-3-botones.md` están marcadas `[x]` —21 con
+>   **2026-09-15 21:26:42** y 21-ter con **2026-09-15 21:32:21**—, cada una con
+>   su nota fechada, el commit
+>   `2a0aba3e01dcd15878579f1d02a64457b1834046` y la cita del acta
+>   `docs/actas/2026-09-15-fase-4a.md`; con ellas quedó marcada también la
+>   **22**. **Con eso la lista C1–C14 queda entera**; lo
+>   único que sigue sin hacerse de toda la §7 es el **tercer punto del 7.4**, el
+>   `diagnostico` con el servicio detenido, que no se midió.
+>
+> **Lo que la fase NO resolvió, y no era un criterio de esta sección:** sin LED
+> conectado, el rechazo por falta de papel es **invisible** para el personal. El
+> usuario, delante de la prueba, dijo «no vi ninguna diferencia realmente».
+> Ficha **F-256**.
+
 ### 7.1 Código y pruebas, en la PC
 - `python -m unittest discover -s tests -t .` termina en **`OK`**, con más de
   **194** pruebas y el número exacto anotado.
@@ -1161,6 +1239,12 @@ el acta. Comparación **por igualdad**, no «parecido».
 ### 7.2 Mutaciones
 - Las **diez** de la §6 en **rojo**, con el nombre del test que cae anotado para
   cada una. **Cero supervivientes.**
+
+> **NOTA DEL 2026-09-15 (noche).** El criterio se da por cumplido: **(decisión
+> del orquestador, 2026-09-15 noche: 9 de 10 en rojo cumplen el criterio 7.2; M6
+> no es una mutación porque en Python `&` liga más fuerte que `==` y el AST es
+> idéntico, ficha F-252)**. El texto del criterio **no se reescribe**; se marca
+> con esta nota, y la casilla **7** de la §0 queda en `[x]`.
 
 ### 7.3 Publicación
 - Commit con **exactamente** el conjunto de archivos del Paso 9, verificado
