@@ -108,13 +108,18 @@ Cada eslabón que produce commit espera un «listo» explícito de los revisores
 Ruleta de premios para el restaurante Asadero 33: Raspberry Pi 5, botón arcade
 JUGAR más botón HABILITAR del mesero, impresora térmica de 80 mm y sin pantalla.
 
-*(Actualizado el 2026-09-16 con lo medido y decidido en las Fases 4b, 4c y 4d
-—los premios reales, el consuelo con peso propio y el reparto por horas, con sus
-franjas, su horario y la espera de la hora al arrancar—. Antes, el 2026-09-15,
-con las Fases 3 y 4a (botones, papel, red y hora); y el 2026-09-11 se había
-corregido lo de «impresora Bluetooth» y «valores sin confirmar». Evidencia:
+*(Actualizado el 2026-09-16 por la tarde con lo medido en la **Fase 4e**, la
+pasada final antes del evento —las fechas de vigencia cargadas, la espera de la
+hora en 300 s con rastro en el journal, la pieza D probada en un arranque en frío
+real y el inventario reiniciado a folio `00000`—; **con eso el kiosco queda listo
+para el evento**. Antes, el mismo día, con las Fases 4b, 4c y 4d —los premios
+reales, el consuelo con peso propio y el reparto por horas, con sus franjas, su
+horario y la espera de la hora al arrancar—. Antes, el 2026-09-15, con las Fases
+3 y 4a (botones, papel, red y hora); y el 2026-09-11 se había corregido lo de
+«impresora Bluetooth» y «valores sin confirmar». Evidencia:
 `docs/actas/2026-09-11-fase-2.md`, `docs/actas/2026-09-15-fase-3.md`,
-`docs/actas/2026-09-15-fase-4a.md` y `docs/actas/2026-09-16-fase-4bcd.md`.)*
+`docs/actas/2026-09-15-fase-4a.md`, `docs/actas/2026-09-16-fase-4bcd.md` y
+`docs/actas/2026-09-16-fase-4e.md`.)*
 
 - **La impresora es una AOMU My-A1, que es un clon POS-80** (ESC/POS). Medido en
   la Pi: USB `0418:5011` e `ieee1284_id` =
@@ -157,16 +162,30 @@ corregido lo de «impresora Bluetooth» y «valores sin confirmar». Evidencia:
   **cree que es otro día**, y de la fecha dependen los topes diarios, las fechas
   `desde`/`hasta` y el boleto de inventario de arranque. La mitigación es la
   **pieza D**, que **ya existe desde `613f875`** (2026-09-16, Fase 4d): al
-  arrancar, el kiosco espera hasta `juego.espera_hora_seg` segundos —hoy
-  **120**, preguntando cada 2 s— a que el sistema sincronice la hora, y si no lo
-  consigue **arranca igual** pero deja un WARNING en el journal e imprime la
-  línea **`HORA SIN CONFIRMAR: revisar fecha`** en el boleto de inventario.
+  arrancar, el kiosco espera hasta `juego.espera_hora_seg` segundos —**desde
+  `70bcaa6` (2026-09-16, Fase 4e) son 300**, cinco minutos, preguntando cada
+  2 s— a que el sistema sincronice la hora, y si no lo consigue **arranca igual**
+  pero deja un WARNING en el journal e imprime la línea **`HORA SIN CONFIRMAR:
+  revisar fecha`** en el boleto de inventario.
   **F-241 queda resuelta en lo esencial.** Dos avisos: **esto solo pasa al
-  arrancar** —ninguna jugada vuelve a esperar— y **la pieza D nunca se ha visto
-  morder en la Pi**: de los **cuatro** arranques del servicio del 2026-09-16, solo
-  los **dos últimos** (12:42:46 y 12:46:48) llevaban ya la pieza D —antes de
-  `613f875` no existía— y en los dos la hora ya estaba sincronizada, así que esa
-  línea **no se ha impreso nunca en papel**. **La regla práctica sigue en pie, y es la que manda:** encender la Pi
+  arrancar** —ninguna jugada vuelve a esperar— y **la línea del boleto no se ha
+  impreso nunca en papel**. *(Nota fechada, 2026-09-16, Fase 4e: hasta ese día
+  aquí decía además que **la pieza D nunca se había visto morder en la Pi**. **Ya
+  se vio.** El usuario **desenchufó la Pi** unos minutos y la volvió a enchufar:
+  sin batería el reloj arrancó en **1970** y encima le cayó la última hora
+  guardada, **4 min 54 s atrasada** —la restaura **systemd** desde
+  `/var/lib/systemd/timesync/clock`; `fake-hwclock` **no está instalado**—. Con
+  esa fecha falsa el kiosco **no imprimió nada**: **esperó 28.3 s**, la hora
+  llegó por NTP y **el inventario salió 0.6 s después, con la fecha correcta**,
+  sin `HORA SIN CONFIRMAR`, `NRestarts=0` y `estado.json` intacto. El orden que
+  pidió el usuario —Pi → internet → hora → inventario → listo— **se cumple**.
+  Desde `70bcaa6` la espera además **deja rastro en el journal**: una línea al
+  empezar, otra cada 10 s y una última con lo que costó; la única vez que esa
+  última línea se ha visto en la Pi, el 16 a las 14:44, decía «Hora sincronizada
+  tras 0 s». **Lo que sigue sin verse en hardware:** el tope **nunca se ha
+  agotado** y los avisos de los 10 s **no se han visto en la Pi** —la medición en
+  frío se hizo con `613f875`, es decir con 120 s y sin registro—. Evidencia:
+  `docs/actas/2026-09-16-fase-4e.md` §4 y §8.)* **La regla práctica sigue en pie, y es la que manda:** encender la Pi
   unos minutos antes de abrir y **mirar la fecha del boleto de inventario**; si
   está mal, **no reiniciar**, esperar y pedir otro inventario. *(Nota fechada:
   hasta el 2026-09-15 este párrafo decía que **en producción la Pi va sin red**
@@ -175,20 +194,25 @@ corregido lo de «impresora Bluetooth» y «valores sin confirmar». Evidencia:
   todavía razonan desde esa premisa. Ficha **F-242**.)* La red de **laboratorio**
   sigue siendo el **punto de acceso móvil de Windows** de la laptop del usuario,
   con el mismo nombre y contraseña que el Wi-Fi del asadero; la Pi entra sola.
-- **El inventario real NO está en cero, y el folio 16 ya es historia.** El
-  2026-09-16 se reinició **dos veces**, siempre con el servicio parado y con
-  respaldo fechado en `datos/`: a las **00:10** al desplegar los premios reales
-  (de folio 16 a 00000; `datos/estado_20260916_001053.json` y
-  `datos/boletos_20260916_001053.csv`) y a las **12:46** para probar limpio el
-  reparto por horas (de folio 6 a 00000;
-  `datos/estado_20260916_124629.json` y `datos/boletos_20260916_124629.csv`).
-  **Las dos veces el usuario volvió a jugar después**, y esas jugadas descuentan
-  **premios reales**. **Si se sigue probando, hay que correr
-  `python3 -m ruleta reiniciar --si` otra vez el lunes 21 antes de abrir**
-  (fichas **F-262** y **F-243**), en la misma pasada que carga las fechas
-  `desde`/`hasta` (**F-259**). **Ojo:** `reiniciar` respalda `estado.json` y
-  `boletos.csv`, **no `ruleta.log`**, y `boletos.csv` se **mueve** al respaldo y
-  se vuelve a crear con el primer boleto.
+- **El inventario YA ESTÁ EN CERO y el kiosco queda listo.** El 2026-09-16 se
+  reinició **tres veces**, siempre con el servicio parado y con respaldo fechado
+  en `datos/`: a las **00:10** al desplegar los premios reales (de folio 16 a
+  00000; `estado_20260916_001053.json` y `boletos_20260916_001053.csv`), a las
+  **12:46** para probar limpio el reparto por horas (de folio 6 a 00000;
+  `estado_20260916_124629.json` y `boletos_20260916_124629.csv`) y **por última
+  vez a las 14:44**, en el deploy de la Fase 4e y **después
+  de que el usuario dijera que ya había terminado de probar**: de **folio 00010
+  con 2 premios entregados** —una cerveza y un agua— a **`Folio en 00000`**, con
+  respaldos `datos/estado_20260916_144415.json` y
+  `datos/boletos_20260916_144415.csv`. El servicio arrancó a las **14:44:37** y
+  el verificador leyó en vivo «Inventario impreso (arranque). Folio actual
+  **00000**». **El reinicio del lunes 21 ya no hace falta** —con las fechas
+  cargadas ningún premio puede salir antes del 21, así que lo único que avanzaría
+  es el folio—: hacerlo es **decisión del usuario** (fichas **F-243**, cerrada, y
+  **F-262**). **Ojo:** `reiniciar` respalda `estado.json` y `boletos.csv`, **no
+  `ruleta.log`**, y `boletos.csv` se **mueve** al respaldo y se vuelve a crear
+  con el primer boleto, así que entre el reinicio y la primera jugada **ese
+  archivo no existe** y **eso no es una avería** (ficha **F-277**).
 - **Cómo se reparten los premios (Fases 4b, 4c y 4d, 2026-09-16).** Es el modelo
   con el que abre el evento, y está probado en vivo: después del reinicio de las
   12:46 el usuario jugó y dijo «ya probé, salieron consuelos y una cerveza,
@@ -220,16 +244,22 @@ corregido lo de «impresora Bluetooth» y «valores sin confirmar». Evidencia:
   - **Separación mínima de 3 minutos** entre dos boletos **con premio**. El
     instante del último se guarda en `datos/estado.json`, así que **sobrevive a
     un reinicio**; un reloj que se va hacia atrás **no** bloquea el juego.
-  - **Al arrancar, el kiosco espera hasta 120 s** a que la hora esté
-    sincronizada, y si no lo consigue imprime **`HORA SIN CONFIRMAR: revisar
-    fecha`** en el boleto de inventario.
-  - **Las fechas `desde`/`hasta` TODAVÍA NO están cargadas** (ficha **F-259**):
-    hasta que se carguen, los siete premios están disponibles **todos los días**,
-    no solo del 21 al 25, y la hielera entra todos los días mientras le queden
-    sus dos piezas. **Hay que cargarlas antes del lunes 21.**
-  - Evidencia de todo lo anterior: `docs/actas/2026-09-16-fase-4bcd.md`, y el
-    documento que manda sobre `config.json`,
-    `docs/evento-2026-09-asadero-33.md`.
+  - **Al arrancar, el kiosco espera hasta 300 s** —cinco minutos, desde
+    `70bcaa6`; antes eran 120— a que la hora esté sincronizada, y si no lo
+    consigue imprime **`HORA SIN CONFIRMAR: revisar fecha`** en el boleto de
+    inventario.
+  - **Las fechas `desde`/`hasta` YA ESTÁN CARGADAS** desde `70bcaa6`
+    (2026-09-16, Fase 4e; ficha **F-259**, cerrada): la **hielera** solo el
+    **jueves 24 y el viernes 25**, y los otros seis del **lunes 21 al viernes
+    25**. **Consecuencia, y es la correcta: hasta el lunes 21 ninguna jugada
+    puede dar premio**, todas salen de **consuelo**; eso **no es una avería**.
+    *(Nota fechada: hasta el 2026-09-16 este punto decía que las fechas
+    **todavía no** estaban cargadas y que por eso los siete premios entraban
+    **todos los días**. Se conserva porque hay fichas viejas que razonan desde
+    esa premisa.)*
+  - Evidencia de todo lo anterior: `docs/actas/2026-09-16-fase-4bcd.md` y
+    `docs/actas/2026-09-16-fase-4e.md`, y el documento que manda sobre
+    `config.json`, `docs/evento-2026-09-asadero-33.md`.
 
 Ver `README.md` para operación e instalación, y `docs/actas/` para la evidencia
 medida de cada uno de estos valores.

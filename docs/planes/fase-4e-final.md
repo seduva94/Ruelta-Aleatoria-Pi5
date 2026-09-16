@@ -13,7 +13,19 @@ probar** y pidió «dejar todo listo para el lunes». Los eslabones de revisión
 (lentes, escéptico, commit compuertado, deploy y verificación en vivo) **no se
 saltan**: van después, como siempre.
 
-**ESTADO GLOBAL (2026-09-16, tras el paso del ejecutor).** **PLAN, `config.json`,
+**ESTADO GLOBAL (2026-09-16, cierre documental). FASE 4e CERRADA.** Las **doce**
+casillas de la §0 están marcadas con su evidencia: **once en `[x]`** y la **11 en
+`[~]`**, porque la **memoria** del orquestador no la toca el escriba. El commit es
+**`70bcaa60e06f97edd48677783c1d64f988d674aa`** (sobre `da1385e`, **20** commits),
+con push verificado por un agente distinto del que commiteó. **Desplegado en la
+Pi a las 14:44** del 2026-09-16, con la suite en **273 OK** allá, el servicio
+`active` y `NRestarts=0`, y el **inventario en cero** (`Folio en 00000`, respaldos
+`datos/estado_20260916_144415.json` y `datos/boletos_20260916_144415.csv`).
+**El kiosco queda LISTO PARA EL EVENTO**; lo que falta no es programación (§9).
+Acta: `docs/actas/2026-09-16-fase-4e.md`; hechos medidos, vueltos a copiar
+enteros: `docs/actas/2026-09-16-hechos-medidos-fase-4e.md`.
+
+**ESTADO GLOBAL (2026-09-16, tras el paso del ejecutor; se conserva).** **PLAN, `config.json`,
 DOCUMENTO DEL EVENTO, CÓDIGO, GOLDENS, MUTACIONES, FICHAS Y DOCS HECHOS; SIN
 COMMITEAR Y SIN DESPLEGAR.** Las casillas **0 a 6** de la §0 están marcadas con su
 evidencia; las **7 a 11** son de otros eslabones de la cadena. La suite pasó de
@@ -76,11 +88,11 @@ comando pegadas, nunca de memoria.**
 | 4 | **D1 D3** Goldens nuevos por igualdad (fechas derivadas del documento y mensajes del journal) | ejecutor | `[x]` 2026-09-16 (**268 → 273** pruebas OK; `desde`/`hasta` dentro de `CLAVES_DEL_DOCUMENTO`, censo de fechas por igualdad, calendario con el motor de producción y cuatro goldens de journal con `assertLogs`) |
 | 5 | **D3** Mutaciones **sobre copia**, mínimo 6, **todas en rojo** | ejecutor | `[x]` 2026-09-16 (**diez**, las diez en rojo y cada una con el test que dice la tabla; copia limpia en verde con 273) |
 | 6 | **D4 D5** `README.md`, plan de la 4d, fichas y acta de hechos medidos | ejecutor | `[x]` 2026-09-16 (`README.md` §2, §5 —párrafo para el personal—, §7 y §9; nota fechada en la **D6** del plan de la 4d; **F-259** y **F-273** cerradas, **F-241** y **F-262** con nota fechada, **F-275** y **F-276** nuevas; acta `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` con tamaño y `sha256`) |
-| 7 | Revisores en paralelo, correctivo y escéptico | revisores | `[ ]` |
-| 8 | Commit compuertado (conjunto de archivos del §6 de este plan) | agente de commit | `[ ]` |
-| 9 | Deploy en la Pi **con reinicio del inventario** (§8) | agente de deploy | `[ ]` |
-| 10 | Verificación en vivo contra lo desplegado | verificador | `[ ]` |
-| 11 | Acta, fichas de cierre y memoria | escriba / orquestador | `[ ]` |
+| 7 | Revisores en paralelo, correctivo y escéptico | revisores | `[x]` 2026-09-16 (lentes: **1** corrección; escéptico: **1**) |
+| 8 | Commit compuertado (conjunto de archivos del §6 de este plan) | agente de commit | `[x]` 2026-09-16 (**`70bcaa6`** sobre `da1385e`, **20** commits; **once** de las doce rutas del §6 —`ruleta/config.py` no hizo falta—; push verificado por un agente distinto: `HEAD` = `origin/main`, árbol limpio) |
+| 9 | Deploy en la Pi **con reinicio del inventario** (§8) | agente de deploy | `[x]` 2026-09-16 **14:44** (`git pull --ff-only` **613f875 → 70bcaa6**, sin más que el `?? config.json.bak-2026-09-12`; **273 OK** en la Pi; `stop`; `reiniciar --si` → «Folio actual: 00010. Premios entregados registrados: 2. Respaldo: `datos/estado_20260916_144415.json` / `datos/boletos_20260916_144415.csv`. Inventario reiniciado. Folio en 00000.»; `start` **14:44:37**. **No se jugó**) |
+| 10 | Verificación en vivo contra lo desplegado | verificador | `[x]` 2026-09-16 (desde una conexión nueva: `HEAD` = `70bcaa6`, servicio `active`, `NRestarts=0`, **PID 1527**, `enabled`; journal con «Esperando a que la hora se sincronice (hasta 300 s)…», «Hora sincronizada tras 0 s» —la Pi llevaba 1 h 39 min encendida—, «Inventario impreso (arranque). Folio actual 00000» y «Lista. Esperando jugadas.»; **ERROR, WARNING y `HORA SIN CONFIRMAR` = 0**; config leída en la Pi: espera **300**, las siete fechas, `consuelo.peso` 10, horario 12:00–23:00) |
+| 11 | Acta, fichas de cierre y memoria | escriba / orquestador | `[~]` 2026-09-16 (**hecho**: acta `docs/actas/2026-09-16-fase-4e.md`, copia **íntegra y nueva** del archivo de hechos, fichas **F-277** y **F-278** nuevas y **F-243** cerrada, y el «Contexto del producto» de `CLAUDE.md` al día —lo que pedía la **F-276**—. **Sin verificar aquí**: la **memoria** del orquestador, que no la toca el escriba) |
 
 ---
 
@@ -265,6 +277,39 @@ Fase 4d, fichas y acta de hechos medidos.
 `README.md` §5 trae el párrafo del personal; `docs/fichas.md` cierra **F-259** y
 **F-273**.
 
+> **Nota fechada (2026-09-16, cierre documental). Los seis criterios se
+> cumplieron, y dos hay que leerlos con su letra pequeña.**
+>
+> - **Paso 1 y Paso 4:** medidos. El validador real carga las **siete** parejas
+>   de fechas y **300.0**, y la suite pasó de **268** a **273 OK** aquí y en la
+>   Pi. `python -m ruleta reporte` el 16 listó los siete como **«no disponible:
+>   desde 21/09»** (la hielera, «desde 24/09») y el consuelo al **100 %**: la
+>   consecuencia aceptada del D1 se ve en el propio programa.
+> - **Paso 2:** en `docs/evento-2026-09-asadero-33.md` **no queda ninguna línea
+>   que prometa una espera de 120 s o de 2 minutos**. Los **tres** «120» que
+>   sobreviven son historia, no promesa: uno es la línea del §5.2 que **cuenta el
+>   cambio** («el tope pasó de 120 a 300 segundos el 2026-09-16»), y los otros dos
+>   son **filas de bitácora fechadas** de las Fases 4d y 4e. **No deben
+>   cambiarse.**
+> - **Paso 3 y Paso 5:** el método sigue devolviendo lo mismo, con 0 s no
+>   registra nada, y las **diez** mutaciones cayeron en rojo con el test que
+>   decía la tabla del §5 (M8, M9 y M10 mutando **solo** `config.json` o **solo**
+>   el documento).
+> - **Paso 6, letra pequeña:** cuando el ejecutor corrió
+>   `grep -rni "hwclock" .` **devolvió 0 coincidencias**, así que **no había
+>   ninguna afirmación falsa que corregir**: la premisa de `fake-hwclock` solo
+>   vivía en mensajes de sesión. El paso **añadió** el mecanismo real (systemd,
+>   `/var/lib/systemd/timesync/clock`) en vez de corregir nada; por eso **hoy ese
+>   mismo `grep` sí devuelve líneas**, y **todas las que afirman algo dicen que
+>   `fake-hwclock` no está instalado** —el resto son este plan pidiendo el
+>   re-grep—.
+> - **Lo que ningún criterio de este §4 cubre, y conviene saber:** el tope de
+>   **300 s nunca se ha agotado en hardware** y **los avisos periódicos de los
+>   10 s no se han visto en la Pi**. Las dos mediciones del acta se hicieron con
+>   **`613f875`** (tope 120, sin registro), y en el arranque de las 14:44 la hora
+>   ya estaba puesta: «Hora sincronizada tras **0 s**». Están probados con
+>   goldens, no con hardware. Acta: `docs/actas/2026-09-16-fase-4e.md`.
+
 ---
 
 ## 5. Mutaciones que hay que poner en rojo (sobre copia, mínimo 6)
@@ -375,3 +420,22 @@ commit **solo añade rutas que existan en el diff**.
   si quiere abrir con el folio en **00000** (**F-262**, **F-243**).
 - **`CLAUDE.md`** sigue diciendo **120 s**: no se toca aquí; lo decide el
   orquestador.
+
+> **Nota fechada (2026-09-16, cierre documental).** De los cuatro puntos de
+> arriba, **dos se cerraron el mismo día**:
+>
+> - **El inventario ya se reinició**, en el deploy de las **14:44**: de folio
+>   `00010` con **2** premios entregados a **`Folio en 00000`**, con respaldos
+>   fechados, **y hasta la verificación en vivo de esa tarde nadie jugó** (folio
+>   `00000` leído en el estado; lo posterior a las 14:50 no lo midió nadie: duda
+>   7 del §10 del acta). El lunes 21 **no hace falta reiniciar nada** salvo que
+>   él quiera (fichas **F-243**, cerrada, y **F-262**).
+> - **`CLAUDE.md` quedó al día** en este cierre: los **300 s**, las fechas
+>   **cargadas** y la pieza D **vista morder en frío** (lo que pedía la ficha
+>   **F-276**). Se editó **solo** la sección «Contexto del producto».
+>
+> Siguen abiertos, y **no son programación**: la **señal sin LED** (**F-240**,
+> **F-256**) y el **Wi-Fi del asadero**, que hay que dar de alta **en sitio y con
+> la contraseña del usuario** (**F-275**), junto con la **prueba de corriente
+> allá** y el **pulsador HABILITAR** por asegurar (**F-278**, **F-239**).
+> Estado final del kiosco: §9 del acta `docs/actas/2026-09-16-fase-4e.md`.

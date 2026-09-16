@@ -4867,7 +4867,10 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   del documento del evento, y la casilla 19 de la bitácora del plan de la Fase 3.
   Conviene hacerlo **junto con** la carga de los premios reales, no antes, para
   no tener que repetirlo.
-- **Estado:** abierta (pendiente, con fecha límite: el lunes 21 de septiembre).
+- **Estado:** **CERRADA** el **2026-09-16** (Fase 4e, deploy de las 14:44). La
+  fecha límite era el lunes 21 y **se cumplió cinco días antes**: ver la última
+  nota fechada de esta ficha. Antes decía: «abierta (pendiente, con fecha límite:
+  el lunes 21 de septiembre)».
 - **Nota fechada (2026-09-16, cierre documental de las Fases 4b, 4c y 4d).**
   **El folio ya no es 16, y el inventario se reinició DOS veces el 2026-09-16,
   pero esta ficha SIGUE ABIERTA.** Primero en el deploy de la Fase 4b, a las
@@ -4890,6 +4893,23 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   respaldo y se vuelve a crear con el primer boleto. La continuación con
   fecha límite vive en **F-262**. Evidencia:
   `docs/actas/2026-09-16-fase-4bcd.md` §3.4 y §5.6.
+- **Nota fechada (2026-09-16, cierre documental de la Fase 4e). ESTA FICHA QUEDA
+  CERRADA.** El inventario se reinició **por tercera y última vez** el
+  2026-09-16, en el **deploy de las 14:44**, con el servicio parado y **después
+  de que el usuario dijera que ya había terminado de probar** («listo, ya terminé
+  las pruebas, reinicia el inventario para que quede listo»). Salida literal:
+  «Folio actual: 00010. Premios entregados registrados: **2**. Respaldo:
+  `datos/estado_20260916_144415.json` / `datos/boletos_20260916_144415.csv`.
+  Inventario reiniciado. **Folio en 00000**.» Los dos premios que se borraron
+  eran **una cerveza y un agua** de esas pruebas. El servicio volvió a arrancar a
+  las **14:44:37** y el verificador leyó en vivo «Inventario impreso (arranque).
+  Folio actual **00000**». **Ya no hace falta el reinicio del lunes 21**, ni
+  siquiera por el motivo original: con las fechas de la **F-259** cargadas,
+  ningún premio puede salir antes del 21, así que lo único que podría moverse es
+  el **folio**, y eso es **decisión del usuario** (**F-262**). Lo que sí conviene
+  saber, y no es un fallo: **`boletos.csv` se movió al respaldo** y no vuelve a
+  existir hasta el primer boleto (**F-277**). Evidencia:
+  `docs/actas/2026-09-16-fase-4e.md` §7.2 y §7.3.
 
 ---
 
@@ -6292,8 +6312,137 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   `CLAUDE.md` al cerrar la fase, con la fórmula que ya se usó el 2026-09-15 y el
   2026-09-16: **nota fechada**, sin borrar lo viejo, citando
   `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` y el plan de esta fase.
-- **Estado:** **abierta para el orquestador.** Hermana: **F-242** (la vez
-  anterior que `CLAUDE.md` se quedó atrás, con lo de «producción sin red» y «la
-  batería RTC es necesaria»).
+- **Estado:** **CERRADA** el **2026-09-16**, en el cierre documental de la Fase
+  4e. Hermana: **F-242** (la vez anterior que `CLAUDE.md` se quedó atrás, con lo
+  de «producción sin red» y «la batería RTC es necesaria»).
+- **Nota fechada (2026-09-16, cierre documental de la Fase 4e).** El escriba
+  actualizó **solo** la sección «Contexto del producto» de `CLAUDE.md` —las
+  secciones 1 a 7 y «Convenciones de este repo» **no se tocaron**— con las tres
+  frases que esta ficha señalaba: los **300 s** en los dos sitios donde decía
+  120, las fechas `desde`/`hasta` **ya cargadas** (hielera 24-25, los otros seis
+  21-25, commit `70bcaa6`) con la consecuencia de que **hasta el lunes 21 toda
+  jugada da consuelo**, y la pieza D **vista morder** en el arranque en frío del
+  2026-09-16. Se añadió además el estado del inventario tras el reinicio de las
+  **14:44**. Se siguió la fórmula de siempre: **nota fechada, sin borrar lo
+  viejo**, citando `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` y
+  `docs/actas/2026-09-16-fase-4e.md`.
+
+---
+
+## F-277 · `boletos.csv` se MUEVE al respaldo en cada `reiniciar`, y hasta el primer boleto ese archivo no existe
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4e · deploy de las **14:44** (paso 4 del §8 del plan
+  `docs/planes/fase-4e-final.md`), leyendo la salida literal del comando
+- **Dónde:** en la Pi, `/home/asadero/ruleta/datos/boletos.csv`; el comando es
+  `python3 -m ruleta reiniciar --si` (`ruleta/__main__.py`, `cmd_reiniciar`).
+- **Qué pasa:** `reiniciar` **no copia** `boletos.csv`: lo **renombra** al
+  respaldo con marca de tiempo. Medido el 2026-09-16 a las 14:44, con la salida
+  literal «Folio actual: 00010. Premios entregados registrados: 2. Respaldo:
+  `datos/estado_20260916_144415.json` / `datos/boletos_20260916_144415.csv`.
+  Inventario reiniciado. Folio en 00000.». Después de eso, y **hasta que salga el
+  primer boleto**, en `datos/` **no hay ningún `boletos.csv`**: el programa lo
+  vuelve a crear, con su encabezado, cuando escribe la primera línea. Con
+  `estado.json` no pasa: ese sí se vuelve a escribir enseguida. Y **`ruleta.log`
+  no se respalda**, que es otra cosa que la salida del comando no dice.
+- **Por qué es residual:** **no es un defecto**: es exactamente lo que el comando
+  promete y lo que conviene —un archivo de bitácora no se parte por la mitad—, y
+  además el respaldo queda con nombre fechado, al lado. El acta de las Fases 4b,
+  4c y 4d ya lo anotó como **desviación 2**; esta ficha existe para que deje de
+  vivir solo dentro de un acta.
+- **Riesgo si no se toca:** que alguien —el usuario, o un agente sin contexto—
+  abra `datos/` el lunes 21 antes de la primera jugada, **no encuentre
+  `boletos.csv`**, lo lea como «se perdió la bitácora» o «el programa está roto»
+  y **reinicie o reinstale algo** que está perfectamente bien. En un evento de
+  cinco días, ese susto cuesta más que el archivo.
+- **Propuesta:** dejarlo escrito donde se lee, no cambiar el comando. En
+  `README.md` §5, en la tabla de «Archivos que genera», una línea que diga que
+  **tras un `reiniciar` el archivo reaparece con el primer boleto**. Si alguna
+  vez se toca el comando, lo barato es que **cree el archivo vacío con su
+  encabezado** justo después de mover el viejo. **No urge**: no afecta a ninguna
+  jugada.
+- **Estado:** **abierta** (informativa). Evidencia:
+  `docs/actas/2026-09-16-fase-4e.md` §7.2 y §8; y
+  `docs/actas/2026-09-16-fase-4bcd.md` §9, desviación 2.
+
+---
+
+## F-278 · Lo que hay que hacer EN EL ASADERO antes de abrir: red, corriente y la fecha del boleto
+
+- **Fecha:** 2026-09-16
+- **Origen:** Fase 4e · cierre documental, desde el **estado final del kiosco**
+  del archivo de hechos de la sesión
+- **Dónde:** en el asadero, con la Pi encendida allá. Nada de esto se puede hacer
+  desde casa ni desde un agente.
+- **Qué pasa:** el 2026-09-16 el kiosco quedó **listo** —`70bcaa6` desplegado,
+  servicio `active`, inventario en **folio `00000`**, fechas cargadas y espera de
+  hora probada en frío—, pero **todo lo medido se midió en la red de casa**
+  (`SL-Durazo`). Quedan tres cosas que **solo existen en el sitio**:
+  1. **La Pi no tiene el Wi-Fi del asadero dado de alta.** Hoy solo conoce
+     `casa` (prioridad **20**) y `miltimex` (**10**, el punto de acceso de la
+     laptop); **el perfil que apuntaba al restaurante ya no existe** (ficha
+     **F-275**).
+  2. **Nadie ha encendido la Pi allá.** La prueba de corriente —enchufar,
+     esperar y ver qué sale— **no está hecha**.
+  3. **De esas dos depende la fecha**, y de la fecha dependen los premios: sin
+     hora buena, **los siete premios quedan fuera de fechas** y el kiosco
+     reparte consuelos toda la noche sin avisar (no hay LED: **F-240**,
+     **F-256**).
+- **Por qué es residual:** **no es un defecto del programa ni una afirmación
+  falsa de ningún documento.** Son pasos de instalación y de operación, y el
+  primero **exige la contraseña del Wi-Fi, que teclea el usuario**: ningún agente
+  teclea credenciales (§6 de `CLAUDE.md`).
+- **Riesgo si no se toca:** **alto.** Es, de todo lo que queda, lo único que
+  puede arruinar el primer día del evento sin que nadie se dé cuenta a tiempo.
+- **Propuesta · la lista, en orden, para el día que la Pi vaya al asadero:**
+  1. **Dar de alta la red.** Con la Pi allá, por SSH o con teclado, y
+     **tecleando el usuario la contraseña**. Lo más corto es que la pida el
+     propio `nmcli`, que **no la muestra en pantalla ni la deja escrita en la
+     línea de comandos**:
+
+     ```bash
+     sudo nmcli --ask device wifi connect "NOMBRE_DE_LA_RED"
+     sudo nmcli connection modify "NOMBRE_DE_LA_RED" connection.id asadero
+     sudo nmcli connection modify asadero connection.autoconnect yes
+     sudo nmcli connection modify asadero connection.autoconnect-priority 30
+     sudo nmcli connection up asadero
+     ```
+
+     Si esa forma no sirve —pasa cuando la red no sale en el escaneo—, la larga,
+     leyendo la contraseña **sin eco** y borrándola de la sesión al terminar:
+
+     ```bash
+     read -s -p "Contrasena del wifi: " PSK; echo
+     sudo nmcli connection add type wifi con-name asadero ifname wlan0 ssid "NOMBRE_DE_LA_RED"
+     sudo nmcli connection modify asadero wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$PSK"
+     sudo nmcli connection modify asadero connection.autoconnect yes connection.autoconnect-priority 30
+     unset PSK
+     sudo nmcli connection up asadero
+     ```
+
+     La **prioridad 30** la deja por encima de `casa` (20) y `miltimex` (10), que
+     es lo que se quiere en el local. Si el Wi-Fi del restaurante se resiste,
+     la alternativa es el **punto de acceso móvil de Windows** de la laptop, que
+     lleva el mismo nombre y la misma contraseña: **también hay que darlo de
+     alta**, por lo mismo (**F-275**).
+  2. **Comprobar la hora, no suponerla:** `timedatectl` tiene que decir
+     **`System clock synchronized: yes`**.
+  3. **Prueba de corriente:** enchufar la Pi y la impresora **como van a quedar
+     el lunes**, esperar a que salga el **boleto de inventario de arranque** y
+     **leerle la fecha**. Tiene que ser **la de hoy**. Con la espera de 5 minutos
+     puesta, lo normal es que tarde un poco: **eso es que está funcionando**.
+  4. **Si el boleto trae la línea `HORA SIN CONFIRMAR: revisar fecha`, o si la
+     fecha está mal: NO reiniciar la Pi.** Revisar que el internet del asadero
+     esté funcionando, esperar un par de minutos y **pedir otro inventario**
+     —el mesero mantiene **HABILITAR 6 segundos** sin que nadie toque JUGAR—.
+     **No se abre hasta que ese boleto salga con la fecha correcta.**
+  5. Aprovechar el viaje para **asegurar o soldar el pulsador HABILITAR**
+     (**F-239**) y para decidir la **señal cuando una jugada se rechaza**
+     (**F-256**).
+  **Requiere al usuario.**
+- **Estado:** **abierta.** Fecha límite: **lunes 21 de septiembre de 2026, antes
+  de abrir.** Hermanas: **F-275** (la red), **F-241** (de dónde sale la hora),
+  **F-239** (el pulsador) y **F-256** (la señal sin LED). Evidencia del estado
+  con el que sale el kiosco de casa: `docs/actas/2026-09-16-fase-4e.md` §9.
 
 ---

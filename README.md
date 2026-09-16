@@ -625,6 +625,19 @@ contados hasta que alguien reinicie**, y ese reinicio va en el despliegue de est
 misma fase (§8, paso 4 de `docs/planes/fase-4e-final.md`). Si no consta que se
 hizo, **reinicia antes de abrir el lunes**.
 
+*(Consta, y ya está hecho: **2026-09-16 a las 14:44**, con el servicio parado.
+De **folio `00010` con 2 premios entregados** —una cerveza y un agua de las
+pruebas— a **`Folio en 00000`**, con respaldos
+`datos/estado_20260916_144415.json` y `datos/boletos_20260916_144415.csv`; el
+servicio arrancó a las **14:44:37** e imprimió el inventario con **folio
+00000**. **Hasta la verificación en vivo de esa tarde nadie jugó** (folio
+`00000` leído en el estado); lo que pase después de las **14:50** no lo midió
+nadie, y si alguien juega lo único que avanza es el **folio**, no los premios.
+Así que el lunes 21 **no hay que reiniciar nada**: hacerlo es opcional. **Ojo, y
+no es una avería:** `reiniciar` **mueve** `boletos.csv` al respaldo, así que
+hasta el primer boleto ese archivo **no existe** (ficha **F-277**). Acta:
+`docs/actas/2026-09-16-fase-4e.md`.)*
+
 ---
 
 ## 8. Comandos
