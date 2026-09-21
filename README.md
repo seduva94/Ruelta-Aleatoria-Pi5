@@ -129,12 +129,31 @@ que, sin batería y sin red, los boletos salen con la fecha equivocada tras un
 apagón: por eso hay que encenderla unos minutos antes de abrir y mirar la fecha
 del boleto de inventario, §2.)*
 
-**Si te llevas la Pi fuera del negocio** no encontrará su Wi-Fi y no responderá.
-La salida, sin regrabar nada: en tu PC, **Configuración → Red e Internet → Punto
-de acceso móvil**, con **el mismo nombre y la misma contraseña** del Wi-Fi del
-asadero y banda 2.4 GHz. La Pi se conecta sola (queda en `192.168.137.x`) y
-`ruleta.local` vuelve a responder. **Apágalo al volver al restaurante**: si no,
-habría dos redes con el mismo nombre y la Pi podría engancharse a la PC.
+**Si te llevas la Pi fuera del negocio** no encontrará la Wi-Fi del restaurante y
+no responderá. La salida, sin regrabar nada: en tu PC, **Configuración → Red e
+Internet → Punto de acceso móvil**, en banda **2.4 GHz**, y enciéndelo. La Pi ya
+tiene ese punto de acceso guardado como perfil `miltimex`, así que **se conecta
+sola** y `ruleta.local` vuelve a responder. **Apágalo al volver al restaurante**,
+para que la Pi se vuelva a enganchar a la red del local.
+
+**Las tres redes que la Pi conoce**, desde la mañana del **2026-09-21**. Entra
+sola en la que encuentre, empezando por la de más prioridad:
+
+| Perfil en la Pi | Qué red es | Prioridad |
+|---|---|---|
+| `asadero` | `INFINITUM04F0_2.4`, la Wi-Fi del restaurante | **30** |
+| `casa` | `SL-Durazo`, la de casa | 20 |
+| `miltimex` | el punto de acceso móvil de la laptop | 10 |
+
+**No existe ninguna red que se llame «asadero»**: `asadero` es el nombre del
+**perfil** guardado dentro de la Pi; la red se llama `INFINITUM04F0_2.4`.
+
+*(Al día, **2026-09-21**. Este párrafo decía que al punto de acceso había que
+ponerle **el mismo nombre y la misma contraseña** del Wi-Fi del asadero, y que la
+Pi quedaba en `192.168.137.x`. **Ese truco ya no hace falta**, y ahora estorba:
+la Pi tiene guardadas las dos redes por separado, así que **no le pongas al punto
+de acceso el nombre del Wi-Fi del restaurante**. Acta:
+`docs/actas/2026-09-21-apertura.md`.)*
 
 ---
 
@@ -582,12 +601,38 @@ quien la restaura es **systemd**, desde `/var/lib/systemd/timesync/clock`
 (`fake-hwclock` **no está instalado** en esta Pi). Con esa hora falsa el kiosco
 **no imprimió nada**: esperó **28.3 s**, la hora llegó por internet y **el
 inventario salió 0.6 s después, con la fecha correcta**. El tope subió de 120 a
-**300 segundos** porque esos 28 s se midieron en la red de casa y **la del
-asadero no está medida**; es margen, no coste: si la hora llega en 3 segundos, el
-kiosco arranca en 3 segundos. Desde esa misma fecha, **la espera se ve en el
-registro** (`journalctl -u ruleta`): una línea al empezar, otra cada 10 segundos
-y una última que dice cuánto costó («Hora sincronizada tras 28 s»). Evidencia:
+**300 segundos** porque esos 28 s se midieron en la red de casa; es margen, no
+coste: si la hora llega en 3 segundos, el kiosco arranca en 3 segundos. Desde esa
+misma fecha, **la espera se ve en el registro** (`journalctl -u ruleta`): una
+línea al empezar, otra cada 10 segundos y una última que dice cuánto costó
+(«Hora sincronizada tras 28 s»). Evidencia:
 `docs/actas/2026-09-16-hechos-medidos-fase-4e.md`.
+
+**Medido también EN EL ASADERO el 2026-09-21**, la mañana de la apertura y ya con
+la red del restaurante: la Pi encendió creyendo que era el **16 de septiembre a
+las 15:46** —unos 4 días y 17 horas atrasada—, **esperó 28 s** sin imprimir nada,
+se sincronizó a las **08:22:20** e imprimió el inventario a las **08:22:21**, con
+folio `00000` y **sin** `HORA SIN CONFIRMAR`. **La red del asadero tardó lo mismo
+que la de casa**, así que los 300 segundos siguen siendo margen de sobra. *(Aquí
+decía que **la red del asadero no estaba medida**; ya lo está.)* Esa mañana se
+vieron además, **por primera vez en hardware**, los avisos de los 10 segundos
+(«Sigo esperando la hora: llevo 10 s de 300 s», y el de los 20 s), y **el usuario
+confirmó la fecha en papel**: «sí, el boleto dice 21/09/2026 08:22». Evidencia:
+`docs/actas/2026-09-21-apertura.md`.
+
+**Ojo al leer el registro después de un arranque en frío.** El mismo proceso deja
+líneas con **dos fechas distintas** —las de antes de sincronizar llevan la hora
+vieja— y `systemctl status ruleta` dice que el servicio lleva encendido desde ese
+día viejo. **No es una avería**: es el reloj antes de que le llegue la hora. Lee
+**por arranque, no por fecha**:
+
+```bash
+journalctl -u ruleta -b                    # el arranque entero, fechas viejas incluidas
+journalctl -u ruleta -b -o short-monotonic # segundos desde que encendió, inmunes al salto
+uptime -s                                  # a qué hora encendió de verdad
+```
+
+Ficha **F-279**.
 
 ### Consejos
 

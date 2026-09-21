@@ -6276,9 +6276,29 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   perfil que servía para los dos es el que ya no existe: el punto de acceso hay
   que darlo de alta igual, y la contraseña la teclea el usuario. **Requiere al
   usuario.**
-- **Estado:** **abierta.** Fecha límite: **lunes 21 de septiembre de 2026, antes
-  de abrir.** Hermanas: **F-241** (de dónde sale la hora) y **F-257** (el alias
-  de SSH y la red del punto de acceso).
+- **Estado:** **CERRADA** el **2026-09-21**, en el asadero, dentro del plazo.
+  Hermanas: **F-241** (de dónde sale la hora), **F-278** (la lista completa del
+  sitio) y **F-257** (el alias de SSH y la red del punto de acceso).
+- **Nota fechada (2026-09-21, ~08:20, en el asadero).** **El perfil ya existe.**
+  El usuario levantó el punto de acceso de su laptop («Miltimex 5G»), entró por
+  SSH y **dio de alta él mismo, tecleando la contraseña**, el perfil **`asadero`**
+  = SSID **`INFINITUM04F0_2.4`**, con **prioridad 30**. La Pi conoce ahora
+  **tres** redes: `asadero` (30), `casa` (20, `SL-Durazo`) y `miltimex` (10, el
+  punto de acceso de la laptop). Verificado a las **08:26** por un agente de solo
+  lectura: la Pi en `INFINITUM04F0_2.4` (2.4 GHz, señal 57), IP
+  `192.168.1.94/24`, puerta y DNS `192.168.1.254`, internet OK, pool de NTP
+  resolviendo y `timedatectl` → **`synchronized yes`**.
+  **Se cae, además, la premisa de la alternativa:** esta ficha daba por hecho que
+  el punto de acceso de la laptop llevaba **el mismo nombre** que el Wi-Fi del
+  asadero. **No es así**: el que se levantó ese día se llama **«Miltimex 5G»** y
+  el del restaurante **`INFINITUM04F0_2.4`**, y en la Pi son **dos perfiles
+  distintos**. Por eso el punto de acceso sigue sirviendo de red de laboratorio
+  **sin** tocar el perfil del local. **Y con la misma premisa se cae el «Ojo» de
+  la propuesta:** el perfil `miltimex` (prioridad **10**) ya existía, así que **la
+  Pi sí entra sola en el punto de acceso de la laptop** —por ahí entró el usuario
+  por SSH la mañana del 2026-09-21—; lo que no existía era el perfil del local, y
+  eso es lo que se dio de alta ese día. Evidencia:
+  `docs/actas/2026-09-21-apertura.md` §1 y §2.
 
 ---
 
@@ -6440,9 +6460,107 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
      (**F-239**) y para decidir la **señal cuando una jugada se rechaza**
      (**F-256**).
   **Requiere al usuario.**
-- **Estado:** **abierta.** Fecha límite: **lunes 21 de septiembre de 2026, antes
-  de abrir.** Hermanas: **F-275** (la red), **F-241** (de dónde sale la hora),
-  **F-239** (el pulsador) y **F-256** (la señal sin LED). Evidencia del estado
-  con el que sale el kiosco de casa: `docs/actas/2026-09-16-fase-4e.md` §9.
+- **Estado:** **CERRADA** el **2026-09-21**, la mañana de la apertura, **en el
+  asadero**. Hermanas: **F-275** (la red, cerrada el mismo día), **F-241** (de
+  dónde sale la hora), **F-239** (el pulsador) y **F-256** (la señal sin LED).
+  Evidencia del estado con el que salió el kiosco de casa:
+  `docs/actas/2026-09-16-fase-4e.md` §9; evidencia de lo que pasó allá:
+  `docs/actas/2026-09-21-apertura.md`.
+- **Nota fechada (2026-09-21, ~08:20 a ~08:35, en el asadero).** **Los cuatro
+  puntos que dependían del sitio están cumplidos**, y en este orden:
+  1. **La red, dada de alta por el usuario.** Levantó el punto de acceso de su
+     laptop («Miltimex 5G»), entró por SSH y **tecleó él la contraseña** del
+     Wi-Fi del restaurante. Quedó el perfil **`asadero`** apuntando al SSID
+     **`INFINITUM04F0_2.4`** con **prioridad 30**, por encima de `casa` (20) y
+     `miltimex` (10). **Ojo: no existe ninguna red llamada «asadero»**; es el
+     nombre del perfil.
+  2. **La hora, comprobada y no supuesta.** A las **08:26** un agente de solo
+     lectura midió `timedatectl` → **`synchronized yes`**, NTP `active`, la Pi en
+     `192.168.1.94/24` con internet y el pool de NTP resolviendo.
+  3. **La prueba de corriente, hecha allá.** La Pi encendió **creyendo que era
+     el 16 de septiembre a las 15:46** —unos 4 días y 17 horas atrasada—,
+     **esperó 28 s sin imprimir nada**, la hora llegó por la red del restaurante
+     y el inventario salió a las **08:22:21** con **folio `00000`**. Sin
+     `HORA SIN CONFIRMAR`.
+  4. **La fecha, leída EN PAPEL.** A las ~08:35 el usuario dijo: «**sí, el
+     boleto dice 21/09/2026 08:22**». Es la primera vez que esa fecha se lee en
+     papel tras un arranque en frío en el sitio real.
+  **Lo que NO cierra esta ficha** es el punto 5 de su propuesta, que nunca fue de
+  instalación sino de decisión: **asegurar o soldar el pulsador HABILITAR**
+  (**F-239**) y **la señal cuando una jugada se rechaza** (**F-256**). Las dos
+  tienen ficha propia y **siguen abiertas**. De paso, esta mañana estrenó en
+  hardware los avisos de los 10 s de la espera de la hora y dejó una rareza
+  nueva del journal: ficha **F-279**.
+
+---
+
+## F-279 · Tras un arranque en frío el journal queda con DOS fechas y `systemctl status` miente: no es avería, es el reloj antes de NTP
+
+- **Fecha:** 2026-09-21
+- **Origen:** apertura del evento · el **arranque en frío en el asadero**, leído
+  en el journal por un agente de solo lectura
+  (`docs/actas/2026-09-21-apertura.md` §3). Ya se había visto en casa el
+  2026-09-16, como la **observación (2)** de la medición en frío de la Fase 4e.
+- **Dónde:** en la Pi, `journalctl -u ruleta` y el «`Active: active (running)
+  since …`» de `systemctl status ruleta` (campo `ActiveEnterTimestamp`).
+- **Qué pasa:** la Pi **no tiene batería RTC**. Al enchufarla arranca en 1970,
+  `systemd` le pone encima **la última hora que guardó** en
+  `/var/lib/systemd/timesync/clock` y solo **medio minuto después** llega NTP y la
+  corrige de golpe —**28 s las dos veces que se ha medido**, en casa y en el
+  asadero—. El journal le pone a cada línea **la hora que había en ese momento**,
+  así que **un solo proceso deja líneas con dos fechas distintas**.
+  Medido el 2026-09-21 con el **mismo PID 819**:
+
+  | Línea | Fecha que le quedó |
+  |---|---|
+  | `Ruleta arrancando` | **2026-09-16 15:46:23** |
+  | `Esperando a que la hora se sincronice (hasta 300 s)…` | **2026-09-16 15:46:23** |
+  | `Hora sincronizada tras 28 s` | **2026-09-21 08:22:20** |
+  | `Inventario impreso (arranque). Folio actual 00000` | **2026-09-21 08:22:21** |
+
+  Y el `ActiveEnterTimestamp` de `systemd`, que se fija **cuando la unidad
+  arranca** y **no se vuelve a calcular**, quedó **fosilizado en «Sep 16
+  15:46:23»**: `systemctl status ruleta` dice que el servicio lleva encendido
+  desde el **16**, cuando en realidad arrancó el **21**, unos 28 segundos antes
+  de las 08:22:20 —o sea ≈ **08:21:52**, que es cuenta, no medición—. Lo mismo
+  pasó el 2026-09-16 (12:59:03 según systemd, 13:03:50 según `uptime -s`, eso sí
+  medido).
+- **Por qué es residual:** **no es un defecto de nada.** Es como funcionan
+  `journald` y `systemd` cuando el reloj pega un salto, y es el precio
+  **aceptado** de no poner batería RTC (decisión del usuario del 2026-09-15). El
+  programa se comportó exactamente como debía: esperó, no imprimió nada con la
+  fecha mala y sacó el boleto bueno.
+- **Riesgo si no se toca:** **de susto, no de avería, y justo durante el
+  evento.** Tres formas de tropezar con esto:
+  1. Alguien corre `systemctl status ruleta`, lee «since Wed 2026-09-16
+     15:46:23» y concluye que **la Pi lleva cinco días encendida** o que **el
+     servicio no arrancó hoy**.
+  2. Alguien filtra por fecha —`journalctl -u ruleta --since today`— y **no ve
+     las líneas del arranque**, porque están archivadas con la fecha **vieja**.
+     Conclusión equivocada: «el kiosco no arrancó» o «se perdió el registro».
+     *(Esto se deriva de las fechas medidas arriba; no se probó el comando.)*
+  3. Alguien ve las dos fechas seguidas y cree que **el servicio se reinició**.
+     No: es **un solo PID**, y `NRestarts=0` lo confirma.
+- **Propuesta · cómo leer el journal durante el evento:**
+  1. **Por arranque, nunca por fecha:** `journalctl -u ruleta -b`. El `-b` trae
+     el arranque actual **entero**, con fechas viejas incluidas.
+  2. **Para líneas de tiempo, en monotónico:** `journalctl -u ruleta -b -o
+     short-monotonic` da los segundos desde que encendió, que **son inmunes al
+     salto del reloj**. Es como se leyeron las mediciones de la Fase 4e.
+  3. **Para saber a qué hora encendió de verdad:** `uptime -s`, no el «since» de
+     `systemctl status`.
+  4. **La señal de que todo está bien** son estas tres líneas seguidas, **con la
+     fecha de hoy**: `Hora sincronizada tras N s`, `Inventario impreso
+     (arranque). Folio actual NNNNN` y `Lista. Esperando jugadas.`. Si además
+     **no** aparece `HORA SIN CONFIRMAR: revisar fecha`, el boleto trae la fecha
+     buena.
+  **No hay nada que arreglar en el programa.** Si alguna vez molesta de verdad,
+  lo que lo quita es una **batería RTC**, que el usuario decidió no poner
+  (**F-242**).
+- **Estado:** **abierta** (informativa, para el que lea el journal durante el
+  evento). Hermanas: **F-241** (de dónde sale la hora), **F-242** (la decisión de
+  ir sin batería RTC) y **F-278** (la lista del asadero, cerrada el mismo día).
+  Evidencia: `docs/actas/2026-09-21-apertura.md` §3 y
+  `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` (medición 2, observación 2).
 
 ---

@@ -4,26 +4,30 @@
 # Hechos medidos de la Fase 4e (copia literal del archivo de hechos de la sesion)
 
 Este archivo es la **copia literal** del archivo de hechos que el orquestador fue
-escribiendo durante la sesion del **2026-09-16**. Se guarda en el repositorio
-porque de el salen las actas y porque cuatro documentos lo citan como evidencia:
-`README.md` (§7), el §5.1 del documento del evento, el plan
-`docs/planes/fase-4e-final.md` y el acta `docs/actas/2026-09-16-fase-4e.md`.
+escribiendo durante la sesion del **2026-09-16** y que **siguio usando el
+2026-09-21**, el dia de la apertura. Se guarda en el repositorio porque de el
+salen las actas y porque cinco documentos lo citan como evidencia: `README.md`
+(§7), el §5.1 del documento del evento, el plan `docs/planes/fase-4e-final.md`,
+el acta `docs/actas/2026-09-16-fase-4e.md` y el acta
+`docs/actas/2026-09-21-apertura.md`.
 
-**Vuelto a copiar en el cierre documental de la Fase 4e (2026-09-16).** La copia
-anterior se hizo cuando el ejecutor termino su pasada, y el archivo **siguio
-creciendo despues**: le entraron la cadena de la fase, el **deploy de las 14:44**
-con el reinicio del inventario, la verificacion en vivo y el **estado final del
-kiosco**. Por eso el tamano y el `sha256` de la tabla **no son los de la copia
-anterior**, y por eso esta copia es mas larga: **no se perdio ni se reescribio
-nada de lo que ya estaba**.
+**Vuelto a copiar en el cierre documental de la apertura (2026-09-21).** El
+nombre del archivo sigue diciendo `2026-09-16` porque es **el mismo archivo de
+hechos**, no uno nuevo: al terminar la Fase 4e le entro, al final, la seccion
+**«En el asadero · 2026-09-21»** —la red del restaurante dada de alta por el
+usuario, la verificacion de solo lectura de las 08:26, el **arranque en frio en
+el sitio** y la **confirmacion en papel** de las 08:35—. Por eso el tamano y el
+`sha256` de la tabla **no son los de la copia anterior**, y por eso esta copia es
+mas larga: **no se perdio ni se reescribio nada de lo que ya estaba**.
 
 | Dato del original | Valor |
 |---|---|
 | Ruta en la sesion | `scratchpad/hechos-fase-4e.md` |
-| Tamano | **7202 bytes** |
-| `sha256` | `45a473936a39bea00cf9200eb221576c4eb94f4efcbd0187309e6788b71a63dd` |
-| Copiado el | **2026-09-16** (cierre documental de la Fase 4e) |
-| Copia anterior | **3140 bytes**, `sha256` `6a0254b53b029a5f2d47157c8860f1fedb30a78e87f1d8e2d094fd347e5f7f15` (commit `70bcaa6`, paso 6 del plan) |
+| Tamano | **9246 bytes** |
+| `sha256` | `83fa3e8a8ffc02f671e3edceeb442e0f857493d43a9c7d5f260b72c139711c9d` |
+| Copiado el | **2026-09-21** (cierre documental de la apertura) |
+| Copia anterior | **7202 bytes**, `sha256` `45a473936a39bea00cf9200eb221576c4eb94f4efcbd0187309e6788b71a63dd` (commit `d10f76b`, cierre documental de la Fase 4e) |
+| Copia anterior a esa | **3140 bytes**, `sha256` `6a0254b53b029a5f2d47157c8860f1fedb30a78e87f1d8e2d094fd347e5f7f15` (commit `70bcaa6`, paso 6 del plan) |
 
 ---
 
@@ -109,3 +113,27 @@ conexión a internet > actualizar hora y fecha actual > imprimir inventario > li
   sitio, tecleando la contraseña; la Pi conoce casa=20 y miltimex=10, que es el hotspot de la
   laptop), (2) prueba de corriente en el asadero (fecha del inventario), (3) soldar/asegurar el
   pulsador HABILITAR (F-239), (4) señal perceptible sin LED (F-256, decisión del usuario).
+
+## En el asadero · 2026-09-21 (lunes, día de apertura), ~08:20–08:30
+- El usuario levantó el hotspot «Miltimex 5G», entró por ssh y dio de alta él mismo (tecleando la
+  contraseña) el perfil «asadero» = SSID «INFINITUM04F0_2.4», prioridad 30 (no existe ninguna red
+  llamada «asadero»; es solo el nombre del perfil).
+- Verificado por agente de solo lectura (~08:26): Pi en INFINITUM04F0_2.4 (2.4 GHz, señal 57),
+  IP 192.168.1.94/24, gateway y DNS 192.168.1.254; laptop en la misma red 192.168.1.93; hotspot
+  apagado; ruleta.local resuelve (IPv4 e IPv6); internet OK (8.8.8.8 3/3); el pool NTP resuelve
+  (IPv6); timedatectl synchronized yes, NTP active, hora 08:26:23 MST; perfiles asadero=30,
+  casa=20, miltimex=10; servicio active, NRestarts=0; HEAD 70bcaa6; folio 0.
+- ARRANQUE EN FRÍO EN EL ASADERO, medido en el journal: el mismo proceso (PID 819) muestra
+  «Ruleta arrancando» y «Esperando a que la hora se sincronice (hasta 300 s)…» fechados
+  2026-09-16 15:46:23 (hora vieja restaurada), avisos periódicos a los 10 s y 20 s, y luego
+  «Hora sincronizada tras 28 s» fechado 2026-09-21 08:22:20 → «Inventario impreso (arranque).
+  Folio actual 00000» 08:22:21 → «Lista. Esperando jugadas.». Es decir: la Pi encendió en el
+  asadero con el reloj ~4 días 17 h atrasado, esperó 28 s, y el inventario salió con la fecha
+  correcta. Primera vez que se ven en hardware los avisos periódicos de 10 s. Sin HORA SIN
+  CONFIRMAR. ActiveEnterTimestamp de systemd quedó fosilizado en «Sep 16 15:46:23».
+- Pendiente: el usuario confirma la fecha impresa en el boleto de inventario (21/09/2026 08:22).
+- CONFIRMADO POR EL USUARIO (~08:35): «sí, el boleto dice 21/09/2026 08:22». Primera vez que la
+  fecha del inventario de arranque se lee en papel tras un arranque en frío en el sitio real.
+  Kiosco LISTO para abrir a las 12:00. F-278 (checklist del asadero) cumplida en red, hora,
+  corriente y fecha; quedan como decisiones del usuario el pulsador HABILITAR (F-239) y la señal
+  sin LED (F-256).

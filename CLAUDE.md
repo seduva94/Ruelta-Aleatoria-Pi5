@@ -108,18 +108,30 @@ Cada eslabón que produce commit espera un «listo» explícito de los revisores
 Ruleta de premios para el restaurante Asadero 33: Raspberry Pi 5, botón arcade
 JUGAR más botón HABILITAR del mesero, impresora térmica de 80 mm y sin pantalla.
 
-*(Actualizado el 2026-09-16 por la tarde con lo medido en la **Fase 4e**, la
-pasada final antes del evento —las fechas de vigencia cargadas, la espera de la
+**EL EVENTO ABRE EL LUNES 2026-09-21 A LAS 12:00, Y ESA MAÑANA EL KIOSCO QUEDÓ
+VERIFICADO EN EL SITIO.** Entre las 08:20 y las 08:35, en el asadero, se dio de
+alta la Wi-Fi del restaurante en la Pi, se comprobó que la hora estaba
+sincronizada y **el usuario leyó en papel la fecha del boleto de inventario**:
+«sí, el boleto dice 21/09/2026 08:22». Lo medido llega **hasta las 08:35**: de la
+apertura misma, y de cualquier jugada del evento, **no hay nada medido en este
+repositorio**. Acta: `docs/actas/2026-09-21-apertura.md`.
+
+*(Actualizado el 2026-09-21 por la mañana con lo medido **en el asadero** el día
+de la apertura —la red del restaurante dada de alta por el usuario, el arranque
+en frío visto por primera vez en el sitio y con la red real, y la fecha del
+boleto confirmada en papel—. Antes, el 2026-09-16 por la tarde, con lo medido en
+la **Fase 4e**, la pasada final antes del evento —las fechas de vigencia
+cargadas, la espera de la
 hora en 300 s con rastro en el journal, la pieza D probada en un arranque en frío
-real y el inventario reiniciado a folio `00000`—; **con eso el kiosco queda listo
+real y el inventario reiniciado a folio `00000`—; **con eso el kiosco quedó listo
 para el evento**. Antes, el mismo día, con las Fases 4b, 4c y 4d —los premios
 reales, el consuelo con peso propio y el reparto por horas, con sus franjas, su
 horario y la espera de la hora al arrancar—. Antes, el 2026-09-15, con las Fases
 3 y 4a (botones, papel, red y hora); y el 2026-09-11 se había corregido lo de
 «impresora Bluetooth» y «valores sin confirmar». Evidencia:
 `docs/actas/2026-09-11-fase-2.md`, `docs/actas/2026-09-15-fase-3.md`,
-`docs/actas/2026-09-15-fase-4a.md`, `docs/actas/2026-09-16-fase-4bcd.md` y
-`docs/actas/2026-09-16-fase-4e.md`.)*
+`docs/actas/2026-09-15-fase-4a.md`, `docs/actas/2026-09-16-fase-4bcd.md`,
+`docs/actas/2026-09-16-fase-4e.md` y `docs/actas/2026-09-21-apertura.md`.)*
 
 - **La impresora es una AOMU My-A1, que es un clon POS-80** (ESC/POS). Medido en
   la Pi: USB `0418:5011` e `ieee1284_id` =
@@ -180,20 +192,49 @@ horario y la espera de la hora al arrancar—. Antes, el 2026-09-15, con las Fas
   sin `HORA SIN CONFIRMAR`, `NRestarts=0` y `estado.json` intacto. El orden que
   pidió el usuario —Pi → internet → hora → inventario → listo— **se cumple**.
   Desde `70bcaa6` la espera además **deja rastro en el journal**: una línea al
-  empezar, otra cada 10 s y una última con lo que costó; la única vez que esa
-  última línea se ha visto en la Pi, el 16 a las 14:44, decía «Hora sincronizada
-  tras 0 s». **Lo que sigue sin verse en hardware:** el tope **nunca se ha
-  agotado** y los avisos de los 10 s **no se han visto en la Pi** —la medición en
-  frío se hizo con `613f875`, es decir con 120 s y sin registro—. Evidencia:
-  `docs/actas/2026-09-16-fase-4e.md` §4 y §8.)* **La regla práctica sigue en pie, y es la que manda:** encender la Pi
+  empezar, otra cada 10 s y una última con lo que costó; la primera vez que esa
+  última línea se vio en la Pi, el 16 a las 14:44, decía «Hora sincronizada
+  tras 0 s». Evidencia:
+  `docs/actas/2026-09-16-fase-4e.md` §4 y §8.)* *(Nota fechada, **2026-09-21**,
+  la mañana de la apertura: **el arranque en frío se vio también EN EL ASADERO,
+  con la red real**, que era la única incógnita que quedaba. La Pi encendió allá
+  creyendo que era el **16 de septiembre a las 15:46** —unos **4 días y 17 horas
+  atrasada**—, **esperó 28 s** sin imprimir nada, la hora llegó por la Wi-Fi del
+  restaurante y el inventario salió a las **08:22:21 con folio `00000`** y sin
+  `HORA SIN CONFIRMAR`. **La red del asadero tardó lo mismo que la de casa.**
+  Dos estrenos: **los avisos de los 10 s se vieron por primera vez en hardware**
+  —a los 10 s y a los 20 s— y **el usuario leyó la fecha EN PAPEL** por primera
+  vez tras un arranque en frío en el sitio: «sí, el boleto dice 21/09/2026
+  08:22». Hasta ese día aquí decía que esos avisos **no se habían visto en la
+  Pi**; ya se vieron. **Lo que sigue sin verse en hardware es solo esto:** el
+  tope de 300 s **nunca se ha agotado** y la línea `HORA SIN CONFIRMAR: revisar
+  fecha` **nunca se ha impreso en papel**. Y un aviso para leer el journal
+  durante el evento: tras un arranque en frío el mismo proceso deja líneas con
+  **dos fechas distintas** y `systemctl status` dice que el servicio arrancó el
+  día viejo —no es avería, ficha **F-279**—. Evidencia:
+  `docs/actas/2026-09-21-apertura.md` §3 y §4.)* **La regla práctica sigue en pie, y es la que manda:** encender la Pi
   unos minutos antes de abrir y **mirar la fecha del boleto de inventario**; si
   está mal, **no reiniciar**, esperar y pedir otro inventario. *(Nota fechada:
   hasta el 2026-09-15 este párrafo decía que **en producción la Pi va sin red**
   y que **por eso la batería RTC es necesaria**. La
   decisión del usuario lo derogó; se conserva aquí porque hay fichas viejas que
-  todavía razonan desde esa premisa. Ficha **F-242**.)* La red de **laboratorio**
-  sigue siendo el **punto de acceso móvil de Windows** de la laptop del usuario,
-  con el mismo nombre y contraseña que el Wi-Fi del asadero; la Pi entra sola.
+  todavía razonan desde esa premisa. Ficha **F-242**.)*
+  **La red del evento ya está dada de alta, y tiene nombre:** el **2026-09-21**,
+  en el asadero, **el usuario** levantó el punto de acceso de su laptop para
+  entrar por SSH y **tecleó él mismo la contraseña** del Wi-Fi del restaurante.
+  La Pi conoce hoy **tres** perfiles: **`asadero`** = SSID
+  **`INFINITUM04F0_2.4`**, con **prioridad 30**, que es la del local y la que
+  gana; `casa` = `SL-Durazo` (**20**), la de las pruebas; y `miltimex` (**10**),
+  el **punto de acceso móvil de Windows** de la laptop del usuario, que **sigue
+  siendo la red de laboratorio**. **Ojo: no existe ninguna red llamada
+  «asadero»** —es el nombre del perfil dentro de la Pi—. Verificado el
+  2026-09-21 a las 08:26: la Pi en `INFINITUM04F0_2.4` (2.4 GHz), IP
+  `192.168.1.94/24`, internet OK y `timedatectl` → `synchronized yes`. Fichas
+  **F-275** y **F-278**, cerradas. *(Nota fechada, 2026-09-21: hasta ese día aquí
+  se decía que el punto de acceso de la laptop llevaba **el mismo nombre y
+  contraseña** que el Wi-Fi del asadero y que por eso la Pi entraba sola. **No es
+  así**: el punto de acceso se llama «Miltimex 5G» y el del restaurante
+  `INFINITUM04F0_2.4`, y en la Pi son **dos perfiles distintos**.)*
 - **El inventario YA ESTÁ EN CERO y el kiosco queda listo.** El 2026-09-16 se
   reinició **tres veces**, siempre con el servicio parado y con respaldo fechado
   en `datos/`: a las **00:10** al desplegar los premios reales (de folio 16 a
