@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from datetime import date, datetime
@@ -8,6 +9,8 @@ from PIL import Image
 from ruleta import config as configmod, ticket
 from ruleta.escpos import decodificar_vista
 from ruleta.inventario import Boleto, Inventario
+
+RUTA_CONFIG = Path(__file__).resolve().parent.parent / "config.json"
 
 
 def config_base(**extra):
@@ -258,17 +261,23 @@ class TestBoletos(unittest.TestCase):
     def test_inventario_del_config_real_trae_el_reparto_por_horas(self):
         """Pieza D5 (Fase 4d): entregadas hoy, piezas abiertas y la hora de la siguiente.
 
-        Vector real a las 20:05, con un agua ya entregada. Las líneas se anclan
-        **enteras y por igualdad**: los números y las horas salen del reparto que
-        calcula el motor, no de constantes del `ticket.py`.
+        Vector real a las 20:05 del **martes 22**, con un agua ya entregada. Las
+        líneas se anclan **enteras y por igualdad**: los números y las horas
+        salen del reparto que calcula el motor, no de constantes del `ticket.py`.
+
+        La fecha dejó de ser el 15 de septiembre el 2026-09-22 (día 2, paso 2):
+        con las horas por día, un día fuera del evento no abre **ninguna** franja
+        y las cinco líneas de los grandes saldrían todas iguales, sin probar
+        nada. El martes es el día con más piezas repartidas de todo el evento.
         """
-        cfg, _, lineas = self.inventario_del_config_real(emitir="agua")
+        cfg, _, lineas = self.inventario_del_config_real(
+            momento=datetime(2026, 9, 22, 20, 5), emitir="agua")
         ancho = cfg.impresora.chars_por_linea
         self.assertEqual([l for l in lineas if len(l) > ancho], [])
         nuevas = [l for l in lineas if l.startswith("  hoy ")]
         self.assertEqual(nuevas, [
-            "  hoy 0 · liberadas 1 · sin más hoy",      # HIELERA IGLOO, su franja de las 19:36
-            "  hoy 0 · liberadas 2 · sin más hoy",      # SILLA DE PLAYA, sus dos franjas
+            "  hoy 0 · liberadas 0 · sin más hoy",      # HIELERA IGLOO: el martes no tiene franja
+            "  hoy 0 · liberadas 2 · sin más hoy",      # SILLA DE PLAYA, 13:17 y 19:23
             "  hoy 0 · liberadas 1 · sin más hoy",      # SILLA DE PLAYA (silla_extra), 16:08
             "  hoy 0 · liberadas 1 · sig 20:47",        # SET BBQ, abierta la de 14:41
             "  hoy 0 · liberadas 1 · sin más hoy",      # SET BBQ (bbq_extra), 17:34
@@ -279,6 +288,86 @@ class TestBoletos(unittest.TestCase):
         ])
         # Y cada premio lleva exactamente una: ni de más ni de menos.
         self.assertEqual(len(nuevas), len(cfg.premios))
+
+    def test_el_inventario_marca_los_premios_forzados(self):
+        """Día 2 paso 2 (2026-09-22): la señal de forzado, entera y a 48 columnas.
+
+        Se anclan **las filas completas por igualdad**, no «aparece la palabra»:
+        la señal va pegada al nombre y comparte renglón con las tres columnas de
+        números, así que lo que hay que defender es que **quepa sin recortar
+        ningún nombre** —«SILLA DE PLAYA *forzado» ocupa justo las 23 columnas
+        del hueco— y que los premios chicos **no** la lleven.
+        """
+        cfg, _, lineas = self.inventario_del_config_real(momento=datetime(2026, 9, 22, 20, 5))
+        ancho = cfg.impresora.chars_por_linea
+        self.assertEqual([l for l in lineas if len(l) > ancho], [])
+        self.assertEqual([l for l in lineas if ticket.MARCA_FORZADO in l], [
+            "HIELERA IGLOO *forzado        2/2     0/1     --",
+            "SILLA DE PLAYA *forzado     10/10     0/2  71.9%",
+            "SILLA DE PLAYA *forzado       2/2     0/1     --",
+            "SET BBQ *forzado            10/10     0/2     --",
+            "SET BBQ *forzado              1/1     0/1     --",
+        ])
+        self.assertEqual([l for l in lineas if l.startswith("* forzado")],
+                         [ticket.LEYENDA_FORZADO])
+        # Los cinco nombres caben enteros: ni uno acabó en punto de recorte.
+        forzados = [p.nombre for p in cfg.premios if p.forzado]
+        self.assertEqual(len(forzados), 5)
+        for nombre in forzados:
+            self.assertTrue(any(l.startswith(nombre + ticket.MARCA_FORZADO) for l in lineas),
+                            f"{nombre!r} no aparece entero con su señal")
+        # Y la leyenda va después de los premios y antes del consuelo, donde se
+        # lee junto a las filas que explica.
+        i_leyenda = lineas.index(ticket.LEYENDA_FORZADO)
+        self.assertLess(next(i for i, l in enumerate(lineas) if l.startswith("SET BBQ")), i_leyenda)
+        self.assertLess(i_leyenda, next(i for i, l in enumerate(lineas) if "(consuelo)" in l))
+
+    def test_sin_premios_forzados_el_inventario_sale_como_antes(self):
+        """Los premios de prueba no llevan `forzado`: ni señal ni leyenda."""
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = Inventario(self.cfg.premios, tmp)
+            datos = ticket.boleto_inventario(self.cfg, inv.resumen(self.ahora), "reporte")
+        originales = [o for _, _, o in lineas_vista(datos)]
+        self.assertEqual([p.forzado for p in self.cfg.premios], [False, False, False])
+        self.assertEqual([o for o in originales if "forzado" in o], [])
+
+    def test_la_senal_de_forzado_no_desborda_un_papel_angosto(self):
+        """A 32 columnas el hueco del nombre son 7 caracteres: se recorta, no se sale.
+
+        Es la misma regla de siempre para los nombres largos, ahora con la señal
+        pegada; lo que se ancla es que **ninguna fila de premio pase del ancho**,
+        que es lo que rompería el boleto en un rollo de 58 mm.
+
+        Los renglones `> no disponible: …` **sí** se pasan a 32 columnas, y eso
+        es anterior a este cambio: nunca se han partido (ficha **F-286**). Se
+        dejan fuera de esta comprobación a propósito, con la lista de los que se
+        pasan anclada por igualdad para que crecer esa lista **no** pase en
+        silencio.
+        """
+        crudo = json.loads(RUTA_CONFIG.read_text(encoding="utf-8"))
+        crudo["impresora"] = {**crudo["impresora"], "tipo": "vista", "chars_por_linea": 32}
+        cfg = configmod.desde_dict(crudo, ruta=RUTA_CONFIG)
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = Inventario(cfg.premios, tmp, hora_inicio_dia=cfg.juego.hora_inicio_dia,
+                             peso_consuelo=cfg.juego.consuelo.peso, horario=cfg.juego.horario)
+            datos = ticket.boleto_inventario(cfg, inv.resumen(datetime(2026, 9, 22, 20, 5)))
+        lineas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, 32)]
+        self.assertEqual([l for l in lineas if len(l) > 32],
+                         ["  > no disponible: franjas de hoy cerradas",
+                          "  > no disponible: su franja abre a las 20:47",
+                          "  > no disponible: franjas de hoy cerradas"])
+        # Las filas de premio, que son las que llevan la señal, caben todas.
+        self.assertEqual([l for l in lineas if "forzado" in l and len(l) > 32], [])
+        # Y la leyenda sigue estando ENTERA, repartida en las líneas que hagan
+        # falta: es lo que explica el recorte, así que no puede desaparecer.
+        i = next(i for i, l in enumerate(lineas) if l.startswith("* forzado"))
+        partes = []
+        for l in lineas[i:]:
+            partes.append(l)
+            if " ".join(partes) == ticket.LEYENDA_FORZADO:
+                break
+        self.assertEqual(" ".join(partes), ticket.LEYENDA_FORZADO)
+        self.assertGreater(len(partes), 1, "a 32 columnas la leyenda tiene que partirse")
 
     def test_inventario_avisa_cuando_la_hora_no_se_confirmo(self):
         """Pieza D (Fase 4d): la línea entera, por igualdad, y solo si toca."""

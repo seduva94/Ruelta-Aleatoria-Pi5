@@ -11,6 +11,8 @@ Máquina de estados que se ejecuta por sondeo (~100 veces por segundo):
   * Fuera del horario del evento (juego.horario, Fase 4d) la jugada sale de
     consuelo; con "fuera_de_horario": "no_jugar" no se imprime nada y solo
     avisa el LED.
+  * Si hay una pieza de un premio FORZADO abierta (día 2 paso 2, 2026-09-22),
+    la jugada se la lleva sin sorteo y se anota en el registro.
   * Al arrancar, y solo al arrancar, se espera hasta juego.espera_hora_seg a
     que la hora del sistema esté sincronizada: el reparto por horas depende
     del reloj y la Pi no tiene batería RTC.
@@ -347,6 +349,13 @@ class Ruleta:
                     log.warning("Sin premios disponibles: boleto de consuelo %s", boleto.folio_texto)
                 datos = ticket.boleto_consuelo(self.cfg, boleto)
             else:
+                if premio.forzado:
+                    # Día 2 paso 2 (decisión del usuario del 2026-09-22): este
+                    # premio NO salió de la tómbola, se lo llevó la jugada por
+                    # estar abierto. Se deja dicho en el registro porque desde el
+                    # journal es lo único que distingue un premio forzado de uno
+                    # sorteado: en el papel salen idénticos.
+                    log.info("Boleto %s: pieza forzada de %s", boleto.folio_texto, premio.nombre)
                 datos = ticket.boleto_premio(self.cfg, boleto)
         except Exception:
             # Nada se ha enviado a la impresora: devolver el premio es seguro.

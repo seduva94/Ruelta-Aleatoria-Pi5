@@ -25,6 +25,11 @@ Reglas del sorteo:
   * Si el último boleto CON PREMIO se imprimió hace menos de
     'separacion_min_entre_premios' minutos, el sorteo devuelve None sin
     tirar: los premios no deben salir seguidos.
+  * Por encima de todo lo anterior mandan los premios FORZADOS (día 2 paso 2,
+    decisión del usuario del 2026-09-22): un premio con 'forzado' en true y una
+    pieza ya abierta se entrega a la SIGUIENTE jugada, sin tómbola y sin
+    esperar la separación mínima. Si hay varios abiertos, primero el que
+    empezó su franja antes.
 
 El reparto por horas (Fase 4d, decisión del usuario del 2026-09-16):
   El usuario no puede saber cuántas jugadas habrá en un día, así que el cupo
@@ -39,9 +44,11 @@ El reparto por horas (Fase 4d, decisión del usuario del 2026-09-16):
   'liberadas(t) - entregadas_hoy' piezas: una pieza liberada y no ganada sigue
   disponible hasta el cierre (no se pierde), pero tampoco adelanta la
   siguiente. Un premio con 'franjas' solo existe dentro de ellas, y el reparto
-  se hace sobre cada franja con su propio tope. Sin 'juego.horario', el tramo
-  es el día operativo completo (hora_inicio_dia a hora_inicio_dia + 24 h), y
-  un premio SIN tope_diario no tiene nada que repartir.
+  se hace sobre cada franja con su propio tope. Desde el día 2 paso 2
+  (2026-09-22) una franja puede además traer 'dias': entonces solo existe en
+  esos días operativos. Sin 'juego.horario', el tramo es el día operativo
+  completo (hora_inicio_dia a hora_inicio_dia + 24 h), y un premio SIN
+  tope_diario no tiene nada que repartir.
 
 Ciclo de un boleto: emitir() consume folio y stock ANTES de imprimir (así un
 apagón nunca regala el mismo premio dos veces). Después:
@@ -248,9 +255,17 @@ class Inventario:
         return inicio, inicio + timedelta(hours=24)
 
     def franjas_del_dia(self, premio: Premio, dia: date) -> list[tuple[datetime, datetime, Franja]]:
-        """Las franjas del premio, convertidas a momentos de ese día operativo."""
+        """Las franjas del premio que existen ESE día, en momentos de ese día operativo.
+
+        Una franja con `dias` solo cuenta en los días que enumera (día 2 paso 2,
+        decisión del usuario del 2026-09-22: «horas sueltas y distintas por
+        día»); una franja sin `dias` cuenta todos los días, que es como se
+        comportaba el programa antes. Este es el ÚNICO sitio que filtra por día:
+        de aquí cuelgan `franja_activa`, `instantes_del_dia`, `liberadas`,
+        `proxima_liberacion` y los motivos de `motivo_no_disponible`.
+        """
         return [(_a_la_hora(dia, f.desde_hora), _a_la_hora(dia, f.hasta_hora), f)
-                for f in premio.franjas]
+                for f in premio.franjas if not f.dias or dia in f.dias]
 
     def franja_activa(self, premio: Premio, momento: datetime) -> Franja | None:
         """La franja del premio en la que cae `momento` (None si está fuera de todas)."""
@@ -267,6 +282,11 @@ class Inventario:
         las 13:00 en punto), y la de varias se reparte parejo dentro del tramo.
         Sin franjas, el `tope_diario` se reparte sobre la ventana del día; un
         premio sin `tope_diario` no tiene nada que repartir.
+
+        Un premio CON franjas pero ninguna de ese día (todas llevan `dias` y
+        ninguno es hoy) no abre nada: devuelve la lista vacía, no se cae al
+        reparto del `tope_diario`. Es lo correcto —ese día el premio no
+        existe— y así lo dice también `motivo_no_disponible`.
         """
         if premio.franjas:
             instantes: list[datetime] = []
@@ -364,6 +384,29 @@ class Inventario:
     def disponibles(self, momento: datetime) -> list[Premio]:
         return [p for p in self.premios.values() if not self.motivo_no_disponible(p, momento)]
 
+    def forzados_abiertos(self, momento: datetime) -> list[Premio]:
+        """Los premios FORZADOS que en ese momento tienen una pieza abierta.
+
+        Día 2 paso 2, decisión del usuario del 2026-09-22 («después de tal hora,
+        el próximo juego se la saca»): estos premios no se sortean, se entregan.
+        El orden es el de entrega: primero el que lleva **más tiempo abierto**
+        —el que empezó su franja antes— y, a igualdad, el orden de
+        `config.json`, que `sorted` conserva por ser estable.
+
+        Un premio forzado SIN franjas se considera abierto desde la apertura del
+        día, así que va delante de los que abren más tarde.
+        """
+        dia = self.dia_operativo(momento)
+        inicio_del_dia, _ = self.ventana_del_dia(dia)
+
+        def cuando_abrio(premio: Premio) -> datetime:
+            for inicio, fin, _ in self.franjas_del_dia(premio, dia):
+                if inicio <= momento < fin:
+                    return inicio
+            return inicio_del_dia
+
+        return sorted((p for p in self.disponibles(momento) if p.forzado), key=cuando_abrio)
+
     def probabilidades(self, momento: datetime) -> dict[str, float]:
         """Probabilidad (0..100) de cada premio disponible.
 
@@ -415,7 +458,17 @@ class Inventario:
         Devuelve el premio que salió, o None si salió el boleto de consuelo.
         Fuera del horario del evento y durante la separación mínima entre
         premios (Fase 4d) ni siquiera se tira: el resultado es el consuelo.
+
+        ANTES que todo eso van los premios FORZADOS (día 2 paso 2, decisión del
+        usuario del 2026-09-22): si hay alguna pieza forzada abierta, la jugada
+        se la lleva **sin tómbola** y **sin esperar la separación mínima**,
+        porque lo que el usuario pidió es que se la saque *la siguiente jugada*,
+        no la siguiente que pase el minuto. El horario del evento sigue
+        mandando: fuera de él no hay nada disponible y tampoco hay forzados.
         """
+        forzados = self.forzados_abiertos(momento)
+        if forzados:
+            return forzados[0]
         if self.espera_separacion(momento) > 0:
             return None
         disp = self.disponibles(momento)

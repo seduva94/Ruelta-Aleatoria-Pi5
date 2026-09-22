@@ -46,6 +46,11 @@ class Franja:
     # franja abre y nadie gana se arrastra a la siguiente del mismo día (ficha
     # F-269). Lo único que corta el día es el 'tope_diario' del premio.
     tope: int = 1
+    # Días operativos en los que esa franja existe (día 2 paso 2, decisión del
+    # usuario del 2026-09-22: «horas sueltas y distintas por día»). Lista vacía
+    # —o llave ausente— = TODOS los días, que es como se comportaba el programa
+    # antes de este paso. Con días puestos, la franja no existe fuera de ellos.
+    dias: list[date] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -61,6 +66,13 @@ class Premio:
     # Lista vacía = sin franjas, disponible a cualquier hora del día (como antes
     # de la Fase 4d). Con franjas, el premio SOLO existe dentro de ellas.
     franjas: list[Franja] = field(default_factory=list)
+    # Premio FORZADO (día 2 paso 2, decisión del usuario del 2026-09-22:
+    # «después de tal hora, el próximo juego se la saca»). Con `forzado` en true,
+    # en cuanto el reloj abre una pieza de este premio la SIGUIENTE jugada se la
+    # lleva: sin tómbola y sin esperar la separación mínima entre premios.
+    # Mientras esté forzado, su `peso` no decide nada; se conserva porque es lo
+    # que vale si alguien vuelve a poner `forzado` en false.
+    forzado: bool = False
 
 
 @dataclass(frozen=True)
@@ -264,7 +276,8 @@ def _premio(p: dict[str, Any], indice: int) -> Premio:
 
 
 def _franjas(crudo: Any, donde: str) -> list[Franja]:
-    forma = ('{ "desde_hora": "HH:MM", "hasta_hora": "HH:MM", "tope": 1 }')
+    forma = ('{ "desde_hora": "HH:MM", "hasta_hora": "HH:MM", "tope": 1, '
+             '"dias": ["AAAA-MM-DD"] }')
     if not isinstance(crudo, list):
         raise ErrorConfig(f"{donde}.franjas debe ser una lista de franjas {forma}")
     salida = []
@@ -279,8 +292,35 @@ def _franjas(crudo: Any, donde: str) -> list[Franja]:
         faltan = {"desde_hora", "hasta_hora"} - set(f)
         if faltan:
             raise ErrorConfig(f"A la franja #{i} del {donde} le faltan las llaves {sorted(faltan)}")
-        _verificar_tipos(Franja, f, f"franja #{i} del {donde}")
-        salida.append(Franja(**f))
+        datos = dict(f)
+        if "dias" in datos:
+            # Las fechas se convierten ANTES de verificar tipos, igual que las de
+            # 'desde'/'hasta' en _premio(): la anotación de Franja.dias pide
+            # objetos `date` y en el JSON llegan como texto "AAAA-MM-DD".
+            datos["dias"] = _dias(datos["dias"], f"la franja #{i} del {donde}")
+        _verificar_tipos(Franja, datos, f"franja #{i} del {donde}")
+        salida.append(Franja(**datos))
+    return salida
+
+
+def _dias(crudo: Any, donde: str) -> list[date]:
+    """Los días operativos en que existe una franja (día 2 paso 2, 2026-09-22).
+
+    Lista vacía = todos los días. El mensaje de error **nombra la llave**
+    `dias`, porque quien edita `config.json` es el personal del asadero.
+    """
+    if not isinstance(crudo, list):
+        raise ErrorConfig(
+            f"En {donde}, 'dias' debe ser una lista de fechas entre comillas "
+            f"[\"AAAA-MM-DD\", ...]; se encontró {crudo!r}. Quítala —o déjala vacía— "
+            f"para que la franja valga todos los días")
+    salida = []
+    for i, valor in enumerate(crudo, start=1):
+        if not isinstance(valor, str):
+            raise ErrorConfig(
+                f"En {donde}, 'dias' #{i} debe ser una fecha entre comillas con formato "
+                f"\"AAAA-MM-DD\"; se encontró {valor!r}")
+        salida.append(_fecha(valor, f"'dias' #{i} de {donde}"))
     return salida
 
 

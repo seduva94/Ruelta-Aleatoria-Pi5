@@ -480,7 +480,9 @@ inventario de arranque (`juego.intentos_inventario_arranque`).
 | `tope_diario` | no | máximo por día operativo **y cupo que se reparte por horas** (§7); `null` = sin tope y sin reparto |
 | `desde` / `hasta` | no | fechas `"AAAA-MM-DD"` (día operativo) en que el premio puede salir |
 | `detalle` | no | texto chico bajo el premio ("Orden de tacos", "Canjeable en barra") |
-| `franjas` | no | lista de ventanas de horas en que ese premio existe: `{ "desde_hora": "HH:MM", "hasta_hora": "HH:MM", "tope": 1 }`. **Con franjas, el premio no sale fuera de ellas** |
+| `franjas` | no | lista de ventanas de horas en que ese premio existe: `{ "desde_hora": "HH:MM", "hasta_hora": "HH:MM", "tope": 1, "dias": ["AAAA-MM-DD"] }`. **Con franjas, el premio no sale fuera de ellas** |
+| `franjas[].dias` | no | días operativos en que existe **esa** ventana. **Sin la llave, o con la lista vacía, vale todos los días** (§7) |
+| `forzado` | no | `true` = en cuanto el reloj abre una pieza de ese premio, **la siguiente jugada se la lleva sin sorteo** y sin esperar `separacion_min_entre_premios` (§7). Por omisión `false` |
 
 ---
 
@@ -514,18 +516,34 @@ Con el `config.json` de hoy (11 aguas al día, de 12:00 a 23:00) las aguas se
 abren a las **12:30, 13:30, 14:30 … 22:30**. Entre una y otra **no puede salir
 una segunda agua**, jueguen las personas que jueguen.
 
-Cuatro reglas más, todas configurables:
+Cinco reglas más, todas configurables:
 
 - **Lo que se abre y no se gana, no se pierde**: sigue esperando hasta el cierre.
   Pero **tampoco adelanta** la siguiente pieza.
 - Un premio con **`franjas`** solo existe dentro de ellas, con el `tope` de cada
   franja. La pieza de una franja de una sola pieza se abre **al empezar la
-  franja**.
+  franja**. Cada franja puede llevar **`dias`**: los días en que existe. Sin esa
+  llave vale todos los días; con ella, un premio puede abrirse **a una hora
+  distinta cada día**.
 - **Fuera del horario del evento** no hay ningún premio disponible: la jugada
   sale de consuelo (o no imprime nada, si pones `"fuera_de_horario": "no_jugar"`).
 - **Dos premios no salen seguidos**: entre dos boletos premiados tienen que pasar
   `juego.separacion_min_entre_premios` minutos. El instante del último premio se
   guarda en `datos/estado.json`, así que **sobrevive a un reinicio**.
+- **Un premio con `"forzado": true` no se sortea: se entrega.** En cuanto el
+  reloj abre una de sus piezas, **la siguiente jugada se la lleva**, sin pasar
+  por la tómbola y **sin esperar** esos minutos de separación. En este evento lo
+  llevan **la silla, el set BBQ y la hielera** (decisión del dueño del
+  2026-09-22: «después de tal hora, el próximo juego se la saca»); los cuatro
+  premios chicos siguen sorteándose. Si hay varias piezas forzadas abiertas a la
+  vez, sale primero la del premio **cuya ventana se abrió antes** —que no siempre
+  es la pieza que lleva más rato esperando: una arrastrada de una ventana anterior
+  puede salir después—, y la siguiente jugada se
+  lleva la otra: **pueden salir varios premios grandes en boletos
+  seguidos: medidos 4 el martes y el miércoles y 5 el jueves y el viernes, si no
+  se ha ganado ninguno antes** (ficha **F-283**). Se ve en el boleto de inventario —`*forzado` junto al
+  nombre— y en el registro (`Boleto 00062: pieza forzada de SILLA DE PLAYA`); en
+  el papel del cliente **no se nota**.
 
 Un premio **sin `tope_diario` y sin `franjas`** no se reparte: está disponible
 siempre que le quede stock, como antes.
@@ -550,26 +568,31 @@ suponiendo que **nadie ha ganado nada todavía**:
 | 11:30 | nada: el evento no ha abierto | **0 %** | 100 % |
 | 12:00 | nada: la primera pieza abre a las 12:30 | **0 %** | 100 % |
 | **12:30** | **1 agua (peso 11)** contra el consuelo (10) | **52.4 %** | 47.6 % |
-| **13:17** | agua, cerveza y la **silla** recién abierta | **92.4 %** | 7.6 % |
-| **19:36** | agua, cerveza, los dos tacos, la silla de la noche y la **hielera** recién abierta | **95.8 %** | 4.2 % |
-| 22:30 | los chicos, el **set BBQ** de la noche y la hielera | 95.8 % | 4.2 % |
-| 22:50 | ya sin set BBQ (su franja cerró a las 22:47): los chicos y la hielera | 92.8 % | 7.2 % |
+| **13:26** | los chicos y la **silla** recién abierta (forzada) | **100 %** | 0 % |
+| **19:36** | los chicos, la silla de la noche y la **hielera** recién abierta (las dos forzadas) | **100 %** | 0 % |
+| 22:30 | los chicos, el **set BBQ** de la noche y la hielera (las dos forzadas) | **100 %** | 0 % |
+| 22:52 | ya sin set BBQ (su franja cerró en ese minuto): los chicos y la hielera (forzada) | **100 %** | 0 % |
 | 23:30 | nada: el evento cerró | **0 %** | 100 % |
 
-*(Tabla **calculada por el programa**, no a mano: es lo que devuelve
-`Inventario.probabilidades` con este mismo `config.json`. Lo mismo, con la hora
-de ahora, se ve sin imprimir con `python3 -m ruleta reporte`.)*
+*(Tabla **calculada por el programa**, no a mano, con las horas del **jueves 24**
+—cada día tiene las suyas desde el 2026-09-22 por la tarde—. **Ojo:** donde pone
+**100 %** manda el **forzado**, no la tómbola: hay una pieza grande abierta y el
+siguiente boleto se la lleva. `Inventario.probabilidades` sigue devolviendo ahí
+los porcentajes de la tómbola —92.8 %, 95.8 %, 95.8 % y 92.8 %—, que son los que
+valdrían si esos tres premios no fueran forzados, y son los que imprime la
+columna **PROB** del boleto de inventario (ficha **F-285**). Lo de ahora mismo se
+ve sin imprimir con `python3 -m ruleta reporte`.)*
 
 Léelo así: **a las 12:30, con una sola agua abierta, gana poco más de la mitad de
 la gente que juegue en ese momento**; en cuanto esa agua sale, no hay nada abierto
-hasta las 12:33 y todo es consuelo. **Los porcentajes altos son de los premios
-grandes**: desde el 2026-09-22 llevan **peso 100**, así que en cuanto el reloj
-abre una silla, un set BBQ o la hielera, **esa pieza se lleva ≈ 42 % de las
-jugadas** aunque esté todo lo demás abierto, y **≈ 91 %** si está sola. Es lo que
-pidió el dueño después de que el lunes 21 no saliera **ninguna silla** en 55
-jugadas (ficha **F-280**). Los porcentajes altos de la tabla suponen que
-nadie ha ganado: en cuanto se llevan lo que está abierto, bajan a cero hasta la
-siguiente hora de apertura.
+hasta las 12:33 y todo es consuelo. **Los renglones del 100 % son de los premios
+grandes**: la mañana del 2026-09-22 pasaron a **peso 100** y esa misma tarde a
+**forzados**, así que en cuanto el reloj abre una silla, un set BBQ o la hielera,
+**esa pieza se la lleva el siguiente boleto**, sin sorteo. Es lo que pidió el
+dueño después de que el lunes 21 no saliera **ninguna silla** en 55 jugadas
+(fichas **F-280** y **F-283**). Toda la tabla supone que **nadie ha ganado**: en
+cuanto se llevan lo que está abierto, los porcentajes bajan hasta la siguiente
+hora de apertura.
 
 ### Lo que de verdad importa: cuántos premios salen al día
 
@@ -593,7 +616,11 @@ y **3 minutos** de separación—, así que **sus porcentajes son de aquel repar
 No se ha vuelto a simular: **el reloj sigue abriendo las mismas piezas al día**,
 que es la columna que importa, y lo que el peso 100 cambia es **quién se lleva la
 pieza abierta**. Del día real solo hay un dato medido: el lunes 21, con **55
-jugadas**, salieron **27 premios** —y los que faltaron fueron los grandes—.)*
+jugadas**, salieron **27 premios** —y los que faltaron fueron los grandes—.
+**Actualización de esa misma tarde:** con los grandes **forzados** la columna
+«Premios que salen» solo puede mejorar —una pieza grande abierta ya no depende de
+la suerte—, pero las piezas que el reloj abre al día **siguen siendo las
+mismas**.)*
 
 ### La hora tiene que estar bien (pieza D)
 
@@ -657,6 +684,11 @@ Ficha **F-279**.
 - **Para que el premio mayor no salga el primer día**, ponle `"desde": "2026-09-24"`.
 - **Para que un premio salga solo a ciertas horas**, dale `franjas` en vez de
   bajarle el peso: es exacto y se explica solo al personal.
+- **Para que salga a una hora distinta cada día**, ponle una franja por día con
+  su `dias`: `{ "desde_hora": "13:26", "hasta_hora": "15:26", "tope": 1, "dias": ["2026-09-24"] }`.
+- **Para que un premio no se quede en la bodega**, ponle `"forzado": true`: en
+  cuanto el reloj lo abre, se lo lleva la siguiente jugada. Es lo más fuerte que
+  hay; úsalo solo con los premios caros.
 - **Para repartir los grandes en la semana**, usa `tope_diario`: con stock 10 y
   tope 2, salen máximo 2 al día durante 5 días.
 - **Para que gane más o menos gente**, mueve `juego.consuelo.peso`: es el único

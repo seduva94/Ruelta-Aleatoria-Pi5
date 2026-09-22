@@ -6612,6 +6612,13 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   premio grande al cerrar su ventana: eso es el **paso 2**, que sí toca código.
   Hermanas: **F-281** (las entradas de apaño) y **F-282** (los sobrantes de
   cerveza y tacos).
+- *(Nota fechada, **2026-09-22 por la tarde**: **el forzado ya está construido**,
+  en el paso 2. La silla, el set BBQ y la hielera llevan `"forzado": true` y **la
+  siguiente jugada se lleva la pieza abierta, sin sorteo**, así que la causa 2 de
+  esta ficha —«el peso no compite»— deja de poder repetirse: el peso ya no
+  decide. La causa 1 —que casi nadie juegue en sus franjas— la ataca el reparto
+  de horas por día del mismo paso. **Esta ficha queda cerrada del todo.**
+  Consecuencias nuevas, en **F-283** y **F-285**.)*
 
 ---
 
@@ -6655,9 +6662,18 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   **franjas y topes por día** (algo como `dias` dentro de cada franja). Con eso,
   las dos entradas extra se funden en su premio principal **restando sus
   entregados del stock** y esta ficha se cierra.
-- **Estado:** **abierta** (deuda declarada, con fecha de caducidad: el paso 2).
-  Hermanas: **F-280** (por qué se hizo) y **F-260** (la tabla del §1 no la vigila
-  ninguna prueba).
+- **Estado:** **cerrada en su parte técnica** el **2026-09-22 por la tarde**, en
+  el día 2 paso 2: de la propuesta de arriba se construyó **solo la mitad**: `dias` dentro de cada
+  franja **sí**, pero **los topes por día no** —`tope_diario` sigue siendo uno solo
+  por premio, así que fundir `silla_extra` en `silla` exigiría además subirlo de 2
+  a 3—. Con eso **cada día tiene ya sus propias horas**, así
+  que la frase «`config.json` no sabe de días» **ya no es cierta** y el aviso del
+  §1 del documento del evento que remitía al paso 2 queda derogado.
+  **Lo que no se hizo es retirar las dos entradas**, y no por falta de
+  herramienta sino porque el evento está en marcha y `estado.json` cuenta por id:
+  eso se hace al cerrar el viernes 25 y vive ahora en **F-284**, que hereda el
+  aviso de restar los entregados a mano. Hermanas: **F-280** (por qué se hizo),
+  **F-284** (qué falta) y **F-260** (la tabla del §1 no la vigila ninguna prueba).
 
 ---
 
@@ -6686,5 +6702,189 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   lo que hoy exige una entrada extra más; con el paso 2 será un renglón.
 - **Estado:** **abierta** (a decisión del usuario). Hermanas: **F-280** (el día 1
   medido) y **F-281** (por qué no se puede hacer por día todavía).
+
+---
+
+## F-283 · El premio forzado se salta la separación mínima: hasta CINCO grandes pueden salir en boletos seguidos
+
+- **Fecha:** 2026-09-22 (por la tarde)
+- **Origen:** día 2, paso 2 · **decisión del usuario** de esa tarde, traducida a
+  diseño por el orquestador (D2).
+- **Dónde:** `ruleta/inventario.py::Inventario.sortear` y
+  `Inventario.forzados_abiertos`; `docs/evento-2026-09-asadero-33.md` §2 regla 4
+  y §3; `docs/planes/dia2-paso2-forzado.md` §2.
+- **Qué pasa:** el usuario pidió que la silla, el set BBQ y la hielera se las
+  lleve **«el próximo juego»** en cuanto el reloj las abre. Eso es exactamente lo
+  que hace `sortear`: **antes** de mirar la separación mínima entre premios
+  comprueba si hay piezas forzadas abiertas y, si las hay, entrega una. La regla
+  de «los premios no salen seguidos» (1 minuto) **no se aplica** a esos tres.
+
+  **La consecuencia, medida con el motor real el 2026-09-22:**
+  - **martes, de 17:34 a 18:08**, están abiertas a la vez la silla de reposición
+    (16:08) y el set de reposición (17:34): dos jugadas seguidas se llevan las
+    dos piezas;
+  - **jueves a las 19:40**, sin que nadie haya jugado desde el mediodía, las tres
+    primeras jugadas se llevan **silla, silla y hielera**, una detrás de otra
+    (son dos sillas porque la del mediodía no se perdió: ficha **F-269**);
+  - **la racha más larga, barrida minuto a minuto con el motor real** y sin
+    haber ganado ningún grande antes: **4 boletos seguidos** el **martes**
+    (desde las 20:47: silla, silla, set, set) y el **miércoles** (desde las
+    20:19), y **5** el **jueves** (desde las 20:52) y el **viernes** (desde las
+    21:06: silla, silla, hielera, set, set), que es la noche en que la hielera y
+    el set BBQ llegan los dos hasta el cierre.
+- **Por qué es residual:** **no es un defecto: es lo que el usuario pidió**, y
+  está anclado por goldens —`test_una_pieza_forzada_se_salta_la_separacion` y
+  `test_con_dos_piezas_forzadas_abiertas_sale_primero_la_que_abrio_antes`, con
+  mutaciones en rojo—. Queda escrito porque es una conducta **visible desde la
+  barra** que nadie pidió explícitamente: el usuario pidió lo primero (que salga
+  ya), no lo segundo (que salgan dos juntos).
+- **Riesgo si no se toca:** que dos clientes seguidos se lleven una silla y un
+  set BBQ delante de todos, y el resto de la noche no salga ningún grande porque
+  ya se agotó el cupo del día. Es más llamativo de noche, que es cuando hay más
+  gente.
+- **Propuesta:** si molesta, hay dos arreglos baratos y **los dos son decisión
+  del usuario**: (a) entregar **una sola** pieza forzada por minuto —que el
+  forzado respete la separación **entre dos forzados**, no frente al consuelo—;
+  o (b) separar las ventanas para que no se solapen. **No se hace ahora** porque
+  el evento está en marcha y lo que el usuario pidió hoy fue lo contrario: que
+  salgan.
+- **Estado:** **abierta** (conducta querida, consecuencia anotada). Hermanas:
+  **F-269** (lo que una franja abre y nadie gana se arrastra) y **F-280** (por
+  qué se llegó al forzado).
+
+---
+
+## F-284 · `silla_extra` y `bbq_extra` sobreviven al paso 2 a propósito: retirarlas es trabajo de después del viernes
+
+- **Fecha:** 2026-09-22 (por la tarde)
+- **Origen:** día 2, paso 2 · decisión del **orquestador** (D3) al cerrar el
+  diseño, con el evento ya en marcha.
+- **Dónde:** `config.json`, entradas `silla_extra` y `bbq_extra`;
+  `docs/evento-2026-09-asadero-33.md` §1 y §5.1; `datos/estado.json` de la Pi.
+- **Qué pasa:** la ficha **F-281** decía que esas dos entradas eran un apaño «con
+  fecha de caducidad: el paso 2», porque nacieron de que `config.json` **no sabía
+  de días**. El paso 2 **sí** trajo los días (`dias` por franja), así que el
+  motivo original **ya no existe**… y aun así **las dos entradas se quedan**.
+
+  **Por qué se quedan, y es la razón buena:** `datos/estado.json` lleva los
+  entregados **por id**. El martes 22, cuando se hizo este paso, el inventario
+  del evento estaba **vivo** (folio 61 a las 15:15, con una silla y un set ya
+  entregados ese día). Fundir `silla_extra` dentro de `silla` a media tarde
+  exigiría **restar a mano** los entregados de un id y sumárselos al otro, con el
+  servicio corriendo y clientes jugando. El riesgo de equivocarse es mayor que la
+  ganancia de limpiar el archivo.
+- **Por qué es residual:** el kiosco **funciona igual de bien** con las nueve
+  entradas: al cliente le sale el mismo nombre en el papel y los censos están
+  anclados por goldens. Es deuda declarada, no avería.
+- **Riesgo si no se toca:** el de siempre (**F-281**): que alguien lea
+  `config.json` y crea que hay dos sillas distintas, o que las borre sin
+  descontar los entregados y el inventario quede inflado. Se mira con
+  `grep silla_extra datos/estado.json` en la Pi.
+- **Propuesta:** **al cerrar el viernes 25**, con el servicio parado y el evento
+  terminado: sumar los `entregados` de `silla_extra` a los de `silla` y los de
+  `bbq_extra` a los de `bbq`, ajustar los `stock` y borrar las dos entradas. Con
+  `dias` ya construido, las horas de reposición caben en el premio principal como
+  una franja más.
+- **Estado:** **abierta** (con fecha: después del viernes 25). Hermana y origen:
+  **F-281**, cerrada en su parte técnica por este paso.
+
+---
+
+## F-285 · La columna PROB del boleto de inventario describe la tómbola, no el resultado de un premio forzado
+
+- **Fecha:** 2026-09-22 (por la tarde)
+- **Origen:** día 2, paso 2 · visto por el ejecutor al imprimir el boleto de
+  inventario con el `config.json` nuevo.
+- **Dónde:** `ruleta/inventario.py::Inventario.probabilidades` y
+  `probabilidad_consuelo`; `ruleta/ticket.py::boleto_inventario` (columna
+  `PROB`); `python3 -m ruleta reporte`.
+- **Qué pasa:** `probabilidades()` reparte 100 entre los pesos de lo que está
+  disponible más el consuelo, y eso es lo que se imprime en la columna **PROB**.
+  Desde este paso, cuando hay una pieza **forzada** abierta **esa tómbola no se
+  tira**: la jugada se lleva el premio forzado. Medido el martes 22 a las 20:05,
+  el boleto dice **`SILLA DE PLAYA *forzado  10/10  0/2  71.9%`** cuando lo
+  cierto es que **el siguiente boleto se la lleva** (100 %).
+- **Por qué es residual:** **no engaña a quien lee el boleto**, porque la misma
+  fila lleva la señal **`*forzado`** y al pie está la leyenda «`* forzado:
+  abierto, lo gana la siguiente jugada`». Y el número **sí** es correcto para lo
+  que dice ser: el reparto de la tómbola, que es lo que vale para los cuatro
+  premios chicos y lo que valdría si se quitara el `forzado`. Cambiar
+  `probabilidades()` para que devuelva 100 en el forzado tocaría el reporte, el
+  README y tres goldens más, y eso **no** estaba en el encargo de este paso.
+- **Riesgo si no se toca:** que alguien lea «71.9 %» y crea que la silla puede no
+  salir, o que el porcentaje del consuelo de esa línea se tome por la
+  probabilidad real de no ganar.
+- **Propuesta:** cuando haya calma —después del evento—, que `probabilidades()`
+  devuelva **100 para la primera pieza forzada abierta y 0 para todo lo demás**,
+  incluido el consuelo. Con eso el boleto, el `reporte` y la tabla del §7 del
+  README dirían la verdad sin ninguna leyenda. **Requiere decisión del
+  orquestador**, porque cambia números publicados en el documento del evento.
+- **Estado:** **abierta**. Hermanas: **F-283** (la otra consecuencia del
+  forzado) y **F-280** (de dónde salió el peso 100).
+
+---
+
+## F-286 · A 32 columnas el renglón «> no disponible: …» del inventario se sale del papel
+
+- **Fecha:** 2026-09-22 (por la tarde)
+- **Origen:** día 2, paso 2 · lo encontró un golden nuevo
+  (`test_la_senal_de_forzado_no_desborda_un_papel_angosto`) al probar el boleto
+  de inventario en un papel angosto.
+- **Dónde:** `ruleta/ticket.py::boleto_inventario`
+  (`grep -n "no disponible" ruleta/ticket.py`).
+- **Qué pasa:** el motivo por el que un premio no está disponible se imprime con
+  `doc.linea(f"  > no disponible: {fila.motivo}")`, **sin partir**. Con los
+  motivos largos de hoy —«su franja abre a las 20:47» (45 caracteres con la
+  sangría) o «franjas de hoy cerradas» (42)— eso cabe de sobra en las **48
+  columnas** del rollo de 80 mm del asadero, pero **se sale** en un papel de
+  **32 columnas** (58 mm), donde la impresora lo partiría a media palabra. Medido
+  con el `config.json` real a las 20:05 del martes: **tres renglones** se pasan.
+- **Por qué es residual:** **es anterior a este cambio** —el renglón existe desde
+  la Fase 4d y nunca se ha partido— y **no afecta a la impresora del evento**,
+  que es de 48 columnas y las cumple todas. El golden nuevo deja anclada por
+  igualdad la lista de los que se pasan, así que crecer esa lista ya no pasa en
+  silencio.
+- **Riesgo si no se toca:** ninguno en este evento. En una instalación con rollo
+  de 58 mm, el boleto de inventario saldría con líneas cortadas.
+- **Propuesta:** envolver ese renglón con `envolver()`, como ya se hace con el
+  aviso de la hora y con la leyenda del forzado, cuidando la sangría de las
+  líneas de continuación. Es un cambio de una línea, pero toca el formato del
+  boleto: **no se hace con el evento en marcha**.
+- **Estado:** **abierta** (defecto de papel angosto, sin efecto en el evento).
+
+---
+
+## F-287 · El paso 1 del día 2 (`310e51f`) se commiteó y se desplegó sin el eslabón del escéptico
+
+- **Fecha:** 2026-09-22 (anotada por la tarde, al hacer el paso 2)
+- **Origen:** desviación del **protocolo** del §3 de `CLAUDE.md`, ordenada por el
+  orquestador esa mañana.
+- **Dónde:** commit **`310e51f`** («Dia 2, paso 1: separacion de 1 min, silla,
+  BBQ y hielera con peso alto y horas sueltas, reposicion de las piezas del
+  lunes»), desplegado en la Pi la mañana del 2026-09-22; plan
+  `docs/planes/dia2-paso1-config.md`.
+- **Qué pasa:** la cadena por fase que manda en este repo es «brief con hechos
+  medidos → ejecutor → lentes en paralelo → correctivo → **escéptico** → commit
+  compuertado → …». En el paso 1 se corrieron el **ejecutor** y **tres rondas de
+  lentes**, y de ahí se pasó **directamente** al commit y al despliegue: **el
+  escéptico independiente no llegó a correr**. Lo decidió el orquestador por
+  urgencia —el usuario tenía que irse con la laptop y el evento abría a las
+  12:00—.
+- **Por qué es residual:** el paso 1 fue **solo configuración y documentación**
+  (`config.json`, el documento del evento, el README y las fichas), **no tocó
+  código**, y pasó por tres rondas de lentes con la suite en verde. Además, el
+  **paso 2 de esa misma tarde volvió a mirar todo lo que el paso 1 dejó** —las
+  franjas, los pesos, la separación y las dos entradas de reposición— con la
+  cadena completa. **No hay ningún defecto conocido atribuible a la ronda que
+  faltó.**
+- **Riesgo si no se toca:** ninguno técnico. El riesgo es de **proceso**: que la
+  excepción se vuelva costumbre, y que dentro de un mes nadie sepa que ese
+  commit salió con una compuerta menos.
+- **Propuesta:** **no se rehace** —`310e51f` ya está desplegado y el evento está
+  en marcha—. Queda anotado aquí, con fecha, para que auditar ese commit sea
+  posible. Si vuelve a hacer falta saltarse un eslabón, que se anote **antes**,
+  en el plan de la fase.
+- **Estado:** **cerrada como anotación** (desviación registrada, sin acción
+  pendiente).
 
 ---

@@ -421,6 +421,60 @@ class TestRuleta(unittest.TestCase):
         self.assertNotIn("GANASTE", textos[1])
         self.assertEqual(inv.folio_actual, 2)
 
+    # -- premio forzado (día 2 paso 2, 2026-09-22) ---------------------------- #
+
+    def test_una_pieza_forzada_sale_en_la_siguiente_jugada_y_queda_en_el_registro(self):
+        """Dictado del usuario: «después de tal hora, el próximo juego se la saca».
+
+        Vista desde el ciclo completo —botón, sorteo, emisión e impresión—: el
+        boleto que sale es el del premio forzado, **aunque el `rng` esté trucado
+        para elegir siempre el consuelo**, y el registro lo dice con una línea
+        propia. Sin esa línea, en el journal un premio forzado y uno sorteado
+        son indistinguibles: en el papel salen idénticos.
+        """
+        cfg = config_prueba(
+            juego={"consuelo": {"peso": 217},
+                   "horario": {"abre": "12:00", "cierra": "23:00"}},
+            premios=[{"id": "silla", "nombre": "SILLA DE PLAYA", "peso": 100, "stock": 10,
+                      "tope_diario": 1, "forzado": True,
+                      "franjas": [{"desde_hora": "18:00", "hasta_hora": "20:00", "tope": 1,
+                                   "dias": ["2026-09-15"]}]},
+                     {"id": "agua", "nombre": "AGUA FRESCA", "peso": 11, "stock": 55,
+                      "tope_diario": 11}])
+        rng = RngSiempreConsuelo()
+        inv = Inventario(cfg.premios, Path(self.tmp.name) / "forzado", rng=rng,
+                         peso_consuelo=cfg.juego.consuelo.peso, horario=cfg.juego.horario,
+                         separacion_min_entre_premios=cfg.juego.separacion_min_entre_premios)
+        self.ruleta = self.nueva_ruleta(cfg, inv)
+        # El reloj de las pruebas marca las 19:00 del 2026-09-15: dentro de la franja.
+        self.assertEqual([p.id for p in inv.forzados_abiertos(self.reloj.ahora())], ["silla"])
+        with registro_activo(), self.assertLogs("ruleta.app", level="INFO") as cm:
+            self.pulsar()
+        textos = self.trabajos_texto()
+        self.assertEqual(len(textos), 1)
+        self.assertIn("GANASTE", textos[0])
+        self.assertIn("SILLA DE", textos[0])
+        self.assertNotIn("PARTICIPANDO", textos[0])
+        self.assertEqual(inv.entregados("silla"), 1)
+        self.assertEqual(self.ruleta.boletos_impresos, 1)
+        self.assertEqual(self.ruleta.errores, 0)
+        self.assertEqual(rng.llamadas, [], "una pieza forzada no pasa por la tómbola")
+        self.assertIn("INFO:ruleta.app:Boleto 00001: pieza forzada de SILLA DE PLAYA", cm.output)
+        # Y entregada la única pieza del día, la siguiente jugada vuelve a la
+        # tómbola de siempre, que con este rng trucado cae en el consuelo.
+        self.assertEqual(inv.forzados_abiertos(self.reloj.ahora()), [])
+        self.ticks(5.0)
+        self.pulsar()
+        self.assertIn("PARTICIPANDO", self.trabajos_texto()[1])
+        self.assertEqual(len(rng.llamadas), 1)
+
+    def test_un_premio_sorteado_no_deja_la_linea_de_forzado(self):
+        """Control: sin `forzado`, el registro sale exactamente como antes."""
+        with registro_activo(), self.assertLogs("ruleta.app", level="INFO") as cm:
+            self.pulsar()
+        self.assertEqual(self.ruleta.boletos_impresos, 1)
+        self.assertEqual([l for l in cm.output if "forzada" in l], [])
+
     # -- horario del evento (pieza C, Fase 4d) -------------------------------- #
 
     def test_fuera_de_horario_con_consuelo_imprime_consuelo(self):

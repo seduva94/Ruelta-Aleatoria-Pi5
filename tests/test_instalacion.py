@@ -432,82 +432,100 @@ class TestInventarioDeProduccion(unittest.TestCase):
         """D1 de la Fase 4e: el calendario del evento, con el motor de PRODUCCIÓN.
 
         Vector real: `config.json` tal cual, cableado por `abrir_inventario`, a
-        las **19:40** de siete días distintos. Se ancla el censo de ids
+        las **20:10** de siete días distintos. Se ancla el censo de ids
         disponibles **por igualdad y en orden**, porque es la promesa que el §5.1
         del documento del evento y el §5 del README le hacen al personal:
 
         * **antes del lunes 21 no puede salir un solo premio** —toda jugada sale
           de consuelo, y eso NO es una avería—;
-        * la **hielera** no existe hasta el **jueves 24**, aunque su franja de las
-          19:36 esté abierta y le sobre stock;
+        * la **hielera** no existe hasta el **jueves 24**, aunque le sobre stock;
         * **después del viernes 25** tampoco queda nada.
 
         Sin las fechas cargadas, el lunes 21 saldrían los siete y la hielera —dos
         piezas, las más caras del evento— podría irse el primer día (ficha F-259).
 
-        La hora cambió de las 19:00 a las **19:40** el 2026-09-22, cuando las
-        franjas se movieron a horas sueltas: a las 19:00 en punto ya no hay
-        ningún premio grande abierto y el censo no distinguiría los días. Lo que
-        estas fechas dejan fuera **de más** —`silla_extra` y `bbq_extra`, que
-        solo existen el martes y el miércoles— lo ancla, con sus propias horas,
+        La hora cambió de las 19:00 a las 19:40 el 2026-09-22 por la mañana, y a
+        las **20:10** esa misma tarde, con las horas por día del paso 2: a esa
+        hora **los dos días de la hielera la tienen abierta** —el jueves desde
+        las 19:36 y el viernes desde las 20:04—, que es lo que hace falta para
+        que este censo distinga la FECHA de la franja y no la franja misma. A
+        las 19:40 ya no valdría: el viernes la hielera todavía no ha abierto. Lo que estas fechas
+        dejan fuera **de más** —`silla_extra` y `bbq_extra`, que solo existen el
+        martes y el miércoles— lo ancla, con sus propias horas,
         `test_el_reparto_del_dia_2_abre_las_piezas_a_sus_horas`.
         """
         with tempfile.TemporaryDirectory() as tmp:
             crudo = json.loads((RAIZ / "config.json").read_text(encoding="utf-8"))
             crudo["carpeta_datos"] = tmp
             inventario = cli.abrir_inventario(configmod.desde_dict(crudo))
-            censo = {dia: [p.id for p in inventario.disponibles(datetime(2026, 9, dia, 19, 40))]
+            censo = {dia: [p.id for p in inventario.disponibles(datetime(2026, 9, dia, 20, 10))]
                      for dia in (19, 21, 22, 23, 24, 25, 26)}
-        cinco = ["silla", "tacos3", "tacos2", "cerveza", "agua"]
+        chicos = ["tacos3", "tacos2", "cerveza", "agua"]
         self.assertEqual(censo, {
-            19: [],                          # sábado: el evento no ha empezado
-            21: cinco,                       # lunes: los cinco, SIN la hielera
-            22: cinco,                       # martes
-            23: cinco,                       # miércoles
-            24: ["hielera"] + cinco,         # jueves: se suma el premio mayor
-            25: ["hielera"] + cinco,         # viernes: último día
-            26: [],                          # sábado: fecha vencida
+            19: [],                                    # sábado: el evento no ha empezado
+            21: chicos,                                # lunes: ya no tiene franjas de grandes
+            22: ["silla"] + chicos,                    # martes: la silla de las 19:23
+            23: ["silla"] + chicos,                    # miércoles: la de las 19:38
+            24: ["hielera", "silla"] + chicos,         # jueves: se suma el premio mayor
+            25: ["hielera", "silla"] + chicos,         # viernes: último día
+            26: [],                                    # sábado: fecha vencida
         })
         # Y el motivo es la FECHA, no la franja ni el stock: si algún día alguien
         # mueve la franja de la hielera, este mensaje sigue diciendo la verdad.
         hielera = inventario.premios["hielera"]
-        self.assertEqual(inventario.motivo_no_disponible(hielera, datetime(2026, 9, 21, 19, 40)),
+        self.assertEqual(inventario.motivo_no_disponible(hielera, datetime(2026, 9, 21, 20, 10)),
                          "desde 24/09")
-        self.assertEqual(inventario.motivo_no_disponible(hielera, datetime(2026, 9, 26, 19, 40)),
+        self.assertEqual(inventario.motivo_no_disponible(hielera, datetime(2026, 9, 26, 20, 10)),
                          "fecha vencida")
+        # El lunes 21 los grandes ya no tienen franja: sus horas viejas se fueron
+        # con el paso 2 y el día está cerrado para ellos. Es lo correcto —el
+        # lunes ya pasó— y se ancla para que nadie devuelva por error una franja
+        # sin `dias`, que valdría los cinco días.
+        self.assertEqual(
+            {pid: inventario.motivo_no_disponible(inventario.premios[pid],
+                                                  datetime(2026, 9, 21, 20, 10))
+             for pid in ("silla", "bbq")},
+            {"silla": "franjas de hoy cerradas", "bbq": "franjas de hoy cerradas"})
 
 
     def test_el_reparto_del_dia_2_abre_las_piezas_a_sus_horas(self):
-        """Día 2, paso 1 (2026-09-22): el reparto nuevo, con el estado REAL del lunes.
+        """Día 2 (2026-09-22): el reparto nuevo, con el estado REAL del lunes.
 
         Vector real doble: el `config.json` del repositorio cableado por
         `abrir_inventario`, y encima el `estado.json` **medido** al cerrar el
         lunes 21 —folio **55**, con 11 aguas, 8 cervezas, 4 y 3 tacos y **1 set
         BBQ** entregados, y **ninguna silla**—. Sobre eso se ancla **por
-        igualdad y en orden** qué piezas tiene abiertas el reloj en los diez
-        instantes que decidieron este cambio:
+        igualdad y en orden** qué piezas tiene abiertas el reloj en los once
+        instantes que decidieron este cambio. **Las horas son distintas cada
+        día desde el paso 2 de esa tarde**, así que cada día trae las suyas:
 
         * **martes 13:20** la `silla` está abierta (13:17) y `silla_extra` **no**
           (abre a las 16:08): las dos sillas del martes NO salen a la vez;
         * **martes 16:10** sí está `silla_extra`, y además el `bbq` de las 14:41;
-        * **martes 17:40** entra `bbq_extra` (17:34), el tercer set del martes;
+        * **martes 17:40** entra `bbq_extra` (17:34), el tercer set del martes,
+          **con `silla_extra` todavía abierta**: son los dos forzados a la vez
+          que anclan la ficha **F-283**;
+        * **martes 19:25** ya está la silla de la noche (19:23) y sigue el
+          `bbq_extra`; **martes 19:34** el `bbq_extra` cierra **en ese minuto**;
+        * **martes 20:50** entra el `bbq` de la noche (20:47);
+        * **miércoles 13:12** la silla abre a las **13:09**, que es una hora que
+          el martes no existe: es el instante que separa un día de otro;
         * **jueves 17:40** —la MISMA hora del martes a la que salen las dos
           entradas de reposición— no hay **ninguna de las dos**: el jueves están
-          fuera de fechas (`silla_extra` acaba el 23 y `bbq_extra` el 22). Es el
-          único instante que ancla la FECHA de las extras: a las 19:35 y a las
-          19:36 sus franjas ya están cerradas, así que allí una fecha mal puesta
-          no se distinguiría de una franja cerrada;
-        * **jueves 19:35 y 19:36**: la hielera abre **en ese minuto**;
-        * y las ventanas se anclan también **al CERRAR**: **martes 19:30 y
-          19:35** (el `bbq_extra` cierra a las 19:34) y **jueves 22:30 y 22:50**
-          (el `bbq` de la noche cierra a las 22:47 y de ahí al cierre la hielera
-          se queda sola). Sin estos cuatro, mover una `hasta_hora` se iba en
-          verde: medido con mutaciones el 2026-09-22.
+          fuera de fechas (`silla_extra` acaba el 23 y `bbq_extra` el 22);
+        * **jueves 19:40** la hielera (19:36) y la silla del jueves (19:11), que
+          el martes abría a las 19:23;
+        * **jueves 22:52** el `bbq` de la noche cierra **en ese minuto** y la
+          hielera se queda sola hasta el cierre;
+        * **viernes 20:06** la hielera del viernes, que abre a las **20:04** y no
+          a las 19:36: es el instante que ancla la hora por día del premio mayor.
 
         Y se ancla **por igualdad** la tómbola del peso 100 (decisión del usuario
-        del 2026-09-22): con todo lo del martes abierto a la vez, cada premio
-        grande se lleva **41.84 %** de las jugadas. Con los pesos viejos (silla y
-        set en **2**) eran **≈ 5 %**, y por eso el lunes no salió ninguna silla.
+        del 2026-09-22 por la mañana): con todo lo del martes abierto a la vez,
+        cada premio grande se lleva **41.84 %** de las jugadas. Esa tabla sigue
+        siendo la de la tómbola, pero desde el paso 2 **ya no decide** cuando hay
+        una pieza forzada abierta: entonces manda `forzados_abiertos`, y por eso
+        se ancla también ahí (ficha **F-285**).
         """
         lunes = {
             "version": 1, "folio": 55,
@@ -526,34 +544,59 @@ class TestInventarioDeProduccion(unittest.TestCase):
             # saldría igual por casualidad y no probaría nada.
             self.assertEqual((inventario.folio_actual, inventario.entregados("bbq"),
                               inventario.entregados("silla")), (55, 1, 0))
+            instantes = ((22, 13, 20), (22, 16, 10), (22, 17, 40), (22, 19, 25),
+                         (22, 19, 34), (22, 20, 50), (23, 13, 12), (24, 17, 40),
+                         (24, 19, 40), (24, 22, 52), (25, 20, 6))
             abierto = {
                 f"{d}-{h:02d}:{mi:02d}":
                     [p.id for p in inventario.disponibles(datetime(2026, 9, d, h, mi))]
-                for d, h, mi in ((22, 13, 20), (22, 16, 10), (22, 17, 40),
-                                 (22, 19, 30), (22, 19, 35), (24, 17, 40),
-                                 (24, 19, 35), (24, 19, 36), (24, 22, 30),
-                                 (24, 22, 50))}
+                for d, h, mi in instantes}
+            forzado = {
+                f"{d}-{h:02d}:{mi:02d}":
+                    [p.id for p in inventario.forzados_abiertos(datetime(2026, 9, d, h, mi))]
+                for d, h, mi in instantes}
             martes_noche = datetime(2026, 9, 22, 21, 0)
             probabilidades = {p: round(v, 2)
                               for p, v in inventario.probabilidades(martes_noche).items()}
             probabilidades["consuelo"] = round(
                 inventario.probabilidad_consuelo(martes_noche), 2)
+            manda_el_forzado = inventario.sortear(martes_noche)
         self.assertEqual(abierto, {
             "22-13:20": ["silla", "cerveza", "agua"],
             "22-16:10": ["silla_extra", "bbq", "tacos3", "tacos2", "cerveza", "agua"],
             "22-17:40": ["silla_extra", "bbq_extra", "tacos3", "tacos2", "cerveza", "agua"],
-            "22-19:30": ["silla", "bbq_extra", "tacos3", "tacos2", "cerveza", "agua"],
-            "22-19:35": ["silla", "tacos3", "tacos2", "cerveza", "agua"],
+            "22-19:25": ["silla", "bbq_extra", "tacos3", "tacos2", "cerveza", "agua"],
+            "22-19:34": ["silla", "tacos3", "tacos2", "cerveza", "agua"],
+            "22-20:50": ["silla", "bbq", "tacos3", "tacos2", "cerveza", "agua"],
+            "23-13:12": ["silla", "cerveza", "agua"],
             "24-17:40": ["tacos3", "tacos2", "cerveza", "agua"],
-            "24-19:35": ["silla", "tacos3", "tacos2", "cerveza", "agua"],
-            "24-19:36": ["hielera", "silla", "tacos3", "tacos2", "cerveza", "agua"],
-            "24-22:30": ["hielera", "bbq", "tacos3", "tacos2", "cerveza", "agua"],
-            "24-22:50": ["hielera", "tacos3", "tacos2", "cerveza", "agua"],
+            "24-19:40": ["hielera", "silla", "tacos3", "tacos2", "cerveza", "agua"],
+            "24-22:52": ["hielera", "tacos3", "tacos2", "cerveza", "agua"],
+            "25-20:06": ["hielera", "silla", "tacos3", "tacos2", "cerveza", "agua"],
+        })
+        # Y de esas piezas, cuáles se entregan SIN sorteo y en qué orden: primero
+        # la que lleva más tiempo abierta. Es el censo del campo `forzado`.
+        self.assertEqual(forzado, {
+            "22-13:20": ["silla"],
+            "22-16:10": ["bbq", "silla_extra"],
+            "22-17:40": ["silla_extra", "bbq_extra"],
+            "22-19:25": ["bbq_extra", "silla"],
+            "22-19:34": ["silla"],
+            "22-20:50": ["silla", "bbq"],
+            "23-13:12": ["silla"],
+            "24-17:40": [],
+            "24-19:40": ["silla", "hielera"],
+            "24-22:52": ["hielera"],
+            "25-20:06": ["silla", "hielera"],
         })
         self.assertEqual(probabilidades, {
             "silla": 41.84, "bbq": 41.84, "tacos3": 1.67, "tacos2": 1.67,
             "cerveza": 4.18, "agua": 4.6, "consuelo": 4.18,
         })
+        # …y aun con esas probabilidades, el martes a las 21:00 la jugada se
+        # lleva la silla seguro: hay dos piezas forzadas abiertas y manda la
+        # primera. La tabla de arriba describe la tómbola, no el resultado.
+        self.assertEqual(manda_el_forzado.id, "silla")
 
     def test_abrir_inventario_pasa_el_peso_del_consuelo(self):
         with tempfile.TemporaryDirectory() as tmp:

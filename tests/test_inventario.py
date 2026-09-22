@@ -433,6 +433,23 @@ class TestRepartoPorHoras(unittest.TestCase):
         instantes = self.inv.instantes_del_dia(self.inv.premios[premio_id], dia or self.dia)
         return None if instantes is None else [i.strftime("%H:%M") for i in instantes]
 
+    def ventanas(self, premio_id, dia):
+        """Las franjas de ese premio ESE día, como texto "HH:MM-HH:MM"."""
+        return [f"{i:%H:%M}-{f:%H:%M}"
+                for i, f, _ in self.inv.franjas_del_dia(self.inv.premios[premio_id], dia)]
+
+    def cupo_que_abre_el_dia(self, premio, dia=None):
+        """Lo que el reloj DEBE abrir ese día: la suma de los topes de sus franjas.
+
+        Derivado, no escrito a mano: un premio sin franjas abre su `tope_diario`
+        y uno con franjas abre lo que suman las de ESE día (cero si no tiene
+        ninguna, como `silla_extra` el jueves).
+        """
+        dia = dia or self.dia
+        if not premio.franjas:
+            return premio.tope_diario
+        return sum(f.tope for _, _, f in self.inv.franjas_del_dia(premio, dia))
+
     def en(self, hora, minuto):
         return datetime(self.dia.year, self.dia.month, self.dia.day, hora, minuto)
 
@@ -453,16 +470,105 @@ class TestRepartoPorHoras(unittest.TestCase):
         self.assertEqual(self.horas("tacos3"), ["13:22", "16:07", "18:52", "21:37"])
         self.assertEqual(self.horas("tacos2"), self.horas("tacos3"))
         # Los de franja se abren AL EMPEZAR su franja, no a la mitad. Horas
-        # SUELTAS desde el 2026-09-22 (día 2, paso 1): con las horas redondas de
-        # antes los tres grandes coincidían y el lunes 21 no salió ninguna silla.
+        # SUELTAS desde el 2026-09-22 (día 2, paso 1) y DISTINTAS POR DÍA desde
+        # el paso 2 de esa tarde: estas son las del **jueves 24**, y no las del
+        # martes. Las dos entradas de reposición no abren nada ese día —sus
+        # franjas son del martes y el miércoles—, así que devuelven lista vacía.
         self.assertEqual(self.horas("hielera"), ["19:36"])
-        self.assertEqual(self.horas("silla"), ["13:17", "19:23"])
-        self.assertEqual(self.horas("silla_extra"), ["16:08"])
-        self.assertEqual(self.horas("bbq"), ["14:41", "20:47"])
-        self.assertEqual(self.horas("bbq_extra"), ["17:34"])
-        # Y cada premio abre exactamente su cupo del día, ni una pieza más.
+        self.assertEqual(self.horas("silla"), ["13:26", "19:11"])
+        self.assertEqual(self.horas("silla_extra"), [])
+        self.assertEqual(self.horas("bbq"), ["14:37", "20:52"])
+        self.assertEqual(self.horas("bbq_extra"), [])
+        # Y cada premio abre exactamente el cupo que le toca ESE día, ni una
+        # pieza más: el `tope_diario` si no lleva franjas, y lo que suman las
+        # franjas de ese día si las lleva.
         self.assertEqual({p.id: len(self.horas(p.id)) for p in self.inv.premios.values()},
-                         {p.id: p.tope_diario for p in self.inv.premios.values()})
+                         {p.id: self.cupo_que_abre_el_dia(p) for p in self.inv.premios.values()})
+
+    def test_las_franjas_de_cada_dia_del_evento(self):
+        """Día 2 paso 2 (2026-09-22): cada día tiene SUS horas, y solo las suyas.
+
+        Es el golden del campo `dias`. Se ancla el **mapa entero por igualdad**
+        —los cuatro días que quedan del evento, con las ventanas de los cinco
+        premios grandes en orden— y, sobre todo, que el **lunes 21** y el
+        **sábado 26** no tengan **ninguna**: el lunes ya pasó y sus horas viejas
+        no deben resucitar, y el sábado el evento ya cerró.
+
+        Las horas las dictó el usuario el 2026-09-22 por la tarde; la ventana de
+        cada pieza dura dos horas, menos las que llegan al cierre.
+        """
+        grandes = ("hielera", "silla", "silla_extra", "bbq", "bbq_extra")
+        mapa = {dia: {pid: self.ventanas(pid, date(2026, 9, dia)) for pid in grandes
+                      if self.ventanas(pid, date(2026, 9, dia))}
+                for dia in (21, 22, 23, 24, 25, 26)}
+        self.assertEqual(mapa, {
+            21: {},
+            22: {"silla": ["13:17-15:17", "19:23-21:23"],
+                 "silla_extra": ["16:08-18:08"],
+                 "bbq": ["14:41-16:41", "20:47-22:47"],
+                 "bbq_extra": ["17:34-19:34"]},
+            23: {"silla": ["13:09-15:09", "19:38-21:38"],
+                 "silla_extra": ["16:21-18:21"],
+                 "bbq": ["14:52-16:52", "20:19-22:19"]},
+            24: {"hielera": ["19:36-23:00"],
+                 "silla": ["13:26-15:26", "19:11-21:11"],
+                 "bbq": ["14:37-16:37", "20:52-22:52"]},
+            25: {"hielera": ["20:04-23:00"],
+                 "silla": ["13:04-15:04", "19:31-21:31"],
+                 "bbq": ["14:58-16:58", "21:06-23:00"]},
+            26: {},
+        })
+        # El reparto por día cuadra con lo que dictó el usuario: 10 sillas y 9
+        # sets entre el martes y el viernes, que es lo que queda en la bodega.
+        # Es un censo DERIVADO de las franjas, no una lista copiada.
+        por_dia = {dia: (len(self.ventanas("silla", date(2026, 9, dia)))
+                         + len(self.ventanas("silla_extra", date(2026, 9, dia))),
+                         len(self.ventanas("bbq", date(2026, 9, dia)))
+                         + len(self.ventanas("bbq_extra", date(2026, 9, dia))))
+                   for dia in (22, 23, 24, 25)}
+        self.assertEqual(por_dia, {22: (3, 3), 23: (3, 2), 24: (2, 2), 25: (2, 2)})
+        self.assertEqual((sum(s for s, _ in por_dia.values()),
+                          sum(b for _, b in por_dia.values())), (10, 9))
+        # Y un premio con franjas pero NINGUNA de ese día no existe ese día: no
+        # se cae al reparto del tope_diario, que lo dejaría abierto todo el rato.
+        lunes = datetime(2026, 9, 21, 20, 10)
+        self.assertEqual(self.inv.instantes_del_dia(self.inv.premios["silla"], date(2026, 9, 21)), [])
+        self.assertEqual(self.inv.liberadas(self.inv.premios["silla"], lunes), 0)
+        self.assertEqual(self.inv.motivo_no_disponible(self.inv.premios["silla"], lunes),
+                         "franjas de hoy cerradas")
+
+    def test_una_franja_sin_dias_vale_todos_los_dias(self):
+        """La promesa hacia atrás del campo `dias` (día 2 paso 2, 2026-09-22).
+
+        Un `config.json` escrito antes de ese día **no trae `dias` en ninguna
+        franja**, y eso tiene que seguir queriendo decir «todos los días». Si
+        alguna vez pasara a querer decir «ningún día», una instalación vieja
+        dejaría de dar premios **en silencio**: las franjas existirían, el stock
+        estaría entero y ninguna pieza se abriría jamás.
+
+        Se prueba con un inventario propio —no con el `config.json` del evento,
+        que sí lleva días en todas— y en **cinco días distintos**, dentro y fuera
+        de la ventana, por igualdad.
+        """
+        silla = Premio(id="silla", nombre="Silla", peso=100, stock=10, tope_diario=1,
+                       franjas=[Franja(desde_hora="13:00", hasta_hora="16:00", tope=1)])
+        vacia = Premio(id="vacia", nombre="Con lista vacía", peso=100, stock=10, tope_diario=1,
+                       franjas=[Franja(desde_hora="13:00", hasta_hora="16:00", tope=1, dias=[])])
+        inv = Inventario([silla, vacia], self.carpeta / "sindias", horario=HORARIO_EVENTO)
+        for dia in (14, 15, 16, 22, 26):
+            with self.subTest(dia=dia):
+                d = date(2026, 9, dia)
+                self.assertEqual(
+                    {p.id: [f"{i:%H:%M}-{f:%H:%M}" for i, f, _ in inv.franjas_del_dia(p, d)]
+                     for p in (silla, vacia)},
+                    {"silla": ["13:00-16:00"], "vacia": ["13:00-16:00"]})
+                dentro = datetime(2026, 9, dia, 14, 0)
+                self.assertEqual({p.id: inv.motivo_no_disponible(p, dentro) for p in (silla, vacia)},
+                                 {"silla": "", "vacia": ""})
+                fuera = datetime(2026, 9, dia, 12, 30)
+                self.assertEqual({p.id: inv.motivo_no_disponible(p, fuera) for p in (silla, vacia)},
+                                 {"silla": "su franja abre a las 13:00",
+                                  "vacia": "su franja abre a las 13:00"})
 
     def test_instantes_de_liberacion_es_una_funcion_pura(self):
         """Puntos medios, con igualdad de listas y los casos degenerados."""
@@ -539,20 +645,30 @@ class TestRepartoPorHoras(unittest.TestCase):
     # -- (c) franjas --------------------------------------------------------- #
 
     def test_franjas_de_la_silla_del_evento_real(self):
-        """Pieza B: la silla solo existe en la comida y en la cena."""
+        """Pieza B: la silla solo existe en la comida y en la cena.
+
+        Las horas son las del **jueves 24** (`self.dia`), que desde el día 2
+        paso 2 ya no son las del martes: 13:26 y 19:11.
+        """
         silla = self.inv.premios["silla"]
-        dentro = [(13, 17), (15, 16), (19, 23), (21, 22)]
-        fuera = [(13, 16), (15, 17), (16, 0), (19, 22), (21, 23), (22, 30)]
+        dentro = [(13, 26), (15, 25), (19, 11), (21, 10)]
+        fuera = [(13, 25), (15, 26), (16, 0), (19, 10), (21, 11), (22, 30)]
         self.assertEqual([(h, m) for h, m in dentro
                           if self.inv.motivo_no_disponible(silla, self.en(h, m)) != ""], [])
         self.assertEqual([(h, m) for h, m in fuera
                           if self.inv.motivo_no_disponible(silla, self.en(h, m)) == ""], [])
         # Y el motivo dice a qué hora vuelve, o que ya no vuelve hoy.
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 16)),
-                         "su franja abre a las 13:17")
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 17)),
-                         "su franja abre a las 19:23")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 25)),
+                         "su franja abre a las 13:26")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 26)),
+                         "su franja abre a las 19:11")
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(22, 30)),
+                         "franjas de hoy cerradas")
+        # Las horas del MARTES no valen el jueves: es lo que trajo el campo
+        # `dias`. A las 13:17 (martes) y a las 19:23 (martes) aquí no hay nada.
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 17)),
+                         "su franja abre a las 13:26")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(21, 20)),
                          "franjas de hoy cerradas")
 
     def test_el_tope_de_una_franja_se_respeta(self):
@@ -561,12 +677,12 @@ class TestRepartoPorHoras(unittest.TestCase):
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 30)), "")
         self.inv.emitir(silla, self.en(13, 30))
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 31)),
-                         "se libera a las 19:23")
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 16)),
-                         "se libera a las 19:23")
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(19, 23)), "")
+                         "se libera a las 19:11")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 25)),
+                         "se libera a las 19:11")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(19, 11)), "")
         # Y con las dos del día entregadas, manda el tope diario.
-        self.inv.emitir(silla, self.en(19, 23))
+        self.inv.emitir(silla, self.en(19, 11))
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(20, 0)), "tope de hoy")
 
     def test_la_hielera_solo_desde_las_19_36_hasta_el_cierre(self):
@@ -583,33 +699,40 @@ class TestRepartoPorHoras(unittest.TestCase):
     # -- (e) separación mínima entre premios --------------------------------- #
 
     def test_separacion_minima_entre_premios(self):
-        """Dictado del 2026-09-16: «los premios no deben salir seguidos»."""
+        """Dictado del 2026-09-16: «los premios no deben salir seguidos».
+
+        A las **17:00 del jueves**, que desde el día 2 paso 2 es la hora que hay
+        que usar para probar esto con el `config.json` real: entre las 16:37 y
+        las 19:11 no hay ninguna pieza **forzada** abierta, y el forzado se salta
+        la separación a propósito (`test_una_pieza_forzada_se_salta_la_separacion`).
+        """
         agua = self.inv.premios["agua"]
         # Bajada de 3 minutos a 1 el 2026-09-22 (día 2, paso 1): el lunes 21 seis
         # de las 55 jugadas salieron de consuelo solo por esta regla.
         self.assertEqual(self.inv.separacion_min_entre_premios, 1)
-        self.inv.confirmar(self.inv.emitir(agua, self.en(14, 0)))
+        self.assertEqual(self.inv.forzados_abiertos(self.en(17, 0)), [])
+        self.inv.confirmar(self.inv.emitir(agua, self.en(17, 0)))
         espia = RngEspia()
         self.inv.rng = espia
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 0)), 1.0)
-        self.assertIsNone(self.inv.sortear(self.en(14, 0)))
+        self.assertEqual(self.inv.espera_separacion(self.en(17, 0)), 1.0)
+        self.assertIsNone(self.inv.sortear(self.en(17, 0)))
         self.assertEqual(espia.llamadas, [], "durante la separación ni se tira la tómbola")
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 1)), 0.0)
-        self.assertIsNotNone(self.inv.sortear(self.en(14, 1)))
+        self.assertEqual(self.inv.espera_separacion(self.en(17, 1)), 0.0)
+        self.assertIsNotNone(self.inv.sortear(self.en(17, 1)))
         self.assertEqual(len(espia.llamadas), 1)
         # Los premios NO dejan de estar disponibles: lo que se frena es el sorteo.
-        self.assertEqual(self.inv.motivo_no_disponible(agua, self.en(14, 0)), "")
+        self.assertEqual(self.inv.motivo_no_disponible(agua, self.en(17, 0)), "")
 
     def test_la_separacion_solo_la_marca_un_boleto_impreso(self):
         """Si el boleto no salió, el premio vuelve y no frena al siguiente."""
         agua = self.inv.premios["agua"]
-        b = self.inv.emitir(agua, self.en(14, 0))
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 1)), 0.0)   # aún no confirmado
+        b = self.inv.emitir(agua, self.en(17, 0))
+        self.assertEqual(self.inv.espera_separacion(self.en(17, 1)), 0.0)   # aún no confirmado
         self.inv.revertir(b)
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 1)), 0.0)
+        self.assertEqual(self.inv.espera_separacion(self.en(17, 1)), 0.0)
         # Un consuelo confirmado tampoco frena nada: no es un premio.
-        self.inv.confirmar(self.inv.emitir(None, self.en(14, 1)))
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 2)), 0.0)
+        self.inv.confirmar(self.inv.emitir(None, self.en(17, 1)))
+        self.assertEqual(self.inv.espera_separacion(self.en(17, 2)), 0.0)
 
     def test_sin_separacion_configurada_no_hay_regla(self):
         inv = Inventario(list(self.inv.premios.values()), self.carpeta / "sinsep",
@@ -632,37 +755,161 @@ class TestRepartoPorHoras(unittest.TestCase):
         self.inv.sortear(self.en(13, 0))
         self.assertEqual(len(espia.llamadas), 1, "la tómbola sí se tiró")
 
+    # -- (g) premios FORZADOS (día 2 paso 2, 2026-09-22) --------------------- #
+
+    def test_una_pieza_forzada_se_la_lleva_la_siguiente_jugada_sin_tombola(self):
+        """Dictado del usuario: «después de tal hora, el próximo juego se la saca».
+
+        A las 14:00 del jueves la silla lleva abierta desde las 13:26. La jugada
+        se la lleva **sin pasar por la tómbola**: se ancla que `choices` **no se
+        llama** —por igualdad de la lista de llamadas, no «se llamó poco»— y que
+        el premio devuelto es la silla.
+        """
+        espia = RngEspia()
+        self.inv.rng = espia
+        silla = self.inv.premios["silla"]
+        self.assertTrue(silla.forzado)
+        self.assertEqual([p.id for p in self.inv.forzados_abiertos(self.en(14, 0))], ["silla"])
+        self.assertEqual(self.inv.sortear(self.en(14, 0)), silla)
+        self.assertEqual(espia.llamadas, [], "una pieza forzada no se sortea, se entrega")
+        # Y en cuanto se entrega deja de estar abierta: la siguiente jugada
+        # vuelve a la tómbola de siempre (aquí, frenada por la separación).
+        self.inv.confirmar(self.inv.emitir(silla, self.en(14, 0)))
+        self.assertEqual(self.inv.forzados_abiertos(self.en(14, 1)), [])
+        self.assertIsNotNone(self.inv.sortear(self.en(14, 1)))
+        self.assertEqual(len(espia.llamadas), 1)
+
+    def test_una_pieza_forzada_se_salta_la_separacion(self):
+        """Decisión del usuario del 2026-09-22: la SIGUIENTE jugada, no la siguiente
+        que pase el minuto. Es lo único que el forzado se salta a propósito."""
+        espia = RngEspia()
+        self.inv.rng = espia
+        self.inv.confirmar(self.inv.emitir(self.inv.premios["agua"], self.en(14, 0)))
+        self.assertEqual(self.inv.espera_separacion(self.en(14, 0)), 1.0)
+        # Con la separación mordiendo, un premio NO forzado daría consuelo…
+        self.assertEqual(self.inv.forzados_abiertos(self.en(14, 0)),
+                         [self.inv.premios["silla"]])
+        # …y aun así sale la silla, sin tirar la tómbola.
+        self.assertEqual(self.inv.sortear(self.en(14, 0)).id, "silla")
+        self.assertEqual(espia.llamadas, [])
+
+    def test_con_dos_piezas_forzadas_abiertas_sale_primero_la_que_abrio_antes(self):
+        """A las 19:40 del jueves están abiertas la silla (19:11) y la hielera (19:36).
+
+        Se ancla **la ráfaga entera, jugada a jugada y por igualdad**, que es el
+        riesgo que hay que tener escrito (ficha **F-283**): si nadie ha jugado en
+        toda la tarde, **tres jugadas seguidas se llevan tres premios grandes**,
+        una detrás de otra y **con la separación mínima mordiendo**.
+
+        Son tres y no dos porque la silla del mediodía (13:26) **no se perdió**:
+        lo que una franja abre y nadie gana se arrastra a la siguiente del mismo
+        día (ficha F-269), así que a las 19:40 la silla tiene DOS piezas abiertas
+        y su `tope_diario` es 2. El orden es el de apertura: la silla (19:11)
+        antes que la hielera (19:36).
+        """
+        espia = RngEspia()
+        self.inv.rng = espia
+        t = self.en(19, 40)
+        self.assertEqual([p.id for p in self.inv.forzados_abiertos(t)], ["silla", "hielera"])
+        self.assertEqual(self.inv.liberadas(self.inv.premios["silla"], t), 2)
+        salieron = []
+        for _ in range(4):
+            premio = self.inv.sortear(t)
+            salieron.append(premio.id if premio else None)
+            if premio is None:
+                break
+            self.inv.confirmar(self.inv.emitir(premio, t))
+        self.assertEqual(salieron, ["silla", "silla", "hielera", None])
+        # Y las tres salieron con la separación mínima pendiente desde la primera.
+        self.assertEqual(self.inv.espera_separacion(t), 1.0)
+        self.assertEqual(espia.llamadas, [], "ninguna de las tres pasó por la tómbola")
+
+    def test_sin_piezas_forzadas_abiertas_la_tombola_es_la_de_siempre(self):
+        """Control: a las 12:31 solo hay un agua abierta y NADA forzado.
+
+        La llamada a `choices` se ancla **por igualdad de listas** —población y
+        pesos, en orden—: si el forzado se colara aquí, o si cambiara el peso del
+        consuelo, esta igualdad cae.
+        """
+        espia = RngEspia()
+        self.inv.rng = espia
+        t = self.en(12, 31)
+        self.assertEqual(self.inv.forzados_abiertos(t), [])
+        disponibles = self.inv.disponibles(t)
+        self.assertEqual([p.id for p in disponibles], ["agua"])
+        self.assertEqual(self.inv.sortear(t).id, "agua")
+        self.assertEqual(espia.llamadas, [(disponibles + [None], [11, 10], 1)])
+
+    def test_fuera_del_horario_no_hay_piezas_forzadas(self):
+        """El horario del evento manda también sobre el forzado.
+
+        A las 23:00 en punto la franja de la hielera sigue viva en el papel
+        —acaba justo ahí— pero el evento ya cerró, así que no hay nada abierto y
+        la jugada sale de consuelo.
+        """
+        espia = RngEspia()
+        self.inv.rng = espia
+        for hora, minuto in ((11, 59), (23, 0), (23, 30)):
+            with self.subTest(hora=f"{hora:02d}:{minuto:02d}"):
+                t = self.en(hora, minuto)
+                self.assertEqual(self.inv.forzados_abiertos(t), [])
+                self.assertIsNone(self.inv.sortear(t))
+        self.assertEqual(espia.llamadas, [])
+
+    def test_un_premio_sin_forzado_nunca_entra_por_esa_puerta(self):
+        """Los cuatro premios chicos siguen sorteándose, estén abiertos o no."""
+        chicos = [p for p in self.inv.premios.values() if not p.forzado]
+        self.assertEqual([p.id for p in chicos], ["tacos3", "tacos2", "cerveza", "agua"])
+        t = self.en(22, 0)      # los chicos abiertos, la hielera y el set BBQ de la noche
+        self.assertEqual([p.id for p in self.inv.disponibles(t)],
+                         ["hielera", "bbq", "tacos3", "tacos2", "cerveza", "agua"])
+        self.assertEqual([p.id for p in self.inv.forzados_abiertos(t)], ["hielera", "bbq"])
+        # Entregadas las piezas grandes, lo que queda es tómbola pura. Son TRES
+        # boletos y no dos: el set BBQ tiene dos piezas abiertas a esa hora (la
+        # de las 14:37, que nadie ganó, y la de las 20:52).
+        for premio in (self.inv.premios["hielera"], self.inv.premios["bbq"],
+                       self.inv.premios["bbq"]):
+            self.inv.emitir(premio, t)
+        espia = RngEspia()
+        self.inv.rng = espia
+        self.assertEqual(self.inv.forzados_abiertos(t), [])
+        self.assertEqual(self.inv.sortear(t).id, "tacos3")
+        poblacion, pesos, _ = espia.llamadas[0]
+        self.assertEqual([getattr(p, "id", None) for p in poblacion],
+                         ["tacos3", "tacos2", "cerveza", "agua", None])
+        self.assertEqual(pesos, [4, 4, 10, 11, 10])
+
     # -- (f) persistencia del último premio ---------------------------------- #
 
     def test_el_ultimo_premio_sobrevive_al_reinicio(self):
-        self.inv.confirmar(self.inv.emitir(self.inv.premios["agua"], self.en(14, 0)))
+        self.inv.confirmar(self.inv.emitir(self.inv.premios["agua"], self.en(17, 0)))
         guardado = json.loads(self.inv.ruta_estado.read_text(encoding="utf-8"))
-        self.assertEqual(guardado["ultimo_premio"], "2026-09-24T14:00:00")
+        self.assertEqual(guardado["ultimo_premio"], "2026-09-24T17:00:00")
         otro = inventario_del_evento(self.carpeta)
-        self.assertEqual(otro.espera_separacion(self.en(14, 0)), 1.0)
-        self.assertIsNone(otro.sortear(self.en(14, 0)))
-        self.assertEqual(otro.espera_separacion(self.en(14, 1)), 0.0)
+        self.assertEqual(otro.espera_separacion(self.en(17, 0)), 1.0)
+        self.assertIsNone(otro.sortear(self.en(17, 0)))
+        self.assertEqual(otro.espera_separacion(self.en(17, 1)), 0.0)
         # Y reiniciar el inventario para un evento nuevo lo borra.
         otro.reiniciar()
-        self.assertEqual(otro.espera_separacion(self.en(14, 0)), 0.0)
+        self.assertEqual(otro.espera_separacion(self.en(17, 0)), 0.0)
         self.assertIsNone(json.loads(otro.ruta_estado.read_text(encoding="utf-8"))["ultimo_premio"])
 
     def test_un_estado_viejo_sin_la_llave_carga_igual(self):
         """Un estado.json escrito antes de la Fase 4d no tiene 'ultimo_premio'."""
         viejo = {"version": 1, "folio": 16, "entregados": {"agua": 3},
                  "por_dia": {"2026-09-24": {"agua": 3}}, "boletos_por_dia": {"2026-09-24": 9},
-                 "actualizado": "2026-09-24T14:00:00"}
+                 "actualizado": "2026-09-24T17:00:00"}
         (self.carpeta / "estado.json").write_text(json.dumps(viejo), encoding="utf-8")
         inv = inventario_del_evento(self.carpeta)
         self.assertEqual((inv.folio_actual, inv.entregados("agua"), inv.boletos_en_dia(self.dia)),
                          (16, 3, 9))
-        self.assertEqual(inv.espera_separacion(self.en(14, 0)), 0.0)
+        self.assertEqual(inv.espera_separacion(self.en(17, 0)), 0.0)
         # Y un valor ilegible tampoco tira el programa ni bloquea el juego.
         (self.carpeta / "estado.json").write_text(
             json.dumps({**viejo, "ultimo_premio": "ayer por la tarde"}), encoding="utf-8")
         roto = inventario_del_evento(self.carpeta)
         self.assertEqual(roto.folio_actual, 16)
-        self.assertEqual(roto.espera_separacion(self.en(14, 0)), 0.0)
+        self.assertEqual(roto.espera_separacion(self.en(17, 0)), 0.0)
 
     # -- el resumen que imprime el boleto ------------------------------------ #
 
@@ -674,9 +921,16 @@ class TestRepartoPorHoras(unittest.TestCase):
         self.assertEqual((por_id["hielera"].liberadas, por_id["hielera"].proxima),
                          (0, self.en(19, 36)))
         self.assertEqual(por_id["silla"].liberadas, 1)
-        # El set BBQ del jueves abre a las 14:41: a las 14:00 no hay ninguno.
+        # El set BBQ del jueves abre a las 14:37: a las 14:00 no hay ninguno.
         self.assertEqual((por_id["bbq"].liberadas, por_id["bbq"].proxima),
-                         (0, self.en(14, 41)))
+                         (0, self.en(14, 37)))
+        # Y las dos entradas de reposición no abren NADA el jueves: sus franjas
+        # son del martes y del miércoles, así que ni tienen piezas abiertas ni
+        # tienen una siguiente hora que anunciar.
+        self.assertEqual((por_id["silla_extra"].liberadas, por_id["silla_extra"].proxima),
+                         (0, None))
+        self.assertEqual((por_id["bbq_extra"].liberadas, por_id["bbq_extra"].proxima),
+                         (0, None))
         # A las 22:45 ya no queda nada por abrir en todo el día.
         self.assertEqual([f.premio.id for f in self.inv.resumen(self.en(22, 45)).premios
                           if f.proxima is not None], [])

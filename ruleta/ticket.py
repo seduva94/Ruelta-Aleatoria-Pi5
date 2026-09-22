@@ -20,6 +20,12 @@ FORMATO_FECHA = "%d/%m/%Y %H:%M"
 # (pieza D, Fase 4d): la Pi no tiene batería RTC y del día dependen los topes
 # diarios, las fechas de los premios y el reparto por horas.
 AVISO_HORA = "HORA SIN CONFIRMAR: revisar fecha"
+# Señal de los premios FORZADOS en el boleto de inventario (día 2 paso 2,
+# 2026-09-22). Va pegada al nombre y es corta a propósito: con las 48 columnas
+# del rollo, la columna del nombre tiene 23 caracteres y «SILLA DE PLAYA
+# *forzado» ocupa justo 23, así que ningún nombre del evento se recorta.
+MARCA_FORZADO = " *forzado"
+LEYENDA_FORZADO = "* forzado: abierto, lo gana la siguiente jugada"
 
 
 # --------------------------------------------------------------------------- #
@@ -198,7 +204,10 @@ def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "",
     doc.negrita(False)
     for fila in resumen.premios:
         p = fila.premio
-        nombre = p.nombre if len(p.nombre) <= col_nombre else p.nombre[: col_nombre - 1] + "."
+        # La señal de forzado viaja pegada al nombre y se recorta con él, así que
+        # el renglón nunca pasa del ancho del papel por mucho que se estreche.
+        etiqueta = p.nombre + (MARCA_FORZADO if p.forzado else "")
+        nombre = etiqueta if len(etiqueta) <= col_nombre else etiqueta[: col_nombre - 1] + "."
         if p.stock is None:
             rest = f"{fila.entregados}/inf"
         else:
@@ -212,6 +221,12 @@ def boleto_inventario(cfg: Config, resumen: Resumen, motivo: str = "",
         # reloj ya abrió y a qué hora se abre la siguiente. Solo para los premios
         # que se reparten; los que no tienen tope diario ni franjas no lo llevan.
         for l in renglones_de_liberacion(fila, ancho):
+            doc.linea(l)
+    # Qué quiere decir la señal de los premios forzados (día 2 paso 2). Solo se
+    # imprime si hay alguno: en una instalación sin premios forzados el boleto
+    # sale exactamente como antes del 2026-09-22.
+    if any(fila.premio.forzado for fila in resumen.premios):
+        for l in envolver(LEYENDA_FORZADO, ancho):
             doc.linea(l)
     # El boleto de consuelo compite como uno más cuando tiene peso (Fase 4c).
     # Sin peso no se menciona: solo sale cuando ya no queda ningún premio.

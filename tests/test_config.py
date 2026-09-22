@@ -13,13 +13,19 @@ RUTA_CONFIG = RAIZ / "config.json"
 RUTA_EVENTO = RAIZ / "docs" / "evento-2026-09-asadero-33.md"
 
 # Las llaves que la Fase 4b copió del documento del evento al config.json, más
-# 'franjas', que añadió la Fase 4d (pieza B), y 'desde'/'hasta', que añadió la
-# Fase 4e (2026-09-16) al cargar las fechas de vigencia que faltaban: ahora la
-# comparación campo por campo contra el §5.1 las cubre también (ficha F-259,
-# cerrada). El censo de las fechas reales lo ancla, aparte,
+# 'franjas', que añadió la Fase 4d (pieza B), 'desde'/'hasta', que añadió la
+# Fase 4e (2026-09-16) al cargar las fechas de vigencia que faltaban (ficha
+# F-259, cerrada), y 'forzado', que añadió el día 2 paso 2 (2026-09-22): ahora la
+# comparación campo por campo contra el §5.1 las cubre todas. El censo de las
+# fechas reales lo ancla, aparte,
 # TestPremiosOficialesDelEvento.test_los_premios_del_config_traen_las_fechas_del_evento.
 CLAVES_OBLIGATORIAS = ("id", "nombre", "detalle", "stock", "tope_diario", "peso")
-CLAVES_DEL_DOCUMENTO = CLAVES_OBLIGATORIAS + ("franjas", "desde", "hasta")
+CLAVES_DEL_DOCUMENTO = CLAVES_OBLIGATORIAS + ("franjas", "desde", "hasta", "forzado")
+# Lo que vale una llave que el documento NO escribe: es el valor por omisión del
+# programa, así que omitirla en el §5.1 tiene que significar lo mismo que en
+# `ruleta/config.py`. Con `None` a secas, un premio sin `forzado` en el documento
+# se compararía contra el `False` de config.json y caería sin motivo.
+OMITIDAS = {"franjas": [], "forzado": False}
 
 # Fila de la tabla de la tómbola del §2 del documento del evento, de la forma
 #   | Una pieza de AGUA FRESCA (peso 11) | 11 + 10 = 21 | **52.4 %** |
@@ -37,11 +43,17 @@ def como_dict(valor):
     mientras que el documento del evento las escribe como diccionarios y como
     texto `"AAAA-MM-DD"`. Se normaliza aquí, en un solo sitio, para poder
     comparar por IGUALDAD los dos lados sin aflojar ningún assert.
+
+    Desde el día 2 paso 2 (2026-09-22) una franja lleva además `dias`, y se
+    escribe SIEMPRE: si una franja del §5.1 se quedara sin la llave, se
+    compararía contra la lista vacía de `config.json` —«todos los días»— y la
+    igualdad caería, que es justo lo que tiene que pasar.
     """
     if isinstance(valor, list):
         return [como_dict(v) for v in valor]
     if isinstance(valor, Franja):
-        return {"desde_hora": valor.desde_hora, "hasta_hora": valor.hasta_hora, "tope": valor.tope}
+        return {"desde_hora": valor.desde_hora, "hasta_hora": valor.hasta_hora,
+                "tope": valor.tope, "dias": [d.isoformat() for d in valor.dias]}
     if isinstance(valor, date):
         return valor.isoformat()
     return valor
@@ -194,8 +206,8 @@ class TestReglas(unittest.TestCase):
             "franjas": [{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1},
                         {"desde_hora": "19:00", "hasta_hora": "22:00"}]}]))
         self.assertEqual([como_dict(f) for f in cfg.premios[0].franjas],
-                         [{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1},
-                          {"desde_hora": "19:00", "hasta_hora": "22:00", "tope": 1}])
+                         [{"desde_hora": "13:00", "hasta_hora": "16:00", "tope": 1, "dias": []},
+                          {"desde_hora": "19:00", "hasta_hora": "22:00", "tope": 1, "dias": []}])
         # Sin la llave, la lista está vacía: el premio vale a cualquier hora.
         self.assertEqual(configmod.desde_dict(base()).premios[0].franjas, [])
 
@@ -211,6 +223,90 @@ class TestReglas(unittest.TestCase):
         self.espera_error(con_franjas([{"desde_hora": "13:00", "hasta_hora": "16:00", "peso": 12}]), "peso")
         self.espera_error(con_franjas([["13:00", "16:00"]]), "objeto")
         self.espera_error(con_franjas("13:00-16:00"), "lista")
+
+    # -- días por franja (día 2 paso 2, 2026-09-22) -------------------------- #
+
+    def test_franja_hasta_el_cierre_del_evento_es_valida(self):
+        """Una franja que acaba a las 23:00 con el evento cerrando a las 23:00.
+
+        Es la de la hielera y la del set BBQ del viernes. Se ancla a propósito:
+        el cierre del evento es EXCLUSIVO (a las 23:00 ya no se juega) y sería
+        fácil «arreglarlo» exigiendo que la franja acabe antes, con lo que el
+        `config.json` real dejaría de cargar y el kiosco no arrancaría.
+        """
+        cfg = configmod.desde_dict(base(
+            juego={"horario": {"abre": "12:00", "cierra": "23:00"}},
+            premios=[{"id": "hielera", "nombre": "Hielera", "peso": 100, "tope_diario": 1,
+                      "franjas": [{"desde_hora": "19:36", "hasta_hora": "23:00", "tope": 1}]}]))
+        self.assertEqual(como_dict(cfg.premios[0].franjas),
+                         [{"desde_hora": "19:36", "hasta_hora": "23:00", "tope": 1, "dias": []}])
+
+    def test_dias_validos(self):
+        """`dias` llega como texto y sale como fechas de verdad, en orden."""
+        cfg = configmod.desde_dict(base(premios=[{
+            "id": "silla", "nombre": "Silla", "peso": 100, "tope_diario": 2,
+            "franjas": [{"desde_hora": "13:17", "hasta_hora": "15:17", "tope": 1,
+                         "dias": ["2026-09-22", "2026-09-23"]},
+                        {"desde_hora": "19:23", "hasta_hora": "21:23", "tope": 1, "dias": []}]}]))
+        self.assertEqual([f.dias for f in cfg.premios[0].franjas],
+                         [[date(2026, 9, 22), date(2026, 9, 23)], []])
+        # Sin la llave, la lista está vacía: la franja vale TODOS los días, que
+        # es como se comportaba el programa antes del 2026-09-22. Se ancla por
+        # igualdad porque es lo único que separa un config.json viejo de uno
+        # nuevo: si el valor por omisión fuera «ningún día», una instalación sin
+        # la llave dejaría de dar premios sin que nadie lo decidiera.
+        sin_llave = configmod.desde_dict(base(premios=[{
+            "id": "silla", "nombre": "Silla", "peso": 100,
+            "franjas": [{"desde_hora": "13:17", "hasta_hora": "15:17"}]}]))
+        self.assertEqual([f.dias for f in sin_llave.premios[0].franjas], [[]])
+
+    def test_dias_invalidos(self):
+        """Todos los mensajes nombran la llave `dias`, que es lo que hay que corregir."""
+        def con_dias(dias):
+            return base(premios=[{"id": "silla", "nombre": "Silla", "peso": 100, "franjas": [
+                {"desde_hora": "13:17", "hasta_hora": "15:17", "tope": 1, "dias": dias}]}])
+        self.espera_error(con_dias("2026-09-22"), "dias")              # texto suelto, no lista
+        self.espera_error(con_dias({"2026-09-22": True}), "dias")
+        self.espera_error(con_dias(["22/09/2026"]), "dias")            # formato del revés
+        self.espera_error(con_dias(["2026-09-22"] + ["2026-13-01"]), "dias")   # mes 13
+        self.espera_error(con_dias([20260922]), "dias")                # número, sin comillas
+        self.espera_error(con_dias([None]), "dias")
+        # Y el mensaje dice además qué formato se espera y en qué premio pasa.
+        with self.assertRaises(ErrorConfig) as ctx:
+            configmod.desde_dict(con_dias(["22/09/2026"]))
+        self.assertIn("AAAA-MM-DD", str(ctx.exception))
+        self.assertIn("silla", str(ctx.exception))
+
+    # -- premio forzado (día 2 paso 2, 2026-09-22) --------------------------- #
+
+    def test_forzado_valido_y_por_omision_false(self):
+        """Omitir `forzado` es el comportamiento de antes del 2026-09-22.
+
+        Se ancla **por igualdad** porque el valor por omisión del código es lo
+        único que separa un `config.json` viejo de uno nuevo: con `True` por
+        defecto, cualquier instalación sin la llave empezaría a regalar el premio
+        a la siguiente jugada sin que nadie lo decidiera.
+        """
+        self.assertEqual(configmod.desde_dict(base()).premios[0].forzado, False)
+        cfg = configmod.desde_dict(base(premios=[
+            {"id": "silla", "nombre": "Silla", "peso": 100, "forzado": True},
+            {"id": "agua", "nombre": "Agua", "peso": 11, "forzado": False},
+            {"id": "cerveza", "nombre": "Cerveza", "peso": 10}]))
+        self.assertEqual({p.id: p.forzado for p in cfg.premios},
+                         {"silla": True, "agua": False, "cerveza": False})
+
+    def test_forzado_con_tipos_malos(self):
+        """Es un booleano como los demás, y el mensaje nombra la llave."""
+        def con_forzado(valor):
+            return base(premios=[{"id": "silla", "nombre": "Silla", "peso": 100,
+                                  "forzado": valor}])
+        self.espera_error(con_forzado("true"), "forzado")
+        self.espera_error(con_forzado("sí"), "forzado")
+        self.espera_error(con_forzado(1), "forzado")
+        self.espera_error(con_forzado(None), "forzado")
+        with self.assertRaises(ErrorConfig) as ctx:
+            configmod.desde_dict(con_forzado("true"))
+        self.assertIn("true o false", str(ctx.exception))
 
     def test_consuelo_sin_peso_vale_cero(self):
         """Omitir la llave es el comportamiento de antes de la Fase 4c: consuelo sin papelitos.
@@ -304,13 +400,29 @@ class TestCargar(unittest.TestCase):
         # TestPremiosOficialesDelEvento.test_config_json_lleva_el_peso_de_consuelo_del_documento,
         # que lo DERIVA del §5.2 del documento del evento en vez de transcribirlo.
         self.assertGreater(cfg.juego.consuelo.peso, 0)
-        # Censo derivado de las franjas (Fase 4d): las SIETE del §3 del documento
-        # del evento —eran cinco hasta el 2026-09-22—, y SOLO en los premios
-        # grandes. Los valores exactos los compara TestPremiosOficialesDelEvento
-        # contra el documento.
+        # Censo derivado de las franjas (Fase 4d): las VEINTIUNA del §3 del
+        # documento del evento —eran cinco hasta el 2026-09-22 por la mañana y
+        # siete después del paso 1—, y SOLO en los premios grandes. Desde el paso
+        # 2 cada franja lleva los DÍAS en que existe, así que hay una franja por
+        # pieza y por día: 2 sillas × 4 días, 2 sets × 4 días, y una por día de
+        # `silla_extra` (mar y mié), `bbq_extra` (mar) y la hielera (jue y vie).
+        # Los valores exactos los compara TestPremiosOficialesDelEvento contra el
+        # documento.
         self.assertEqual({p.id: len(p.franjas) for p in cfg.premios if p.franjas},
-                         {"hielera": 1, "silla": 2, "silla_extra": 1, "bbq": 2, "bbq_extra": 1})
-        self.assertEqual(sum(len(p.franjas) for p in cfg.premios), 7)
+                         {"hielera": 2, "silla": 8, "silla_extra": 2, "bbq": 8, "bbq_extra": 1})
+        self.assertEqual(sum(len(p.franjas) for p in cfg.premios), 21)
+        # Y TODAS las franjas del evento traen días: si alguna se quedara sin
+        # ellos valdría los cinco días, que es lo que el paso 2 vino a quitar.
+        self.assertEqual([f"{p.id} {f.desde_hora}" for p in cfg.premios
+                          for f in p.franjas if not f.dias], [])
+        self.assertEqual({len(f.dias) for p in cfg.premios for f in p.franjas}, {1})
+        # Censo del forzado (día 2 paso 2): los CINCO premios grandes y ninguno
+        # de los chicos. Por igualdad y sobre los nueve, no «los grandes lo
+        # traen»: un `forzado` colado en el agua regalaría un agua por jugada.
+        self.assertEqual({p.id: p.forzado for p in cfg.premios},
+                         {"hielera": True, "silla": True, "silla_extra": True, "bbq": True,
+                          "bbq_extra": True, "tacos3": False, "tacos2": False,
+                          "cerveza": False, "agua": False})
         self.assertIsNotNone(cfg.juego.horario)
         self.assertGreater(cfg.juego.separacion_min_entre_premios, 0)
         self.assertGreater(cfg.juego.espera_hora_seg, 0)
@@ -536,8 +648,13 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
         las fechas `desde`/`hasta`, que deciden **qué días** existe cada premio.
         Un premio al que le falte la fecha en un lado y no en el otro cae aquí:
         se compara `None` contra la fecha, no se ignora la llave.
+
+        Desde el día 2 paso 2 (2026-09-22) se comparan además los `dias` de cada
+        franja —dentro de `como_dict`— y el `forzado` del premio, que son las dos
+        llaves nuevas: el §5.1 es quien manda sobre a qué hora de qué día se abre
+        cada pieza y sobre cuáles se entregan sin sorteo.
         """
-        del_documento = [{k: como_dict(p.get(k, [] if k == "franjas" else None))
+        del_documento = [{k: como_dict(p.get(k, OMITIDAS.get(k)))
                           for k in CLAVES_DEL_DOCUMENTO}
                          for p in self.premios_del_documento()]
         cfg = configmod.cargar(RUTA_CONFIG)
