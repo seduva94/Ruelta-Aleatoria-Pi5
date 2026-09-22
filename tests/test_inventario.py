@@ -452,10 +452,14 @@ class TestRepartoPorHoras(unittest.TestCase):
                           "18:03", "19:09", "20:15", "21:21", "22:27"])
         self.assertEqual(self.horas("tacos3"), ["13:22", "16:07", "18:52", "21:37"])
         self.assertEqual(self.horas("tacos2"), self.horas("tacos3"))
-        # Los de franja se abren AL EMPEZAR su franja, no a la mitad.
-        self.assertEqual(self.horas("hielera"), ["19:00"])
-        self.assertEqual(self.horas("silla"), ["13:00", "19:00"])
-        self.assertEqual(self.horas("bbq"), ["13:00", "19:00"])
+        # Los de franja se abren AL EMPEZAR su franja, no a la mitad. Horas
+        # SUELTAS desde el 2026-09-22 (día 2, paso 1): con las horas redondas de
+        # antes los tres grandes coincidían y el lunes 21 no salió ninguna silla.
+        self.assertEqual(self.horas("hielera"), ["19:36"])
+        self.assertEqual(self.horas("silla"), ["13:17", "19:23"])
+        self.assertEqual(self.horas("silla_extra"), ["16:08"])
+        self.assertEqual(self.horas("bbq"), ["14:41", "20:47"])
+        self.assertEqual(self.horas("bbq_extra"), ["17:34"])
         # Y cada premio abre exactamente su cupo del día, ni una pieza más.
         self.assertEqual({p.id: len(self.horas(p.id)) for p in self.inv.premios.values()},
                          {p.id: p.tope_diario for p in self.inv.premios.values()})
@@ -517,7 +521,14 @@ class TestRepartoPorHoras(unittest.TestCase):
                 t = self.en(hora, minuto)
                 self.assertFalse(inv.dentro_del_horario(t))
                 self.assertEqual(inv.disponibles(t), [])
-                self.assertEqual({f.motivo for f in inv.resumen(t).premios}, {"fuera de horario"})
+                # El jueves 24 las dos entradas de reposición ya están vencidas
+                # (`silla_extra` acaba el 23 y `bbq_extra` el 22), y la fecha se
+                # mira ANTES que el horario: por eso son dos motivos y no uno.
+                self.assertEqual({f.motivo for f in inv.resumen(t).premios},
+                                 {"fuera de horario", "fecha vencida"})
+                self.assertEqual({f.premio.id for f in inv.resumen(t).premios
+                                  if f.motivo == "fecha vencida"},
+                                 {"silla_extra", "bbq_extra"})
                 self.assertIsNone(inv.sortear(t))
         self.assertEqual(espia.llamadas, [], "fuera de horario no se debe tirar la tómbola")
         # Y dentro sí: a las 12:30 el agua ya está abierta.
@@ -530,17 +541,17 @@ class TestRepartoPorHoras(unittest.TestCase):
     def test_franjas_de_la_silla_del_evento_real(self):
         """Pieza B: la silla solo existe en la comida y en la cena."""
         silla = self.inv.premios["silla"]
-        dentro = [(13, 0), (15, 59), (19, 0), (21, 59)]
-        fuera = [(12, 59), (16, 0), (16, 1), (18, 59), (22, 0), (22, 30)]
+        dentro = [(13, 17), (15, 16), (19, 23), (21, 22)]
+        fuera = [(13, 16), (15, 17), (16, 0), (19, 22), (21, 23), (22, 30)]
         self.assertEqual([(h, m) for h, m in dentro
                           if self.inv.motivo_no_disponible(silla, self.en(h, m)) != ""], [])
         self.assertEqual([(h, m) for h, m in fuera
                           if self.inv.motivo_no_disponible(silla, self.en(h, m)) == ""], [])
         # Y el motivo dice a qué hora vuelve, o que ya no vuelve hoy.
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(12, 59)),
-                         "su franja abre a las 13:00")
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(16, 1)),
-                         "su franja abre a las 19:00")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 16)),
+                         "su franja abre a las 13:17")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 17)),
+                         "su franja abre a las 19:23")
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(22, 30)),
                          "franjas de hoy cerradas")
 
@@ -550,19 +561,20 @@ class TestRepartoPorHoras(unittest.TestCase):
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 30)), "")
         self.inv.emitir(silla, self.en(13, 30))
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(13, 31)),
-                         "se libera a las 19:00")
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 59)),
-                         "se libera a las 19:00")
-        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(19, 0)), "")
+                         "se libera a las 19:23")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(15, 16)),
+                         "se libera a las 19:23")
+        self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(19, 23)), "")
         # Y con las dos del día entregadas, manda el tope diario.
-        self.inv.emitir(silla, self.en(19, 0))
+        self.inv.emitir(silla, self.en(19, 23))
         self.assertEqual(self.inv.motivo_no_disponible(silla, self.en(20, 0)), "tope de hoy")
 
-    def test_la_hielera_solo_de_siete_a_once_de_la_noche(self):
+    def test_la_hielera_solo_desde_las_19_36_hasta_el_cierre(self):
+        """Franja movida el 2026-09-22 (día 2, paso 1): era de 19:00 a 23:00."""
         hielera = self.inv.premios["hielera"]
-        self.assertEqual(self.inv.motivo_no_disponible(hielera, self.en(18, 59)),
-                         "su franja abre a las 19:00")
-        self.assertEqual(self.inv.motivo_no_disponible(hielera, self.en(19, 0)), "")
+        self.assertEqual(self.inv.motivo_no_disponible(hielera, self.en(19, 35)),
+                         "su franja abre a las 19:36")
+        self.assertEqual(self.inv.motivo_no_disponible(hielera, self.en(19, 36)), "")
         self.assertEqual(self.inv.motivo_no_disponible(hielera, self.en(22, 59)), "")
         # A las 23:00 cierra el evento entero, así que gana ese motivo.
         self.assertEqual(self.inv.motivo_no_disponible(hielera, self.en(23, 0)),
@@ -573,18 +585,20 @@ class TestRepartoPorHoras(unittest.TestCase):
     def test_separacion_minima_entre_premios(self):
         """Dictado del 2026-09-16: «los premios no deben salir seguidos»."""
         agua = self.inv.premios["agua"]
-        self.assertEqual(self.inv.separacion_min_entre_premios, 3)
+        # Bajada de 3 minutos a 1 el 2026-09-22 (día 2, paso 1): el lunes 21 seis
+        # de las 55 jugadas salieron de consuelo solo por esta regla.
+        self.assertEqual(self.inv.separacion_min_entre_premios, 1)
         self.inv.confirmar(self.inv.emitir(agua, self.en(14, 0)))
         espia = RngEspia()
         self.inv.rng = espia
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 2)), 1.0)
-        self.assertIsNone(self.inv.sortear(self.en(14, 2)))
+        self.assertEqual(self.inv.espera_separacion(self.en(14, 0)), 1.0)
+        self.assertIsNone(self.inv.sortear(self.en(14, 0)))
         self.assertEqual(espia.llamadas, [], "durante la separación ni se tira la tómbola")
-        self.assertEqual(self.inv.espera_separacion(self.en(14, 3)), 0.0)
-        self.assertIsNotNone(self.inv.sortear(self.en(14, 3)))
+        self.assertEqual(self.inv.espera_separacion(self.en(14, 1)), 0.0)
+        self.assertIsNotNone(self.inv.sortear(self.en(14, 1)))
         self.assertEqual(len(espia.llamadas), 1)
         # Los premios NO dejan de estar disponibles: lo que se frena es el sorteo.
-        self.assertEqual(self.inv.motivo_no_disponible(agua, self.en(14, 2)), "")
+        self.assertEqual(self.inv.motivo_no_disponible(agua, self.en(14, 0)), "")
 
     def test_la_separacion_solo_la_marca_un_boleto_impreso(self):
         """Si el boleto no salió, el premio vuelve y no frena al siguiente."""
@@ -625,12 +639,12 @@ class TestRepartoPorHoras(unittest.TestCase):
         guardado = json.loads(self.inv.ruta_estado.read_text(encoding="utf-8"))
         self.assertEqual(guardado["ultimo_premio"], "2026-09-24T14:00:00")
         otro = inventario_del_evento(self.carpeta)
-        self.assertEqual(otro.espera_separacion(self.en(14, 2)), 1.0)
-        self.assertIsNone(otro.sortear(self.en(14, 2)))
-        self.assertEqual(otro.espera_separacion(self.en(14, 3)), 0.0)
+        self.assertEqual(otro.espera_separacion(self.en(14, 0)), 1.0)
+        self.assertIsNone(otro.sortear(self.en(14, 0)))
+        self.assertEqual(otro.espera_separacion(self.en(14, 1)), 0.0)
         # Y reiniciar el inventario para un evento nuevo lo borra.
         otro.reiniciar()
-        self.assertEqual(otro.espera_separacion(self.en(14, 2)), 0.0)
+        self.assertEqual(otro.espera_separacion(self.en(14, 0)), 0.0)
         self.assertIsNone(json.loads(otro.ruta_estado.read_text(encoding="utf-8"))["ultimo_premio"])
 
     def test_un_estado_viejo_sin_la_llave_carga_igual(self):
@@ -658,8 +672,11 @@ class TestRepartoPorHoras(unittest.TestCase):
         self.assertEqual((por_id["agua"].liberadas, por_id["agua"].hoy), (2, 1))
         self.assertEqual(por_id["agua"].proxima, self.en(14, 30))
         self.assertEqual((por_id["hielera"].liberadas, por_id["hielera"].proxima),
-                         (0, self.en(19, 0)))
+                         (0, self.en(19, 36)))
         self.assertEqual(por_id["silla"].liberadas, 1)
+        # El set BBQ del jueves abre a las 14:41: a las 14:00 no hay ninguno.
+        self.assertEqual((por_id["bbq"].liberadas, por_id["bbq"].proxima),
+                         (0, self.en(14, 41)))
         # A las 22:45 ya no queda nada por abrir en todo el día.
         self.assertEqual([f.premio.id for f in self.inv.resumen(self.en(22, 45)).premios
                           if f.proxima is not None], [])

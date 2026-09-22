@@ -305,8 +305,11 @@ por línea.
    gente gana no es un número fijo**: depende de qué piezas tenga abiertas el
    reloj en ese momento (§7). Sale consuelo, además, en cuatro casos claros:
    **fuera del horario** del evento (antes de las 12:00 y desde las 23:00), en
-   los **3 minutos siguientes a un premio**, cuando **todavía no se ha abierto**
+   **el minuto siguiente a un premio**, cuando **todavía no se ha abierto**
    ninguna pieza, y cuando ya **no queda ningún premio** disponible.
+   *(Eran **3 minutos** hasta el 2026-09-22; se bajó a **1** porque el lunes 21
+   seis de las 55 jugadas salieron de consuelo solo por esa regla, teniendo
+   premio abierto. Ficha **F-280**.)*
 6. **No salió boleto y el LED parpadea rápido.** Antes de imprimir, el programa
    le pregunta a la impresora si tiene papel y está en línea (por USB y por
    Bluetooth); si contesta que no, o si no logra abrirla, **el premio regresa al
@@ -537,18 +540,20 @@ primer minuto del día.)*
 
 ### Las probabilidades ya no son fijas: dependen de qué esté abierto
 
-No hay una tabla única. Con los siete premios del evento (pesos 1, 2, 2, 4, 4, 10
-y 11) y el consuelo en **10**, esto es lo que **calcula el programa** a distintas
-horas del **jueves 24**, suponiendo que **nadie ha ganado nada todavía**:
+No hay una tabla única. Con los premios del evento (pesos **100** los tres
+grandes desde el 2026-09-22, y 4, 4, 10 y 11 los chicos) y el consuelo en **10**,
+esto es lo que **calcula el programa** a distintas horas del **jueves 24**,
+suponiendo que **nadie ha ganado nada todavía**:
 
 | Hora | Qué está abierto | Gana | Consuelo |
 |---|---|---|---|
 | 11:30 | nada: el evento no ha abierto | **0 %** | 100 % |
 | 12:00 | nada: la primera pieza abre a las 12:30 | **0 %** | 100 % |
 | **12:30** | **1 agua (peso 11)** contra el consuelo (10) | **52.4 %** | 47.6 % |
-| 13:00 | agua, cerveza, silla y set BBQ | 71.4 % | 28.6 % |
-| 19:00 | los siete, con la hielera recién abierta | 77.3 % | 22.7 % |
-| 22:30 | ya sin silla ni set BBQ (su franja cerró a las 22:00) | 75.0 % | 25.0 % |
+| **13:17** | agua, cerveza y la **silla** recién abierta | **92.4 %** | 7.6 % |
+| **19:36** | agua, cerveza, los dos tacos, la silla de la noche y la **hielera** recién abierta | **95.8 %** | 4.2 % |
+| 22:30 | los chicos, el **set BBQ** de la noche y la hielera | 95.8 % | 4.2 % |
+| 22:50 | ya sin set BBQ (su franja cerró a las 22:47): los chicos y la hielera | 92.8 % | 7.2 % |
 | 23:30 | nada: el evento cerró | **0 %** | 100 % |
 
 *(Tabla **calculada por el programa**, no a mano: es lo que devuelve
@@ -557,7 +562,12 @@ de ahora, se ve sin imprimir con `python3 -m ruleta reporte`.)*
 
 Léelo así: **a las 12:30, con una sola agua abierta, gana poco más de la mitad de
 la gente que juegue en ese momento**; en cuanto esa agua sale, no hay nada abierto
-hasta las 12:33 y todo es consuelo. Los porcentajes altos de la tabla suponen que
+hasta las 12:33 y todo es consuelo. **Los porcentajes altos son de los premios
+grandes**: desde el 2026-09-22 llevan **peso 100**, así que en cuanto el reloj
+abre una silla, un set BBQ o la hielera, **esa pieza se lleva ≈ 42 % de las
+jugadas** aunque esté todo lo demás abierto, y **≈ 91 %** si está sola. Es lo que
+pidió el dueño después de que el lunes 21 no saliera **ninguna silla** en 55
+jugadas (ficha **F-280**). Los porcentajes altos de la tabla suponen que
 nadie ha ganado: en cuanto se llevan lo que está abierto, bajan a cero hasta la
 siguiente hora de apertura.
 
@@ -576,6 +586,14 @@ la separación reales):
 
 **Salga la gente que salga, se entrega el cupo del día casi completo.** Lo que
 cambia es cada cuántas jugadas toca premio.
+
+*(Nota fechada, **2026-09-22**: esta tabla se simuló el **2026-09-16** con la
+configuración de entonces —los grandes con **peso 2**, franjas en horas redondas
+y **3 minutos** de separación—, así que **sus porcentajes son de aquel reparto**.
+No se ha vuelto a simular: **el reloj sigue abriendo las mismas piezas al día**,
+que es la columna que importa, y lo que el peso 100 cambia es **quién se lleva la
+pieza abierta**. Del día real solo hay un dato medido: el lunes 21, con **55
+jugadas**, salieron **27 premios** —y los que faltaron fueron los grandes—.)*
 
 ### La hora tiene que estar bien (pieza D)
 
@@ -659,8 +677,9 @@ vigila ninguna prueba**, así que un cambio hecho solo ahí deja la suite en ver
 (ficha **F-260**).
 
 **Las fechas `desde`/`hasta` del §5.1 ya están cargadas** desde el 2026-09-16
-(ficha **F-259**, cerrada): la hielera del **24 al 25** y los otros seis del **21
-al 25**. Mientras no llegue el lunes 21, **ninguna jugada puede dar premio**:
+(ficha **F-259**, cerrada): la hielera del **24 al 25**, los otros seis del **21
+al 25**, y las dos entradas de reposición añadidas el 2026-09-22 —`silla_extra`
+del **22 al 23** y `bbq_extra` **solo el 22**— (ficha **F-281**). Mientras no llegue el lunes 21, **ninguna jugada puede dar premio**:
 todas salen de consuelo, y es lo correcto. Si aun así quieres abrir el lunes con
 el **folio en 00000**, detén el servicio, corre `python3 -m ruleta reiniciar --si`
 y vuelve a arrancarlo (ficha **F-262**). **Ojo con el orden:** los boletos de

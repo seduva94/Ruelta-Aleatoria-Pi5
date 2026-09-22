@@ -267,17 +267,32 @@ class TestCargar(unittest.TestCase):
         # (`len == 7` y `premios[2].stock == 1`, que era el TEST 3). La Fase 4b
         # cargó los siete premios reales del evento, así que ahora se anclan
         # CENSOS derivados de la tabla del §1 del documento del evento: los ids
-        # en su orden y las dos sumas que ese §1 declara («167 piezas, 33 al día
-        # más la hielera el jueves y el viernes» = 34 de tope diario sumado).
+        # en su orden y las dos sumas que ese §1 declara. Desde el 2026-09-22
+        # (día 2, paso 1) son NUEVE entradas y no siete: la silla y el set BBQ
+        # entran DOS veces cada uno —`silla_extra` y `bbq_extra`, con el mismo
+        # nombre en el boleto— para poder darles otra hora y otros días, que es
+        # lo único que `config.json` permite hoy (ficha F-281). Por eso la suma
+        # de stock pasa de 167 a 170 y la de tope_diario de 34 a 36: son piezas
+        # de contabilidad, no piezas en la bodega (siguen siendo 167).
         # La igualdad campo por campo contra el documento vive en
         # TestPremiosOficialesDelEvento.
-        self.assertEqual(len(cfg.premios), 7)
+        self.assertEqual(len(cfg.premios), 9)
         self.assertEqual([p.id for p in cfg.premios],
-                         ["hielera", "silla", "bbq", "tacos3", "tacos2", "cerveza", "agua"])
+                         ["hielera", "silla", "silla_extra", "bbq", "bbq_extra",
+                          "tacos3", "tacos2", "cerveza", "agua"])
         por_id = {p.id: p for p in cfg.premios}
         self.assertEqual((por_id["hielera"].stock, por_id["agua"].stock), (2, 55))
-        self.assertEqual(sum(p.stock for p in cfg.premios), 167)
-        self.assertEqual(sum(p.tope_diario for p in cfg.premios), 34)
+        self.assertEqual((por_id["silla_extra"].stock, por_id["bbq_extra"].stock), (2, 1))
+        self.assertEqual(sum(p.stock for p in cfg.premios), 170)
+        self.assertEqual(sum(p.tope_diario for p in cfg.premios), 36)
+        # Las dos entradas de apaño llevan el MISMO nombre visible que su premio
+        # principal: el cliente no debe notar el apaño en el papel.
+        self.assertEqual([p.nombre for p in cfg.premios if p.id.endswith("_extra")],
+                         ["SILLA DE PLAYA", "SET BBQ"])
+        self.assertEqual({p.id: p.peso for p in cfg.premios},
+                         {"hielera": 100, "silla": 100, "silla_extra": 100, "bbq": 100,
+                          "bbq_extra": 100, "tacos3": 4, "tacos2": 4, "cerveza": 10,
+                          "agua": 11})
         # Decisión del usuario del 2026-09-13, viéndolo en la demo: el boleto de
         # consuelo NO dice que los premios se agotaron. Se ancla por igualdad y no
         # por presencia porque el valor por omisión del código (ruleta/config.py)
@@ -289,12 +304,13 @@ class TestCargar(unittest.TestCase):
         # TestPremiosOficialesDelEvento.test_config_json_lleva_el_peso_de_consuelo_del_documento,
         # que lo DERIVA del §5.2 del documento del evento en vez de transcribirlo.
         self.assertGreater(cfg.juego.consuelo.peso, 0)
-        # Censo derivado de las franjas (Fase 4d): las cinco del §3 del documento
-        # del evento, y SOLO en los tres premios grandes. Los valores exactos los
-        # compara TestPremiosOficialesDelEvento contra el documento.
+        # Censo derivado de las franjas (Fase 4d): las SIETE del §3 del documento
+        # del evento —eran cinco hasta el 2026-09-22—, y SOLO en los premios
+        # grandes. Los valores exactos los compara TestPremiosOficialesDelEvento
+        # contra el documento.
         self.assertEqual({p.id: len(p.franjas) for p in cfg.premios if p.franjas},
-                         {"hielera": 1, "silla": 2, "bbq": 2})
-        self.assertEqual(sum(len(p.franjas) for p in cfg.premios), 5)
+                         {"hielera": 1, "silla": 2, "silla_extra": 1, "bbq": 2, "bbq_extra": 1})
+        self.assertEqual(sum(len(p.franjas) for p in cfg.premios), 7)
         self.assertIsNotNone(cfg.juego.horario)
         self.assertGreater(cfg.juego.separacion_min_entre_premios, 0)
         self.assertGreater(cfg.juego.espera_hora_seg, 0)
@@ -356,8 +372,9 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
     def premios_del_documento(self):
         """La lista `premios` del §5.1, parseada del documento, no transcrita."""
         premios = self.bloque_del_documento("premios")
-        self.assertEqual(len(premios), 7,
-                         "La tabla del §1 del documento del evento fija SIETE premios.")
+        self.assertEqual(len(premios), 9,
+                         "La tabla del §1 del documento del evento fija NUEVE entradas desde el "
+                         "2026-09-22: los siete premios más `silla_extra` y `bbq_extra`.")
         for i, p in enumerate(premios, start=1):
             faltan = sorted(set(CLAVES_OBLIGATORIAS) - set(p))
             self.assertEqual(faltan, [],
@@ -551,23 +568,27 @@ class TestPremiosOficialesDelEvento(unittest.TestCase):
         fechas = {p.id: (p.desde and p.desde.isoformat(), p.hasta and p.hasta.isoformat())
                   for p in cfg.premios}
         self.assertEqual(fechas, {
-            "hielera": ("2026-09-24", "2026-09-25"),
-            "silla":   ("2026-09-21", "2026-09-25"),
-            "bbq":     ("2026-09-21", "2026-09-25"),
-            "tacos3":  ("2026-09-21", "2026-09-25"),
-            "tacos2":  ("2026-09-21", "2026-09-25"),
-            "cerveza": ("2026-09-21", "2026-09-25"),
-            "agua":    ("2026-09-21", "2026-09-25"),
+            "hielera":     ("2026-09-24", "2026-09-25"),
+            "silla":       ("2026-09-21", "2026-09-25"),
+            "silla_extra": ("2026-09-22", "2026-09-23"),
+            "bbq":         ("2026-09-21", "2026-09-25"),
+            "bbq_extra":   ("2026-09-22", "2026-09-22"),
+            "tacos3":      ("2026-09-21", "2026-09-25"),
+            "tacos2":      ("2026-09-21", "2026-09-25"),
+            "cerveza":     ("2026-09-21", "2026-09-25"),
+            "agua":        ("2026-09-21", "2026-09-25"),
         }, "Las fechas de config.json ya no son las del evento (§1 y §5.1 del documento): "
-           "la hielera es del jueves 24 y el viernes 25; los otros seis, del 21 al 25.")
+           "la hielera es del jueves 24 y el viernes 25; los otros seis, del 21 al 25; y las "
+           "dos entradas de reposición del 2026-09-22, `silla_extra` el martes y el miércoles "
+           "y `bbq_extra` solo el martes.")
         # …y el documento las trae las siete veces: si dejara de traerlas, el
         # golden de arriba compararía la fecha contra None y también caería, pero
         # el mensaje no diría dónde está el hueco.
         incompletos = [p["id"] for p in self.premios_del_documento()
                        if not p.get("desde") or not p.get("hasta")]
         self.assertEqual(incompletos, [],
-                         "El §5.1 del documento del evento debe traer 'desde' y 'hasta' en los "
-                         "siete premios: son la fuente de la que sale config.json.")
+                         "El §5.1 del documento del evento debe traer 'desde' y 'hasta' en las "
+                         "nueve entradas: son la fuente de la que sale config.json.")
 
 
 if __name__ == "__main__":

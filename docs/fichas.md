@@ -6564,3 +6564,127 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   `docs/actas/2026-09-16-hechos-medidos-fase-4e.md` (medición 2, observación 2).
 
 ---
+## F-280 · El día 1 medido: 55 jugadas y los premios grandes se quedaron en la bodega
+
+- **Fecha:** 2026-09-22
+- **Origen:** día 2, paso 1 · lo medido al cerrar el **lunes 21**, leído del
+  `datos/estado.json` de la Pi y de la bitácora `boletos.csv`.
+- **Dónde:** `datos/estado.json` de la Pi (folio **55**) y
+  `docs/planes/dia2-paso1-config.md` §1.
+- **Qué pasa:** el primer día del evento se jugó **55 veces** y salieron **27
+  premios de los 33 posibles**. El reparto quedó así:
+
+  | Premio | Salieron | Cupo del día |
+  |---|---|---|
+  | AGUA FRESCA | **11** | 11 |
+  | CERVEZA | **8** | 10 |
+  | 3 TACOS DE PASTOR | **4** | 4 |
+  | 2 TACOS DE PASTOR | **3** | 4 |
+  | SET BBQ | **1** | 2 |
+  | SILLA DE PLAYA | **0** | 2 |
+
+  Es decir: **los chicos se entregaron casi enteros y los grandes no**. Tres
+  causas, las tres medidas:
+  1. **Casi nadie jugó dentro de sus franjas.** Entre **13:00 y 16:00** hubo
+     **9 jugadas** y entre **19:00 y 20:00**, **ninguna**. Las franjas de los
+     grandes eran justo esas.
+  2. **El peso 2 no compite.** Con el agua (11), la cerveza (10), los tacos
+     (4 + 4) y el consuelo (10) abiertos a la vez, una silla abierta salía en
+     **≈ 5 % de las jugadas**. Hacía falta que jugaran unas veinte personas
+     dentro de la franja para que tocara, y no las hubo.
+  3. **La separación de 3 minutos se comió 6 jugadas.** Seis boletos salieron de
+     consuelo **teniendo premio abierto**, solo porque no habían pasado los 3
+     minutos desde el anterior.
+- **Por qué es residual:** **no es un defecto de nada.** El programa hizo
+  exactamente lo que decía el documento del evento; lo que falló fue la
+  **calibración**, que se hizo sin saber cuánta gente iba a jugar. Queda como
+  ficha porque es **el dato con el que se calibró el día 2** y porque es la única
+  medición real del comportamiento del kiosco con público.
+- **Riesgo si no se toca:** con esos números, y sin cambiar nada, el evento
+  habría terminado el viernes con **8 sillas y 8 sets BBQ en la bodega** —los dos
+  premios más caros después de la hielera—, entregando los baratos completos.
+- **Propuesta:** es lo que hizo el **día 2, paso 1** (este cambio): separación a
+  **1 minuto**, los tres grandes a **peso 100**, franjas movidas a **horas
+  sueltas** repartidas por la tarde y la noche, y **reposición** de lo que no
+  salió. Plan: `docs/planes/dia2-paso1-config.md`.
+- **Estado:** **cerrada** el 2026-09-22 por el día 2, paso 1, en cuanto a la
+  calibración. Lo que **no** resuelve este paso es **forzar** la salida del
+  premio grande al cerrar su ventana: eso es el **paso 2**, que sí toca código.
+  Hermanas: **F-281** (las entradas de apaño) y **F-282** (los sobrantes de
+  cerveza y tacos).
+
+---
+
+## F-281 · `silla_extra` y `bbq_extra` son un apaño de `config.json`, y al quitarlos hay que descontar sus entregados
+
+- **Fecha:** 2026-09-22
+- **Origen:** día 2, paso 1 · decisión del orquestador al traducir el dictado del
+  usuario («reponer lo que no salió, con horas por día») a lo que `config.json`
+  sabe hacer hoy.
+- **Dónde:** `config.json`, entradas `silla_extra` y `bbq_extra`;
+  `docs/evento-2026-09-asadero-33.md` §1 y §5.1;
+  `docs/planes/dia2-paso1-config.md` §2.
+- **Qué pasa:** el usuario pidió **3 sillas y 3 sets el martes, 3 y 2 el
+  miércoles y 2 y 2 el jueves y el viernes**, y la hielera **a una hora el jueves
+  y a otra el viernes**. `config.json` **no sabe de días**: un premio tiene **un
+  solo juego de franjas** y **un solo `tope_diario`**, iguales los cinco días. El
+  apaño fue meter **la misma silla y el mismo set una segunda vez**, con el
+  **mismo nombre en el boleto** (`SILLA DE PLAYA`, `SET BBQ`) y con fechas
+  propias: `silla_extra` (martes y miércoles, franja 16:08–18:08) y `bbq_extra`
+  (solo el martes, franja 17:34–19:34). Al cliente le sale el mismo papel.
+
+  **Dos consecuencias que hay que tener escritas:**
+  1. **Los censos de stock ya no son piezas de bodega.** `config.json` suma
+     **170** de stock y **36** de tope diario, pero en la bodega hay **167**
+     piezas, de las que quedan **10 sillas** y **9 sets BBQ**. Lo que impide
+     repartir de más son las **fechas** y los **topes**, no el stock: la cuenta
+     está en el §1 del documento del evento y los goldens la anclan.
+  2. **`estado.json` cuenta los entregados POR ID.** Una silla ganada como
+     `silla_extra` **no descuenta** del stock de `silla`. **El día que se quiten
+     las entradas extra hay que restar sus `entregados` del `stock` del premio
+     principal a mano**, o el kiosco creerá que le quedan más sillas de las que
+     hay. Se mira con `grep silla_extra datos/estado.json` en la Pi.
+- **Por qué es residual:** **funciona y está probado** —golden
+  `test_el_reparto_del_dia_2_abre_las_piezas_a_sus_horas`, con ocho mutaciones en
+  rojo—, y era la única forma de cumplir el dictado **sin tocar código** a una
+  hora del evento. No es un defecto: es una deuda declarada.
+- **Riesgo si no se toca:** que alguien lea `config.json` dentro de un mes, vea
+  **dos sillas de playa** y crea que son premios distintos; o que las quite sin
+  descontar los entregados y el inventario quede inflado.
+- **Propuesta:** el **paso 2 del día 2**, que sí toca el programa, debe permitir
+  **franjas y topes por día** (algo como `dias` dentro de cada franja). Con eso,
+  las dos entradas extra se funden en su premio principal **restando sus
+  entregados del stock** y esta ficha se cierra.
+- **Estado:** **abierta** (deuda declarada, con fecha de caducidad: el paso 2).
+  Hermanas: **F-280** (por qué se hizo) y **F-260** (la tabla del §1 no la vigila
+  ninguna prueba).
+
+---
+
+## F-282 · Los sobrantes del lunes de cerveza (2) y de 2 tacos (1) NO se reponen
+
+- **Fecha:** 2026-09-22
+- **Origen:** día 2, paso 1 · decisión **del orquestador**, no del usuario.
+- **Dónde:** `config.json` (`cerveza` y `tacos2`, sin cambios) y
+  `docs/evento-2026-09-asadero-33.md` §1, «La cuenta de la bodega, rehecha
+  después del lunes».
+- **Qué pasa:** el lunes 21 sobraron **2 cervezas** (salieron 8 de 10) y **1
+  plato de 2 tacos** (salieron 3 de 4). Al usuario se le preguntó por la
+  reposición de **los grandes** y dictó una cuenta exacta —10 sillas y 9 sets
+  entre martes y viernes—, pero **no dijo nada de los chicos**. El orquestador
+  decidió **dejarlos en la bodega**: no se toca `tope_diario` ni el `stock` de la
+  cerveza ni de los tacos. En la práctica el evento terminará con **2 cervezas y
+  1 plato de tacos sin entregar**.
+- **Por qué es residual:** es una decisión de negocio **de tres piezas baratas**,
+  reversible en cualquier momento y **sin efecto sobre el programa**. Cambiarla
+  es subir un `tope_diario` un día concreto, que es exactamente lo que hoy
+  `config.json` **no** sabe hacer sin otra entrada de apaño (**F-281**).
+- **Riesgo si no se toca:** ninguno operativo. Solo que al cerrar el viernes la
+  cuenta de la bodega no dé cero por tres piezas, y alguien crea que se perdieron.
+- **Propuesta:** dejarlo así salvo que el usuario diga lo contrario. **Si lo dice**,
+  lo barato es **subir el cupo de la cerveza a 11 un día** (y el de `tacos2` a 5),
+  lo que hoy exige una entrada extra más; con el paso 2 será un renglón.
+- **Estado:** **abierta** (a decisión del usuario). Hermanas: **F-280** (el día 1
+  medido) y **F-281** (por qué no se puede hacer por día todavía).
+
+---

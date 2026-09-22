@@ -267,9 +267,11 @@ class TestBoletos(unittest.TestCase):
         self.assertEqual([l for l in lineas if len(l) > ancho], [])
         nuevas = [l for l in lineas if l.startswith("  hoy ")]
         self.assertEqual(nuevas, [
-            "  hoy 0 · liberadas 1 · sin más hoy",      # HIELERA IGLOO, franja de las 19:00
+            "  hoy 0 · liberadas 1 · sin más hoy",      # HIELERA IGLOO, su franja de las 19:36
             "  hoy 0 · liberadas 2 · sin más hoy",      # SILLA DE PLAYA, sus dos franjas
-            "  hoy 0 · liberadas 2 · sin más hoy",      # SET BBQ, igual
+            "  hoy 0 · liberadas 1 · sin más hoy",      # SILLA DE PLAYA (silla_extra), 16:08
+            "  hoy 0 · liberadas 1 · sig 20:47",        # SET BBQ, abierta la de 14:41
+            "  hoy 0 · liberadas 1 · sin más hoy",      # SET BBQ (bbq_extra), 17:34
             "  hoy 0 · liberadas 3 · sig 21:37",        # 3 TACOS DE PASTOR
             "  hoy 0 · liberadas 3 · sig 21:37",        # 2 TACOS DE PASTOR
             "  hoy 0 · liberadas 7 · sig 20:15",        # CERVEZA
