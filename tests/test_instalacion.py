@@ -508,11 +508,15 @@ class TestInventarioDeProduccion(unittest.TestCase):
         * **martes 19:25** ya está la silla de la noche (19:23) y sigue el
           `bbq_extra`; **martes 19:34** el `bbq_extra` cierra **en ese minuto**;
         * **martes 20:50** entra el `bbq` de la noche (20:47);
+        * **martes 21:05** entra `silla_extra2` (21:00), la **cuarta silla del
+          martes** que el usuario ordenó esa noche («eran 4»), forzada hasta el
+          cierre y detrás de la silla y el set que ya estaban abiertos (ficha
+          **F-288**);
         * **miércoles 13:12** la silla abre a las **13:09**, que es una hora que
           el martes no existe: es el instante que separa un día de otro;
         * **jueves 17:40** —la MISMA hora del martes a la que salen las dos
           entradas de reposición— no hay **ninguna de las dos**: el jueves están
-          fuera de fechas (`silla_extra` acaba el 23 y `bbq_extra` el 22);
+          fuera de fechas (`silla_extra`, `silla_extra2` y `bbq_extra` acaban el 22);
         * **jueves 19:40** la hielera (19:36) y la silla del jueves (19:11), que
           el martes abría a las 19:23;
         * **jueves 22:52** el `bbq` de la noche cierra **en ese minuto** y la
@@ -522,7 +526,8 @@ class TestInventarioDeProduccion(unittest.TestCase):
 
         Y se ancla **por igualdad** la tómbola del peso 100 (decisión del usuario
         del 2026-09-22 por la mañana): con todo lo del martes abierto a la vez,
-        cada premio grande se lleva **41.84 %** de las jugadas. Esa tabla sigue
+        cada premio grande se lleva **29.50 %** de las jugadas desde que a las
+        21:00 se suma `silla_extra2` (eran **41.84 %** con dos). Esa tabla sigue
         siendo la de la tómbola, pero desde el paso 2 **ya no decide** cuando hay
         una pieza forzada abierta: entonces manda `forzados_abiertos`, y por eso
         se ancla también ahí (ficha **F-285**).
@@ -545,7 +550,7 @@ class TestInventarioDeProduccion(unittest.TestCase):
             self.assertEqual((inventario.folio_actual, inventario.entregados("bbq"),
                               inventario.entregados("silla")), (55, 1, 0))
             instantes = ((22, 13, 20), (22, 16, 10), (22, 17, 40), (22, 19, 25),
-                         (22, 19, 34), (22, 20, 50), (23, 13, 12), (24, 17, 40),
+                         (22, 19, 34), (22, 20, 50), (22, 21, 5), (23, 13, 12), (24, 17, 40),
                          (24, 19, 40), (24, 22, 52), (25, 20, 6))
             abierto = {
                 f"{d}-{h:02d}:{mi:02d}":
@@ -568,6 +573,7 @@ class TestInventarioDeProduccion(unittest.TestCase):
             "22-19:25": ["silla", "bbq_extra", "tacos3", "tacos2", "cerveza", "agua"],
             "22-19:34": ["silla", "tacos3", "tacos2", "cerveza", "agua"],
             "22-20:50": ["silla", "bbq", "tacos3", "tacos2", "cerveza", "agua"],
+            "22-21:05": ["silla", "silla_extra2", "bbq", "tacos3", "tacos2", "cerveza", "agua"],
             "23-13:12": ["silla", "cerveza", "agua"],
             "24-17:40": ["tacos3", "tacos2", "cerveza", "agua"],
             "24-19:40": ["hielera", "silla", "tacos3", "tacos2", "cerveza", "agua"],
@@ -583,6 +589,7 @@ class TestInventarioDeProduccion(unittest.TestCase):
             "22-19:25": ["bbq_extra", "silla"],
             "22-19:34": ["silla"],
             "22-20:50": ["silla", "bbq"],
+            "22-21:05": ["silla", "bbq", "silla_extra2"],
             "23-13:12": ["silla"],
             "24-17:40": [],
             "24-19:40": ["silla", "hielera"],
@@ -590,11 +597,11 @@ class TestInventarioDeProduccion(unittest.TestCase):
             "25-20:06": ["silla", "hielera"],
         })
         self.assertEqual(probabilidades, {
-            "silla": 41.84, "bbq": 41.84, "tacos3": 1.67, "tacos2": 1.67,
-            "cerveza": 4.18, "agua": 4.6, "consuelo": 4.18,
+            "silla": 29.5, "silla_extra2": 29.5, "bbq": 29.5, "tacos3": 1.18,
+            "tacos2": 1.18, "cerveza": 2.95, "agua": 3.24, "consuelo": 2.95,
         })
         # …y aun con esas probabilidades, el martes a las 21:00 la jugada se
-        # lleva la silla seguro: hay dos piezas forzadas abiertas y manda la
+        # lleva la silla seguro: hay tres piezas forzadas abiertas y manda la
         # primera. La tabla de arriba describe la tómbola, no el resultado.
         self.assertEqual(manda_el_forzado.id, "silla")
 

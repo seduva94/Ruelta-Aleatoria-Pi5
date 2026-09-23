@@ -279,6 +279,7 @@ class TestBoletos(unittest.TestCase):
             "  hoy 0 · liberadas 0 · sin más hoy",      # HIELERA IGLOO: el martes no tiene franja
             "  hoy 0 · liberadas 2 · sin más hoy",      # SILLA DE PLAYA, 13:17 y 19:23
             "  hoy 0 · liberadas 1 · sin más hoy",      # SILLA DE PLAYA (silla_extra), 16:08
+            "  hoy 0 · liberadas 0 · sig 21:00",        # SILLA DE PLAYA (silla_extra2), la cuarta
             "  hoy 0 · liberadas 1 · sig 20:47",        # SET BBQ, abierta la de 14:41
             "  hoy 0 · liberadas 1 · sin más hoy",      # SET BBQ (bbq_extra), 17:34
             "  hoy 0 · liberadas 3 · sig 21:37",        # 3 TACOS DE PASTOR
@@ -304,15 +305,18 @@ class TestBoletos(unittest.TestCase):
         self.assertEqual([l for l in lineas if ticket.MARCA_FORZADO in l], [
             "HIELERA IGLOO *forzado        2/2     0/1     --",
             "SILLA DE PLAYA *forzado     10/10     0/2  71.9%",
-            "SILLA DE PLAYA *forzado       2/2     0/1     --",
+            "SILLA DE PLAYA *forzado       1/1     0/1     --",
+            "SILLA DE PLAYA *forzado       1/1     0/1     --",
             "SET BBQ *forzado            10/10     0/2     --",
             "SET BBQ *forzado              1/1     0/1     --",
         ])
         self.assertEqual([l for l in lineas if l.startswith("* forzado")],
                          [ticket.LEYENDA_FORZADO])
-        # Los cinco nombres caben enteros: ni uno acabó en punto de recorte.
+        # Los seis nombres caben enteros: ni uno acabó en punto de recorte.
+        # Eran cinco hasta la noche del 2026-09-22, cuando entró `silla_extra2`
+        # (ficha F-288).
         forzados = [p.nombre for p in cfg.premios if p.forzado]
-        self.assertEqual(len(forzados), 5)
+        self.assertEqual(len(forzados), 6)
         for nombre in forzados:
             self.assertTrue(any(l.startswith(nombre + ticket.MARCA_FORZADO) for l in lineas),
                             f"{nombre!r} no aparece entero con su señal")
@@ -354,6 +358,7 @@ class TestBoletos(unittest.TestCase):
         lineas = [papel.rstrip() for _, papel, _ in lineas_vista(datos, 32)]
         self.assertEqual([l for l in lineas if len(l) > 32],
                          ["  > no disponible: franjas de hoy cerradas",
+                          "  > no disponible: su franja abre a las 21:00",
                           "  > no disponible: su franja abre a las 20:47",
                           "  > no disponible: franjas de hoy cerradas"])
         # Las filas de premio, que son las que llevan la señal, caben todas.

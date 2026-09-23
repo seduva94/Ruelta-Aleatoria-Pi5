@@ -6888,3 +6888,43 @@ alguien las resuelve, anotando en qué fase y con qué cambio.
   pendiente).
 
 ---
+
+## F-288 · Cuarta silla del martes 22, forzada desde las 21:00, aplicada en caliente en la Pi antes que en el repositorio
+
+- **Fecha:** 2026-09-22, ~21:20 (hora de la Pi), con el evento abierto.
+- **Origen:** orden directa del usuario: «agrega una silla más, me equivoqué yo
+  y eran 4; agrégala al inventario y fuérzala a que salga en la próxima
+  jugada». Decisión del orquestador: el total del evento sigue en **10 sillas**,
+  así que la cuarta del martes **se descuenta del miércoles** (de 3 a 2).
+- **Dónde:** `config.json` —nueva entrada `silla_extra2` (SILLA DE PLAYA,
+  Premio grande, stock 1, tope 1, peso 100, forzada, franja 21:00–23:00 solo el
+  2026-09-22) justo después de `silla_extra`, que baja de stock 2 a 1, pierde
+  la franja del 2026-09-23 (16:21–18:21) y pasa a `hasta` 2026-09-22—; el §1,
+  §2, §3, §5.1 y §7 de `docs/evento-2026-09-asadero-33.md`; y los goldens de
+  `tests/test_config.py`, `tests/test_inventario.py`,
+  `tests/test_instalacion.py` y `tests/test_ticket.py`.
+- **Qué pasó, en orden:** (1) en la Pi, con `config.json` respaldado en
+  `/tmp/config-antes-silla4.json` y `datos/estado.json` en
+  `/tmp/estado-antes-silla4.json`, se editó `config.json` **en caliente**, se
+  validó con `config.cargar` y se reinició el servicio a las **21:21:03**
+  (`NRestarts=0`, «Inventario impreso (arranque). Folio actual 00104», «Lista.
+  Esperando jugadas.»); `estado.json` quedó **intacto** y el programa, sobre una
+  copia del estado, listó a las 21:21:32 como abiertos `silla_extra2` y
+  `cerveza`, y como forzado **`silla_extra2`**; (2) después se aplicó el mismo
+  cambio en el repositorio, con la suite en verde, y la Pi se alineó con el
+  commit por `git pull` **sin volver a reiniciar**.
+- **Desviación de proceso:** por urgencia —el evento cerraba a las 23:00— el
+  cambio **no pasó por lentes ni por el escéptico**, por orden del orquestador,
+  y se tocó la Pi **antes** que el repositorio. Los goldens nuevos se probaron
+  con **cuatro** mutaciones de `config.json` (forzado en falso, franja a las
+  21:30, stock de `silla_extra` de vuelta a 2 y `hasta` de `silla_extra2` al
+  23), las cuatro en rojo; el protocolo pide al menos seis.
+- **Riesgo si no se toca:** bajo. `estado.json` cuenta por id y `silla_extra2`
+  es nueva, así que no descuenta nada de lo entregado. Lo que queda es de
+  proceso: el cambio no tuvo revisión independiente.
+- **Propuesta:** una revisión de solo lectura del commit cuando acabe la noche;
+  `silla_extra2` se retira junto con `silla_extra` y `bbq_extra` al cerrar el
+  viernes (fichas **F-281** y **F-284**).
+- **Estado:** **abierta** (falta la revisión independiente).
+
+---

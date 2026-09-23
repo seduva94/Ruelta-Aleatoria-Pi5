@@ -107,14 +107,15 @@ los minutos exactos los repartí yo. Ver la nota fechada de más abajo.
 |---|---|---|---|---|---|---|---|
 | `hielera` | **HIELERA IGLOO** | Premio mayor | mayor | **2** | **1** | **jue 24 y vie 25** | **19:36** el jueves y **20:04** el viernes, **hasta el cierre** |
 | `silla` | **SILLA DE PLAYA** | Premio grande | grande | **10** | **2** | **mar 22 a vie 25** | **dos horas distintas cada día** (tabla de abajo), 2 h cada una |
-| `silla_extra` | **SILLA DE PLAYA** | Premio grande | grande | **2** | **1** | **mar 22 y mié 23** | 16:08 el martes y 16:21 el miércoles, 2 h |
+| `silla_extra` | **SILLA DE PLAYA** | Premio grande | grande | **1** | **1** | **mar 22** | 16:08 el martes, 2 h *(hasta la noche del 22 también el miércoles a las 16:21; ver la nota de las 21:20)* |
+| `silla_extra2` | **SILLA DE PLAYA** | Premio grande | grande | **1** | **1** | **mar 22** | **21:00 hasta el cierre**, forzada: la **cuarta silla del martes** (nota de las 21:20) |
 | `bbq` | **SET BBQ** | Premio grande | grande | **10** | **2** | **mar 22 a vie 25** | **dos horas distintas cada día** (tabla de abajo), 2 h cada una |
 | `bbq_extra` | **SET BBQ** | Premio grande | grande | **1** | **1** | **mar 22** | 17:34, 2 h |
 | `tacos3` | **3 TACOS DE PASTOR** | Plato de 3 tacos de pastor | chico | **20** | **4** | **los 5 días** | **todo el día**, repartidos parejo |
 | `tacos2` | **2 TACOS DE PASTOR** | Plato de 2 tacos de pastor | chico | **20** | **4** | **los 5 días** | **todo el día**, repartidos parejo |
 | `cerveza` | **CERVEZA** | Tecate Light, Tecate Roja o Indio | chico | **50** | **10** | **los 5 días** | **todo el día**, repartidas parejo |
 | `agua` | **AGUA FRESCA** | Horchata, Jamaica o Cebada | chico | **55** | **11** | **los 5 días** | **todo el día**, repartidas parejo |
-| **Totales** | | | | **170** (ver la nota) | **35** el martes 22 · **34** el miércoles, el jueves y el viernes (el **lunes 21** fueron **33**) | | |
+| **Totales** | | | | **170** (ver la nota) | **36** el martes 22 · **33** el miércoles · **34** el jueves y el viernes (el **lunes 21** fueron **33**) | | |
 
 **`silla_extra` y `bbq_extra` NO son premios nuevos.** Son **la misma silla y el
 mismo set BBQ** —mismo nombre en el boleto, mismo detalle— metidos una segunda
@@ -175,11 +176,14 @@ tuyo.)*
 
 | Día | Sillas abren a las | Sets BBQ abren a las | Hielera |
 |---|---|---|---|
-| **martes 22** | **13:17** · **16:08** · **19:23** | **14:41** · **17:34** · **20:47** | — |
-| **miércoles 23** | **13:09** · **16:21** · **19:38** | **14:52** · **20:19** | — |
+| **martes 22** | **13:17** · **16:08** · **19:23** · **21:00**, hasta el cierre | **14:41** · **17:34** · **20:47** | — |
+| **miércoles 23** | **13:09** · **19:38** | **14:52** · **20:19** | — |
 | **jueves 24** | **13:26** · **19:11** | **14:37** · **20:52** | **19:36**, hasta el cierre |
 | **viernes 25** | **13:04** · **19:31** | **14:58** · **21:06**, hasta el cierre | **20:04**, hasta el cierre |
 | **Total** | **10** | **9** | **2** |
+
+*(La silla de las **21:00** del martes y la baja de la del miércoles de las
+**16:21** son de la **noche del 22**: nota de las 21:20, arriba. Ficha **F-288**.)*
 
 **Y salen FORZADAS**: en cuanto el reloj abre una silla, un set BBQ o la hielera,
 **la siguiente jugada se la lleva**, sin sorteo. No hay que esperar a que alguien
@@ -190,6 +194,29 @@ tenga suerte. Está explicado en llano en el §3.
 podrían salir. Da igual —el lunes ya pasó—, y se deja así para no tocar fechas
 que ya no afectan a nada.
 
+### Nota fechada · 2026-09-22, 21:20 · la cuarta silla del martes
+
+**Orden tuya, con el evento abierto:** «agrega una silla más, me equivoqué yo y
+eran 4; agrégala al inventario y fuérzala a que salga en la próxima jugada». El
+martes 22 **da cuatro sillas y no tres**. Como el total del evento **sigue
+siendo 10 sillas**, la cuarta del martes **se descuenta del miércoles**, que
+baja de **3 a 2** (decisión del orquestador; la puedes cambiar):
+
+| Día | Sillas (antes → ahora) |
+|---|---|
+| **martes 22** | 3 → **4** |
+| **miércoles 23** | 3 → **2** |
+| **jueves 24** | **2** |
+| **viernes 25** | **2** |
+| **Total** | **10** |
+
+Cómo quedó cargado: una **entrada de apaño más**, `silla_extra2` —mismo nombre y
+detalle en el boleto, **forzada**, de **21:00 a 23:00** del martes—, y
+`silla_extra` pierde la franja del miércoles (**16:21**) y baja de stock **2 a
+1**. Se aplicó **primero en caliente en la Pi** (reinicio del servicio a las
+**21:21**, con `estado.json` intacto y folio **00104**) y **después en el
+repositorio**. Ficha **F-288**.
+
 ### La cuenta de la bodega, rehecha después del lunes
 
 Rehecha el **2026-09-22** con lo que quedó después del lunes. La cuenta de los
@@ -199,16 +226,17 @@ y el set que no salieron **se reponen** en los cuatro días que quedan.
 | Premio | Lo que queda | Cupo × días que quedan | ¿Cabe? |
 |---|---|---|---|
 | `hielera` | 2 | 1 × 2 días (jue y vie) = **2** | sí, exacto |
-| `silla` + `silla_extra` | 10 | 2 × 4 días + 1 × 2 días = **10** | sí, exacto |
+| `silla` + `silla_extra` + `silla_extra2` | 10 | 2 × 4 días + 1 + 1 (las dos del martes) = **10** | sí, exacto |
 | `bbq` + `bbq_extra` | 9 (salió 1 el lunes) | 2 × 4 días + 1 × 1 día = **9** | sí, exacto |
 | `tacos3` | 16 (salieron 4) | 4 × 4 días = **16** | sí, exacto |
 | `tacos2` | 17 (salieron 3) | 4 × 4 días = **16** | sobra **1** |
 | `cerveza` | 42 (salieron 8) | 10 × 4 días = **40** | sobran **2** |
 | `agua` | 44 (salieron 11) | 11 × 4 días = **44** | sí, exacto |
 
-Por día: **6 premios grandes el martes** (3 sillas + 3 sets), **5 el miércoles**
-(3 + 2) y **4** el jueves y el viernes (2 + 2), más **29 chicos** (4 + 4 + 10 +
-11) todos los días y **1 hielera** el jueves y el viernes.
+Por día: **7 premios grandes el martes** (4 sillas + 3 sets), **4 el miércoles**
+(2 + 2) y **4** el jueves y el viernes (2 + 2), más **29 chicos** (4 + 4 + 10 +
+11) todos los días y **1 hielera** el jueves y el viernes. *(Hasta las 21:20 del
+martes decía 6 el martes (3 + 3) y 5 el miércoles (3 + 2); ficha **F-288**.)*
 
 **Lo que sobró el lunes de cerveza (2) y de 2 tacos (1) NO se repone**: se queda
 en la bodega. Es decisión del orquestador, y la puedes cambiar (ficha **F-282**).
@@ -265,7 +293,8 @@ cerrar; los que **sí** tienen franja se abren **al empezar la franja**:
 | **3 TACOS DE PASTOR** | 4 | 13:22 · 16:07 · 18:52 · 21:37 |
 | **2 TACOS DE PASTOR** | 4 | 13:22 · 16:07 · 18:52 · 21:37 |
 | **SILLA DE PLAYA** (`silla`) | 2 | **distintas cada día** → tabla del §3 |
-| **SILLA DE PLAYA** (`silla_extra`) | 1 (mar y mié) | **16:08** el martes · **16:21** el miércoles |
+| **SILLA DE PLAYA** (`silla_extra`) | 1 (solo el mar) | **16:08** |
+| **SILLA DE PLAYA** (`silla_extra2`) | 1 (solo el mar) | **21:00**, hasta el cierre |
 | **SET BBQ** (`bbq`) | 2 | **distintas cada día** → tabla del §3 |
 | **SET BBQ** (`bbq_extra`) | 1 (solo el mar) | **17:34** |
 | **HIELERA IGLOO** | 1 (jue y vie) | **19:36** el jueves · **20:04** el viernes |
@@ -391,7 +420,8 @@ para darle a **cada día las suyas**. Esta es la tabla que rige:
 | SILLA DE PLAYA (`silla`) | **mié 23** | **13:09 – 15:09** · **19:38 – 21:38** | 1 en cada una |
 | SILLA DE PLAYA (`silla`) | **jue 24** | **13:26 – 15:26** · **19:11 – 21:11** | 1 en cada una |
 | SILLA DE PLAYA (`silla`) | **vie 25** | **13:04 – 15:04** · **19:31 – 21:31** | 1 en cada una |
-| SILLA DE PLAYA (`silla_extra`) | **mar 22** · **mié 23** | **16:08 – 18:08** · **16:21 – 18:21** | 1 |
+| SILLA DE PLAYA (`silla_extra`) | **mar 22** | **16:08 – 18:08** | 1 |
+| SILLA DE PLAYA (`silla_extra2`) | **mar 22** | **21:00 – 23:00** | 1 |
 | SET BBQ (`bbq`) | **mar 22** | **14:41 – 16:41** · **20:47 – 22:47** | 1 en cada una |
 | SET BBQ (`bbq`) | **mié 23** | **14:52 – 16:52** · **20:19 – 22:19** | 1 en cada una |
 | SET BBQ (`bbq`) | **jue 24** | **14:37 – 16:37** · **20:52 – 22:52** | 1 en cada una |
@@ -471,7 +501,12 @@ martes (el set de reposición, 2 sillas y 2 sets), **4** el miércoles y **5** e
 jueves y el viernes (2 sillas, 2 sets y la hielera). Lo que corta el día siguen
 siendo los `tope_diario`, pero con las entradas de reposición el tope del día ya
 no es cuatro: son **6** grandes el martes, **5** el miércoles y **5** el jueves y
-el viernes contando la hielera. Ficha **F-269**.
+el viernes contando la hielera. Ficha **F-269**. *(Nota fechada, noche del
+2026-09-22: con la cuarta silla del martes, `silla_extra2` de 21:00 al cierre,
+el martes sin premios antes de las 19:00 da **6** grandes —medido con el
+programa: set de reposición, 2 sillas, 2 sets y la cuarta silla— y el miércoles
+sigue en **4**; el tope del día pasa a **7** el martes y **4** el miércoles.
+Ficha **F-288**.)*
 
 **Y ahora salen en boletos SEGUIDOS**, porque el forzado se salta el minuto de
 separación: medido el jueves a las **19:40**, con nadie habiendo jugado desde el
@@ -616,9 +651,10 @@ explicada en el §5.2 **E**.)*
                  { "desde_hora": "19:11", "hasta_hora": "21:11", "tope": 1, "dias": ["2026-09-24"] },
                  { "desde_hora": "13:04", "hasta_hora": "15:04", "tope": 1, "dias": ["2026-09-25"] },
                  { "desde_hora": "19:31", "hasta_hora": "21:31", "tope": 1, "dias": ["2026-09-25"] } ] },
-  { "id": "silla_extra", "nombre": "SILLA DE PLAYA",    "detalle": "Premio grande",                     "stock": 2,  "tope_diario": 1,  "peso": 100, "desde": "2026-09-22", "hasta": "2026-09-23", "forzado": true,
-    "franjas": [ { "desde_hora": "16:08", "hasta_hora": "18:08", "tope": 1, "dias": ["2026-09-22"] },
-                 { "desde_hora": "16:21", "hasta_hora": "18:21", "tope": 1, "dias": ["2026-09-23"] } ] },
+  { "id": "silla_extra", "nombre": "SILLA DE PLAYA",    "detalle": "Premio grande",                     "stock": 1,  "tope_diario": 1,  "peso": 100, "desde": "2026-09-22", "hasta": "2026-09-22", "forzado": true,
+    "franjas": [ { "desde_hora": "16:08", "hasta_hora": "18:08", "tope": 1, "dias": ["2026-09-22"] } ] },
+  { "id": "silla_extra2", "nombre": "SILLA DE PLAYA",   "detalle": "Premio grande",                     "stock": 1,  "tope_diario": 1,  "peso": 100, "desde": "2026-09-22", "hasta": "2026-09-22", "forzado": true,
+    "franjas": [ { "desde_hora": "21:00", "hasta_hora": "23:00", "tope": 1, "dias": ["2026-09-22"] } ] },
   { "id": "bbq",         "nombre": "SET BBQ",           "detalle": "Premio grande",                     "stock": 10, "tope_diario": 2,  "peso": 100, "desde": "2026-09-21", "hasta": "2026-09-25", "forzado": true,
     "franjas": [ { "desde_hora": "14:41", "hasta_hora": "16:41", "tope": 1, "dias": ["2026-09-22"] },
                  { "desde_hora": "20:47", "hasta_hora": "22:47", "tope": 1, "dias": ["2026-09-22"] },
@@ -902,4 +938,5 @@ hora, el próximo juego se la saca».
 | 2026-09-21 | Claude (escriba), apertura del evento | **Solo esta línea de bitácora: no se tocó ninguna tabla, ningún cupo, ninguna probabilidad ni ninguna pregunta del §4.** (1) **La red del restaurante ya está en la Pi.** A las ~08:20 del lunes 21, en el asadero, levantaste el punto de acceso de tu laptop, entraste por SSH y **tecleaste tú la contraseña**: quedó el perfil `asadero` apuntando al Wi-Fi **`INFINITUM04F0_2.4`** con **prioridad 30**, por encima de `casa` (20) y `miltimex` (10). Un agente de solo lectura lo comprobó a las **08:26**: internet OK y `timedatectl` → **`synchronized yes`**. Fichas **F-275** y **F-278**, cerradas. (2) **La prueba de corriente, hecha allá y con el peor caso posible.** La Pi encendió creyendo que era el **16 de septiembre a las 15:46** —unos 4 días y 17 horas atrasada—, **no imprimió nada durante 28 segundos**, agarró la hora por el internet del asadero y sacó el boleto de inventario a las **08:22:21**, con **folio `00000`** y **sin** la línea `HORA SIN CONFIRMAR`. (3) **Y lo confirmaste en papel:** «**sí, el boleto dice 21/09/2026 08:22**». Es la primera vez que esa fecha se lee en papel después de un arranque en frío en el sitio real. (4) **La duda que dejaba este documento queda respondida.** El §5.1 decía que esos 28 s se habían medido en la red de casa y que **la del asadero podía tardar distinto**: tardó **lo mismo, 28 s**, así que los **300 segundos** de espera siguen siendo margen de sobra. (5) **Dos avisos honestos, los de siempre:** el tope de **300 s nunca se ha agotado** en la Pi y la línea `HORA SIN CONFIRMAR: revisar fecha` **sigue sin imprimirse nunca en papel**. Lo que sí dejó de ser teoría son **los avisos de los 10 segundos** del registro, vistos **por primera vez en hardware** esa mañana. (6) **Lo que queda es decisión tuya, y no impide abrir:** **asegurar o soldar el pulsador HABILITAR** (**F-239**) y **la señal cuando una jugada se rechaza**, que hoy no se percibe porque no hay LED (**F-256**). (7) **Aviso nuevo para el evento:** tras un arranque en frío el registro queda con **dos fechas distintas** y `systemctl status` dice que el servicio arrancó el día viejo; **no es avería** (ficha **F-279**). (8) **De ti sigue sin respuesta solo la pregunta 7** del §4 (factor de holgura), que con el reparto por horas casi no aplica. **Este documento no cubre la apertura misma:** lo medido llega hasta las **08:35**. Acta: `docs/actas/2026-09-21-apertura.md`; hechos en crudo: `docs/actas/2026-09-16-hechos-medidos-fase-4e.md`, sección «En el asadero · 2026-09-21». |
 | 2026-09-22 | Claude (ejecutor), día 2 · paso 1 | **Esta vez SÍ cambiaron tablas, y con tu permiso: «así va».** (1) **Lo que pasó el lunes 21, medido:** **55 jugadas** y **27 premios**; **agua 11 de 11**, **cerveza 8 de 10**, **3 tacos 4 de 4**, **2 tacos 3 de 4**, **set BBQ 1 de 2** y **silla 0 de 2**. Los grandes se quedaron en la bodega por dos razones medidas: **casi nadie jugó en sus franjas** (9 jugadas entre 13:00 y 16:00; **ninguna** entre 19:00 y 20:00) y **con peso 2 salían en ≈ 5 % de las jugadas**, porque competían contra el agua (11), la cerveza (10), los tacos (4 + 4) y el consuelo (10); además **6 jugadas** salieron de consuelo solo por la separación de 3 minutos. Ficha **F-280**. (2) **La separación entre premios baja de 3 minutos a 1** (§2, regla 4). (3) **La silla, el set BBQ y la hielera pasan a peso 100** (§2 y §3): en cuanto el reloj abre uno, se lleva **≈ 42 %** de las jugadas con todo lo demás abierto y **≈ 91 %** si está solo. (4) **Las franjas se mueven a horas sueltas y repartidas** (§1 y §3): silla **13:17** y **19:23**, set BBQ **14:41** y **20:47**, hielera **19:36**; cada pieza dura **dos horas**, menos la de la hielera, que llega **hasta el cierre** (**19:36–23:00**). (5) **Se repone lo que no salió el lunes**: entre martes y viernes pueden salir **10 sillas** y **9 sets BBQ** —martes 3 y 3, miércoles 3 y 2, jueves y viernes 2 y 2—. Para conseguirlo, y porque `config.json` **solo admite un juego de franjas y un cupo diario por premio**, se añaden **dos entradas de apaño** con el **mismo nombre en el boleto**: `silla_extra` (mar y mié, 16:08) y `bbq_extra` (solo el mar, 17:34). Ficha **F-281**. (6) **Lo que este paso NO puede hacer, y llega en el paso 2** (que sí toca el programa): **horas distintas por día**. Hoy rigen **las del martes los cuatro días**, y la hielera queda a las **19:36 el jueves y el viernes**, cuando lo suyo sería una hora distinta cada día: **19:36** y **20:04**, dos horas que **propuse yo**, no tú. (7) **Lo que sobró el lunes de cerveza (2) y de 2 tacos (1) NO se repone**: decisión del orquestador, la puedes cambiar (ficha **F-282**). (8) **Lo que NO cambió:** nombres, detalles, textos del boleto, stocks de los chicos, cupos de los chicos, horario 12:00–23:00, `espera_hora_seg` y las fechas `desde`/`hasta` de los siete premios de siempre. Plan: `docs/planes/dia2-paso1-config.md`. |
 | 2026-09-22 (tarde) | Claude (ejecutor), día 2 · paso 2 | **Cambiaron las tablas de horas del §1 y del §3, con tu dictado de esta tarde, y esta vez SÍ se tocó el programa.** (1) **Cada día tiene sus horas.** El programa aprendió la llave **`dias` dentro de cada franja**, así que se acabó lo de que las horas del martes rigieran los cuatro días (era el límite escrito del paso 1). Quedan cargadas las que dictaste: sillas **13:17 · 16:08 · 19:23** el martes, **13:09 · 16:21 · 19:38** el miércoles, **13:26 · 19:11** el jueves y **13:04 · 19:31** el viernes; sets BBQ **14:41 · 17:34 · 20:47**, **14:52 · 20:19**, **14:37 · 20:52** y **14:58 · 21:06**; y la **hielera** a las **19:36** el jueves y a las **20:04** el viernes, las dos hasta el cierre. Siguen siendo **10 sillas y 9 sets** entre martes y viernes. Los minutos exactos los repartí yo; el reparto por días es tuyo. (2) **La silla, el set BBQ y la hielera salen FORZADOS**, que es tu «después de tal hora, el próximo juego se la saca»: **la siguiente jugada se lleva la pieza abierta, sin sorteo**. Se explica en llano en el §3 y en el §5.2 **E**, que es una **pieza nueva** del programa, la quinta. (3) **El forzado se salta el minuto de separación** (§2, regla 4), porque lo que pediste es la *siguiente* jugada. **Consecuencia medida:** si hay dos o tres piezas grandes abiertas y nadie ha jugado, **salen en boletos seguidos** —el jueves a las 19:40: silla, silla y hielera—. Ficha **F-283**. (4) **Dónde se ve:** el boleto de inventario marca esos premios con **`*forzado`** y una leyenda al pie, y el registro deja una línea por boleto; en el **papel del cliente no se nota nada**. (5) **La columna PROB del inventario sigue siendo la de la tómbola**, así que para un premio forzado y abierto **no dice la verdad del resultado**: manda el forzado. Ficha **F-285**. (6) **Las entradas `silla_extra` y `bbq_extra` SE QUEDAN** aunque ya no hagan falta para las horas por día: `estado.json` cuenta **por id** y quitarlas con premios ya entregados descontaría mal. Se retiran al cerrar el viernes (fichas **F-281** y **F-284**). (7) **Lo que NO cambió:** nombres, detalles, stocks, cupos, pesos, horario 12:00–23:00, `espera_hora_seg`, peso del consuelo y las fechas `desde`/`hasta`. Plan: `docs/planes/dia2-paso2-forzado.md`. |
+| 2026-09-22 (noche, 21:20) | Claude (ejecutor), orden urgente del usuario | **Cambiaron las tablas de sillas del §1, del §2 y del §3, por orden tuya con el evento abierto:** «agrega una silla más, me equivoqué yo y eran 4; agrégala al inventario y fuérzala a que salga en la próxima jugada». (1) **El martes 22 da cuatro sillas y no tres**: entra `silla_extra2` —mismo nombre y detalle en el boleto, **forzada**, de **21:00 a 23:00** del martes—. (2) **El total del evento sigue en 10 sillas**, así que la cuarta del martes **se descuenta del miércoles**, que baja de **3 a 2**: `silla_extra` pierde la franja del miércoles (16:21) y baja de stock 2 a 1 (decisión del orquestador; la puedes cambiar). (3) **Se aplicó primero en caliente en la Pi** —servicio reiniciado a las **21:21:03**, `estado.json` intacto, folio **00104**, y el programa lista `silla_extra2` como la pieza **abierta y forzada**— y **después en el repositorio**, sin lentes ni escéptico por urgencia (ficha **F-288**). (4) **Lo que NO cambió:** nombres, detalles, los otros premios, horario, separación, pesos y el consuelo. |
 |  |  |  |

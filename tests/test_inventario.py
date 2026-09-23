@@ -497,7 +497,7 @@ class TestRepartoPorHoras(unittest.TestCase):
         Las horas las dictó el usuario el 2026-09-22 por la tarde; la ventana de
         cada pieza dura dos horas, menos las que llegan al cierre.
         """
-        grandes = ("hielera", "silla", "silla_extra", "bbq", "bbq_extra")
+        grandes = ("hielera", "silla", "silla_extra", "silla_extra2", "bbq", "bbq_extra")
         mapa = {dia: {pid: self.ventanas(pid, date(2026, 9, dia)) for pid in grandes
                       if self.ventanas(pid, date(2026, 9, dia))}
                 for dia in (21, 22, 23, 24, 25, 26)}
@@ -505,10 +505,10 @@ class TestRepartoPorHoras(unittest.TestCase):
             21: {},
             22: {"silla": ["13:17-15:17", "19:23-21:23"],
                  "silla_extra": ["16:08-18:08"],
+                 "silla_extra2": ["21:00-23:00"],
                  "bbq": ["14:41-16:41", "20:47-22:47"],
                  "bbq_extra": ["17:34-19:34"]},
             23: {"silla": ["13:09-15:09", "19:38-21:38"],
-                 "silla_extra": ["16:21-18:21"],
                  "bbq": ["14:52-16:52", "20:19-22:19"]},
             24: {"hielera": ["19:36-23:00"],
                  "silla": ["13:26-15:26", "19:11-21:11"],
@@ -520,13 +520,17 @@ class TestRepartoPorHoras(unittest.TestCase):
         })
         # El reparto por día cuadra con lo que dictó el usuario: 10 sillas y 9
         # sets entre el martes y el viernes, que es lo que queda en la bodega.
-        # Es un censo DERIVADO de las franjas, no una lista copiada.
+        # Es un censo DERIVADO de las franjas, no una lista copiada. Desde la
+        # noche del 22 el martes da CUATRO sillas (la cuarta, `silla_extra2`,
+        # forzada desde las 21:00 por orden del usuario) y el miércoles baja a
+        # DOS: el total sigue en 10 (ficha F-288).
         por_dia = {dia: (len(self.ventanas("silla", date(2026, 9, dia)))
-                         + len(self.ventanas("silla_extra", date(2026, 9, dia))),
+                         + len(self.ventanas("silla_extra", date(2026, 9, dia)))
+                         + len(self.ventanas("silla_extra2", date(2026, 9, dia))),
                          len(self.ventanas("bbq", date(2026, 9, dia)))
                          + len(self.ventanas("bbq_extra", date(2026, 9, dia))))
                    for dia in (22, 23, 24, 25)}
-        self.assertEqual(por_dia, {22: (3, 3), 23: (3, 2), 24: (2, 2), 25: (2, 2)})
+        self.assertEqual(por_dia, {22: (4, 3), 23: (2, 2), 24: (2, 2), 25: (2, 2)})
         self.assertEqual((sum(s for s, _ in por_dia.values()),
                           sum(b for _, b in por_dia.values())), (10, 9))
         # Y un premio con franjas pero NINGUNA de ese día no existe ese día: no
@@ -627,14 +631,14 @@ class TestRepartoPorHoras(unittest.TestCase):
                 t = self.en(hora, minuto)
                 self.assertFalse(inv.dentro_del_horario(t))
                 self.assertEqual(inv.disponibles(t), [])
-                # El jueves 24 las dos entradas de reposición ya están vencidas
-                # (`silla_extra` acaba el 23 y `bbq_extra` el 22), y la fecha se
-                # mira ANTES que el horario: por eso son dos motivos y no uno.
+                # El jueves 24 las tres entradas de reposición ya están vencidas
+                # (`silla_extra`, `silla_extra2` y `bbq_extra` acaban el 22), y la
+                # fecha se mira ANTES que el horario: por eso son dos motivos y no uno.
                 self.assertEqual({f.motivo for f in inv.resumen(t).premios},
                                  {"fuera de horario", "fecha vencida"})
                 self.assertEqual({f.premio.id for f in inv.resumen(t).premios
                                   if f.motivo == "fecha vencida"},
-                                 {"silla_extra", "bbq_extra"})
+                                 {"silla_extra", "silla_extra2", "bbq_extra"})
                 self.assertIsNone(inv.sortear(t))
         self.assertEqual(espia.llamadas, [], "fuera de horario no se debe tirar la tómbola")
         # Y dentro sí: a las 12:30 el agua ya está abierta.
